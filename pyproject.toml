@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyper-sentinel"
-version = "2.1.0"
+version = "2.3.0"
 description = "Python SDK for Sentinel — 80+ crypto trading, AI, and market intelligence tools. Free access, usage-based fees."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -28,7 +28,12 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.27.0",
+    "rich>=13.0",
 ]
+
+[project.scripts]
+sentinel = "sentinel.cli:main"
+sentinel-setup = "sentinel.cli:setup"
 
 [project.optional-dependencies]
 async = ["httpx[http2]"]

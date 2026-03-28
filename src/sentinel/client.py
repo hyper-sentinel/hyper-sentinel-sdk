@@ -74,10 +74,16 @@ class SentinelClient:
         ai_key: str = "",
         api_key: str = "",
         token: str = "",
-        base_url: str = "https://sentinel-api-281199879392.us-south1.run.app",
-        timeout: float = 30.0,
+        base_url: str = "https://sentinel-api-4gqwf3cjxa-uc.a.run.app",
+        timeout: float = 45.0,
         max_retries: int = 3,
     ):
+        # Auto-load from ~/.sentinel/config if no auth provided
+        if not ai_key and not api_key and not token:
+            config = self._load_config()
+            ai_key = config.get("ai_key", "")
+            api_key = config.get("sentinel_api_key", "")
+
         self.ai_key = ai_key
         self.api_key = api_key
         self.token = token
@@ -170,6 +176,22 @@ class SentinelClient:
         except OSError:
             pass
         return ""
+
+    @staticmethod
+    def _load_config() -> dict:
+        """Load config from ~/.sentinel/config (JSON).
+
+        Used by the constructor to auto-load auth credentials when no
+        explicit keys are provided. Config is written by `sentinel-setup`.
+        """
+        import json
+        try:
+            config_file = _SENTINEL_DIR / "config"
+            if config_file.exists():
+                return json.loads(config_file.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+        return {}
 
     def close(self):
         """Close the underlying HTTP client."""
