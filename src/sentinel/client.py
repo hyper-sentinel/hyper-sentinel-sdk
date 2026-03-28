@@ -134,7 +134,7 @@ class SentinelClient:
             **kwargs: Tool parameters as keyword arguments
 
         Returns:
-            dict with 'tool', 'result', and 'meta' keys
+            dict with 'tool', 'data', and 'meta' keys
 
         Raises:
             AuthError: Invalid or missing API key (401)
@@ -403,15 +403,15 @@ class SentinelClient:
 
     def get_crypto_price(self, coin_id: str = "bitcoin") -> dict:
         """Get current price, market cap, and 24h change for a crypto."""
-        return self.call_tool("get_crypto_price", coin_id=coin_id)["result"]
+        return self.call_tool("get_crypto_price", coin_id=coin_id)["data"]
 
     def get_crypto_top_n(self, n: int = 10) -> list:
         """Get top N cryptocurrencies by market cap."""
-        return self.call_tool("get_crypto_top_n", n=n)["result"]
+        return self.call_tool("get_crypto_top_n", n=n)["data"]
 
     def search_crypto(self, query: str) -> list:
         """Search for cryptocurrencies by name or symbol."""
-        return self.call_tool("search_crypto", query=query)["result"]
+        return self.call_tool("search_crypto", query=query)["data"]
 
     # ══════════════════════════════════════════════════════════
     # FRED Macro — PUBLIC
@@ -419,15 +419,15 @@ class SentinelClient:
 
     def get_fred_series(self, series_id: str, limit: int = 10) -> dict:
         """Get a FRED economic data series (GDP, CPI, rates, etc.)."""
-        return self.call_tool("get_fred_series", series_id=series_id, limit=limit)["result"]
+        return self.call_tool("get_fred_series", series_id=series_id, limit=limit)["data"]
 
     def search_fred(self, query: str) -> list:
         """Search FRED for economic data series."""
-        return self.call_tool("search_fred", query=query)["result"]
+        return self.call_tool("search_fred", query=query)["data"]
 
     def get_economic_dashboard(self) -> dict:
         """Get a dashboard of key economic indicators."""
-        return self.call_tool("get_economic_dashboard")["result"]
+        return self.call_tool("get_economic_dashboard")["data"]
 
     # ══════════════════════════════════════════════════════════
     # Y2 Intelligence — PUBLIC
@@ -435,19 +435,19 @@ class SentinelClient:
 
     def get_news_sentiment(self, query: str = "crypto") -> dict:
         """Get news sentiment analysis for a topic."""
-        return self.call_tool("get_news_sentiment", query=query)["result"]
+        return self.call_tool("get_news_sentiment", query=query)["data"]
 
     def get_news_recap(self) -> dict:
         """Get latest news recap."""
-        return self.call_tool("get_news_recap")["result"]
+        return self.call_tool("get_news_recap")["data"]
 
     def get_intelligence_reports(self) -> list:
         """Get latest intelligence reports."""
-        return self.call_tool("get_intelligence_reports")["result"]
+        return self.call_tool("get_intelligence_reports")["data"]
 
     def get_report_detail(self, report_id: str) -> dict:
         """Get full detail for an intelligence report."""
-        return self.call_tool("get_report_detail", report_id=report_id)["result"]
+        return self.call_tool("get_report_detail", report_id=report_id)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Elfa AI — PUBLIC
@@ -455,23 +455,23 @@ class SentinelClient:
 
     def get_trending_tokens(self) -> list:
         """Get currently trending tokens from social data."""
-        return self.call_tool("get_trending_tokens")["result"]
+        return self.call_tool("get_trending_tokens")["data"]
 
     def get_top_mentions(self) -> list:
         """Get tokens with the most social mentions."""
-        return self.call_tool("get_top_mentions")["result"]
+        return self.call_tool("get_top_mentions")["data"]
 
     def search_mentions(self, query: str) -> list:
         """Search social mentions for a token or topic."""
-        return self.call_tool("search_mentions", query=query)["result"]
+        return self.call_tool("search_mentions", query=query)["data"]
 
     def get_trending_narratives(self) -> list:
         """Get trending market narratives."""
-        return self.call_tool("get_trending_narratives")["result"]
+        return self.call_tool("get_trending_narratives")["data"]
 
     def get_token_news(self, token: str) -> list:
         """Get news for a specific token."""
-        return self.call_tool("get_token_news", token=token)["result"]
+        return self.call_tool("get_token_news", token=token)["data"]
 
     # ══════════════════════════════════════════════════════════
     # X / Twitter — PUBLIC
@@ -479,7 +479,7 @@ class SentinelClient:
 
     def search_x(self, query: str, max_results: int = 10) -> list:
         """Search recent tweets on X (Twitter)."""
-        return self.call_tool("search_x", query=query, max_results=max_results)["result"]
+        return self.call_tool("search_x", query=query, max_results=max_results)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Hyperliquid — PUBLIC (market data)
@@ -487,11 +487,11 @@ class SentinelClient:
 
     def get_hl_config(self) -> dict:
         """Get Hyperliquid exchange configuration."""
-        return self.call_tool("get_hl_config")["result"]
+        return self.call_tool("get_hl_config")["data"]
 
     def get_hl_orderbook(self, coin: str = "ETH") -> dict:
         """Get Hyperliquid order book for a coin."""
-        return self.call_tool("get_hl_orderbook", coin=coin)["result"]
+        return self.call_tool("get_hl_orderbook", coin=coin)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Hyperliquid — Trading (all tiers — maker/taker fees apply)
@@ -499,15 +499,15 @@ class SentinelClient:
 
     def get_hl_account_info(self) -> dict:
         """Get your Hyperliquid account info."""
-        return self.call_tool("get_hl_account_info")["result"]
+        return self.call_tool("get_hl_account_info")["data"]
 
     def get_hl_positions(self) -> list:
         """Get your open Hyperliquid positions."""
-        return self.call_tool("get_hl_positions")["result"]
+        return self.call_tool("get_hl_positions")["data"]
 
     def get_hl_open_orders(self) -> list:
         """Get your open Hyperliquid orders."""
-        return self.call_tool("get_hl_open_orders")["result"]
+        return self.call_tool("get_hl_open_orders")["data"]
 
     def place_hl_order(
         self,
@@ -536,15 +536,15 @@ class SentinelClient:
             params["trigger_price"] = trigger_price
         if reduce_only:
             params["reduce_only"] = reduce_only
-        return self.call_tool("place_hl_order", **params)["result"]
+        return self.call_tool("place_hl_order", **params)["data"]
 
     def cancel_hl_order(self, coin: str, order_id: str) -> dict:
         """Cancel a Hyperliquid order."""
-        return self.call_tool("cancel_hl_order", coin=coin, order_id=order_id)["result"]
+        return self.call_tool("cancel_hl_order", coin=coin, order_id=order_id)["data"]
 
     def close_hl_position(self, coin: str) -> dict:
         """Close a Hyperliquid position."""
-        return self.call_tool("close_hl_position", coin=coin)["result"]
+        return self.call_tool("close_hl_position", coin=coin)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Aster DEX — PUBLIC (market data)
@@ -552,27 +552,27 @@ class SentinelClient:
 
     def aster_ping(self) -> dict:
         """Ping Aster DEX."""
-        return self.call_tool("aster_ping")["result"]
+        return self.call_tool("aster_ping")["data"]
 
     def aster_ticker(self, symbol: str = "ETHUSDT") -> dict:
         """Get Aster ticker data."""
-        return self.call_tool("aster_ticker", symbol=symbol)["result"]
+        return self.call_tool("aster_ticker", symbol=symbol)["data"]
 
     def aster_orderbook(self, symbol: str = "ETHUSDT", limit: int = 20) -> dict:
         """Get Aster order book."""
-        return self.call_tool("aster_orderbook", symbol=symbol, limit=limit)["result"]
+        return self.call_tool("aster_orderbook", symbol=symbol, limit=limit)["data"]
 
     def aster_klines(self, symbol: str = "ETHUSDT", interval: str = "1h", limit: int = 100) -> list:
         """Get Aster kline/candlestick data."""
-        return self.call_tool("aster_klines", symbol=symbol, interval=interval, limit=limit)["result"]
+        return self.call_tool("aster_klines", symbol=symbol, interval=interval, limit=limit)["data"]
 
     def aster_funding_rate(self, symbol: str = "ETHUSDT") -> dict:
         """Get Aster funding rate."""
-        return self.call_tool("aster_funding_rate", symbol=symbol)["result"]
+        return self.call_tool("aster_funding_rate", symbol=symbol)["data"]
 
     def aster_exchange_info(self) -> dict:
         """Get Aster exchange info."""
-        return self.call_tool("aster_exchange_info")["result"]
+        return self.call_tool("aster_exchange_info")["data"]
 
     # ══════════════════════════════════════════════════════════
     # Aster DEX — Trading (all tiers — maker/taker fees apply)
@@ -580,19 +580,19 @@ class SentinelClient:
 
     def aster_diagnose(self) -> dict:
         """Diagnose Aster DEX connection."""
-        return self.call_tool("aster_diagnose")["result"]
+        return self.call_tool("aster_diagnose")["data"]
 
     def aster_balance(self) -> dict:
         """Get your Aster balance."""
-        return self.call_tool("aster_balance")["result"]
+        return self.call_tool("aster_balance")["data"]
 
     def aster_positions(self) -> list:
         """Get your Aster positions."""
-        return self.call_tool("aster_positions")["result"]
+        return self.call_tool("aster_positions")["data"]
 
     def aster_account_info(self) -> dict:
         """Get your Aster account info."""
-        return self.call_tool("aster_account_info")["result"]
+        return self.call_tool("aster_account_info")["data"]
 
     def aster_place_order(
         self,
@@ -624,23 +624,23 @@ class SentinelClient:
             params["quantity"] = quantity
             if price > 0:
                 params["price"] = price
-        return self.call_tool("aster_place_order", **params)["result"]
+        return self.call_tool("aster_place_order", **params)["data"]
 
     def aster_cancel_order(self, symbol: str, order_id: str) -> dict:
         """Cancel an Aster order."""
-        return self.call_tool("aster_cancel_order", symbol=symbol, order_id=order_id)["result"]
+        return self.call_tool("aster_cancel_order", symbol=symbol, order_id=order_id)["data"]
 
     def aster_cancel_all_orders(self, symbol: str = "") -> dict:
         """Cancel all Aster orders."""
-        return self.call_tool("aster_cancel_all_orders", symbol=symbol)["result"]
+        return self.call_tool("aster_cancel_all_orders", symbol=symbol)["data"]
 
     def aster_open_orders(self, symbol: str = "") -> list:
         """Get your open Aster orders."""
-        return self.call_tool("aster_open_orders", symbol=symbol)["result"]
+        return self.call_tool("aster_open_orders", symbol=symbol)["data"]
 
     def aster_set_leverage(self, symbol: str, leverage: int) -> dict:
         """Set leverage for an Aster symbol."""
-        return self.call_tool("aster_set_leverage", symbol=symbol, leverage=leverage)["result"]
+        return self.call_tool("aster_set_leverage", symbol=symbol, leverage=leverage)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Polymarket — PUBLIC
@@ -648,19 +648,19 @@ class SentinelClient:
 
     def get_polymarket_markets(self, limit: int = 10) -> list:
         """Get active Polymarket prediction markets."""
-        return self.call_tool("get_polymarket_markets", limit=limit)["result"]
+        return self.call_tool("get_polymarket_markets", limit=limit)["data"]
 
     def search_polymarket(self, query: str) -> list:
         """Search Polymarket markets."""
-        return self.call_tool("search_polymarket", query=query)["result"]
+        return self.call_tool("search_polymarket", query=query)["data"]
 
     def get_polymarket_orderbook(self, market_id: str) -> dict:
         """Get Polymarket order book."""
-        return self.call_tool("get_polymarket_orderbook", market_id=market_id)["result"]
+        return self.call_tool("get_polymarket_orderbook", market_id=market_id)["data"]
 
     def get_polymarket_price(self, market_id: str) -> dict:
         """Get current Polymarket price."""
-        return self.call_tool("get_polymarket_price", market_id=market_id)["result"]
+        return self.call_tool("get_polymarket_price", market_id=market_id)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Polymarket — Trading (all tiers — maker/taker fees apply)
@@ -668,27 +668,27 @@ class SentinelClient:
 
     def get_polymarket_positions(self) -> list:
         """Get your Polymarket positions."""
-        return self.call_tool("get_polymarket_positions")["result"]
+        return self.call_tool("get_polymarket_positions")["data"]
 
     def buy_polymarket(self, token_id: str, amount: float) -> dict:
         """Buy on Polymarket. Amount is in USDC."""
-        return self.call_tool("buy_polymarket", token_id=token_id, amount=amount)["result"]
+        return self.call_tool("buy_polymarket", token_id=token_id, amount=amount)["data"]
 
     def sell_polymarket(self, token_id: str, amount: float) -> dict:
         """Sell on Polymarket. Amount is in USDC."""
-        return self.call_tool("sell_polymarket", token_id=token_id, amount=amount)["result"]
+        return self.call_tool("sell_polymarket", token_id=token_id, amount=amount)["data"]
 
     def place_polymarket_limit(self, token_id: str, side: str, price: float, size: float) -> dict:
         """Place a Polymarket limit order."""
-        return self.call_tool("place_polymarket_limit", token_id=token_id, side=side, price=price, size=size)["result"]
+        return self.call_tool("place_polymarket_limit", token_id=token_id, side=side, price=price, size=size)["data"]
 
     def cancel_polymarket_order(self, order_id: str) -> dict:
         """Cancel a Polymarket order."""
-        return self.call_tool("cancel_polymarket_order", order_id=order_id)["result"]
+        return self.call_tool("cancel_polymarket_order", order_id=order_id)["data"]
 
     def cancel_all_polymarket_orders(self) -> dict:
         """Cancel all Polymarket orders."""
-        return self.call_tool("cancel_all_polymarket_orders")["result"]
+        return self.call_tool("cancel_all_polymarket_orders")["data"]
 
     # ══════════════════════════════════════════════════════════
     # Telegram Client API — AUTHENTICATED
@@ -696,19 +696,19 @@ class SentinelClient:
 
     def tg_read_channel(self, channel: str, limit: int = 10) -> list:
         """Read recent messages from a Telegram channel."""
-        return self.call_tool("tg_read_channel", channel=channel, limit=limit)["result"]
+        return self.call_tool("tg_read_channel", channel=channel, limit=limit)["data"]
 
     def tg_search_messages(self, channel: str, query: str) -> list:
         """Search messages in a Telegram channel."""
-        return self.call_tool("tg_search_messages", channel=channel, query=query)["result"]
+        return self.call_tool("tg_search_messages", channel=channel, query=query)["data"]
 
     def tg_list_channels(self) -> list:
         """List your Telegram channels."""
-        return self.call_tool("tg_list_channels")["result"]
+        return self.call_tool("tg_list_channels")["data"]
 
     def tg_send_message(self, target: str, message: str) -> dict:
         """Send a Telegram message."""
-        return self.call_tool("tg_send_message", target=target, message=message)["result"]
+        return self.call_tool("tg_send_message", target=target, message=message)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Discord — AUTHENTICATED
@@ -716,23 +716,23 @@ class SentinelClient:
 
     def discord_read_channel(self, channel_id: int, limit: int = 50) -> list:
         """Read messages from a Discord channel."""
-        return self.call_tool("discord_read_channel", channel_id=channel_id, limit=limit)["result"]
+        return self.call_tool("discord_read_channel", channel_id=channel_id, limit=limit)["data"]
 
     def discord_search_messages(self, channel_id: int, query: str) -> list:
         """Search messages in a Discord channel."""
-        return self.call_tool("discord_search_messages", channel_id=channel_id, query=query)["result"]
+        return self.call_tool("discord_search_messages", channel_id=channel_id, query=query)["data"]
 
     def discord_list_guilds(self) -> list:
         """List your Discord servers."""
-        return self.call_tool("discord_list_guilds")["result"]
+        return self.call_tool("discord_list_guilds")["data"]
 
     def discord_list_channels(self, guild_id: int = 0) -> list:
         """List channels in a Discord server."""
-        return self.call_tool("discord_list_channels", guild_id=guild_id)["result"]
+        return self.call_tool("discord_list_channels", guild_id=guild_id)["data"]
 
     def discord_send_message(self, channel_id: int, content: str) -> dict:
         """Send a Discord message."""
-        return self.call_tool("discord_send_message", channel_id=channel_id, content=content)["result"]
+        return self.call_tool("discord_send_message", channel_id=channel_id, content=content)["data"]
 
     # ══════════════════════════════════════════════════════════
     # YFinance — Stocks, ETFs, Analyst Recs
@@ -740,23 +740,23 @@ class SentinelClient:
 
     def get_stock_price(self, symbol: str = "AAPL") -> dict:
         """Get current stock price, volume, and change."""
-        return self.call_tool("get_stock_price", symbol=symbol)["result"]
+        return self.call_tool("get_stock_price", symbol=symbol)["data"]
 
     def get_stock_info(self, symbol: str = "AAPL") -> dict:
         """Get detailed stock info (market cap, P/E, sector, etc.)."""
-        return self.call_tool("get_stock_info", symbol=symbol)["result"]
+        return self.call_tool("get_stock_info", symbol=symbol)["data"]
 
     def get_analyst_recs(self, symbol: str = "AAPL") -> dict:
         """Get analyst recommendations for a stock."""
-        return self.call_tool("get_analyst_recs", symbol=symbol)["result"]
+        return self.call_tool("get_analyst_recs", symbol=symbol)["data"]
 
     def get_stock_news(self, symbol: str = "AAPL") -> list:
         """Get latest news for a stock."""
-        return self.call_tool("get_stock_news", symbol=symbol)["result"]
+        return self.call_tool("get_stock_news", symbol=symbol)["data"]
 
     def get_stock_history(self, symbol: str = "AAPL", period: str = "1mo") -> list:
         """Get historical stock price data."""
-        return self.call_tool("get_stock_history", symbol=symbol, period=period)["result"]
+        return self.call_tool("get_stock_history", symbol=symbol, period=period)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Wallet Management — SOL + ETH (all tiers)
@@ -764,23 +764,23 @@ class SentinelClient:
 
     def generate_wallet(self, chain: str = "sol") -> dict:
         """Generate a new wallet keypair. Chain: 'sol' or 'eth'."""
-        return self.call_tool("generate_wallet", chain=chain)["result"]
+        return self.call_tool("generate_wallet", chain=chain)["data"]
 
     def import_wallet(self, chain: str, private_key: str, label: str = "") -> dict:
         """Import an existing wallet from private key."""
-        return self.call_tool("import_wallet", chain=chain, private_key=private_key, label=label)["result"]
+        return self.call_tool("import_wallet", chain=chain, private_key=private_key, label=label)["data"]
 
     def list_wallets(self) -> dict:
         """List all configured wallets (SOL + ETH)."""
-        return self.call_tool("list_wallets")["result"]
+        return self.call_tool("list_wallets")["data"]
 
     def get_wallet_balance(self, address: str, chain: str = "sol") -> dict:
         """Get wallet balance. Chain: 'sol' or 'eth'."""
-        return self.call_tool("get_wallet_balance", address=address, chain=chain)["result"]
+        return self.call_tool("get_wallet_balance", address=address, chain=chain)["data"]
 
     def send_crypto(self, to_address: str, amount: float, chain: str = "sol") -> dict:
         """Send crypto from active wallet. Chain: 'sol' or 'eth'."""
-        return self.call_tool("send_crypto", to_address=to_address, amount=amount, chain=chain)["result"]
+        return self.call_tool("send_crypto", to_address=to_address, amount=amount, chain=chain)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Strategy & Algo (all tiers — enterprise gets lowest fees)
@@ -788,7 +788,7 @@ class SentinelClient:
 
     def get_strategy(self) -> dict:
         """Get current algo strategy configuration."""
-        return self.call_tool("get_strategy")["result"]
+        return self.call_tool("get_strategy")["data"]
 
     def set_strategy(
         self,
@@ -804,19 +804,19 @@ class SentinelClient:
             "set_strategy",
             algo=algo, coin=coin, interval=interval,
             trade_size=trade_size, leverage=leverage, exchange=exchange,
-        )["result"]
+        )["data"]
 
     def list_algos(self) -> list:
         """List all available algo strategies."""
-        return self.call_tool("list_algos")["result"]
+        return self.call_tool("list_algos")["data"]
 
     def start_strategy(self) -> dict:
         """Start the configured algo strategy."""
-        return self.call_tool("start_strategy")["result"]
+        return self.call_tool("start_strategy")["data"]
 
     def stop_strategy(self) -> dict:
         """Stop the currently running strategy."""
-        return self.call_tool("stop_strategy")["result"]
+        return self.call_tool("stop_strategy")["data"]
 
     # ══════════════════════════════════════════════════════════
     # Trade Journal — Logging & Tax
@@ -824,11 +824,11 @@ class SentinelClient:
 
     def get_trade_journal(self, limit: int = 50) -> list:
         """Get your trade journal entries."""
-        return self.call_tool("get_trade_journal", limit=limit)["result"]
+        return self.call_tool("get_trade_journal", limit=limit)["data"]
 
     def get_trade_stats(self) -> dict:
         """Get trade performance statistics (P&L, win rate, etc.)."""
-        return self.call_tool("get_trade_stats")["result"]
+        return self.call_tool("get_trade_stats")["data"]
 
     # ══════════════════════════════════════════════════════════
     # TradingView — Webhook Alerts
@@ -836,7 +836,7 @@ class SentinelClient:
 
     def get_tv_alerts(self, limit: int = 20) -> list:
         """Get recent TradingView webhook alerts."""
-        return self.call_tool("get_tv_alerts", limit=limit)["result"]
+        return self.call_tool("get_tv_alerts", limit=limit)["data"]
 
     # ══════════════════════════════════════════════════════════
     # Admin
@@ -898,19 +898,19 @@ class SentinelClient:
 
     def dexscreener_search(self, query: str) -> list:
         """Search DEX pairs across all chains (token name, symbol, or CA)."""
-        return self.call_tool("dexscreener_search", query=query)["result"]
+        return self.call_tool("dexscreener_search", query=query)["data"]
 
     def dexscreener_token(self, token_address: str) -> list:
         """Get all DEX pairs for a token contract address."""
-        return self.call_tool("dexscreener_token", token_address=token_address)["result"]
+        return self.call_tool("dexscreener_token", token_address=token_address)["data"]
 
     def dexscreener_trending(self) -> list:
         """Get trending/boosted tokens on DexScreener."""
-        return self.call_tool("dexscreener_trending")["result"]
+        return self.call_tool("dexscreener_trending")["data"]
 
     def dexscreener_pair(self, chain: str, pair_address: str) -> dict:
         """Get detailed pair info by chain and pair address."""
-        return self.call_tool("dexscreener_pair", chain=chain, pair_address=pair_address)["result"]
+        return self.call_tool("dexscreener_pair", chain=chain, pair_address=pair_address)["data"]
 
     # ══════════════════════════════════════════════════════════
     # DEX Swaps — On-Chain (all tiers — Jupiter 0.50% referral fee applies)
@@ -921,34 +921,34 @@ class SentinelClient:
         params = dict(contract_address=contract_address, amount_sol=amount_sol)
         if slippage > 0:
             params["slippage"] = slippage
-        return self.call_tool("dex_buy_sol", **params)["result"]
+        return self.call_tool("dex_buy_sol", **params)["data"]
 
     def dex_buy_eth(self, contract_address: str, amount_eth: float, slippage: float = 0) -> dict:
         """Buy a token with ETH via Uniswap V2. Slippage in % (0 = backend default)."""
         params = dict(contract_address=contract_address, amount_eth=amount_eth)
         if slippage > 0:
             params["slippage"] = slippage
-        return self.call_tool("dex_buy_eth", **params)["result"]
+        return self.call_tool("dex_buy_eth", **params)["data"]
 
     def dex_sell_sol(self, contract_address: str, percentage: float = 100.0, slippage: float = 0) -> dict:
         """Sell a token for SOL via Jupiter. Slippage in % (0 = backend default)."""
         params = dict(contract_address=contract_address, percentage=percentage)
         if slippage > 0:
             params["slippage"] = slippage
-        return self.call_tool("dex_sell_sol", **params)["result"]
+        return self.call_tool("dex_sell_sol", **params)["data"]
 
     def dex_sell_eth(self, contract_address: str, percentage: float = 100.0, slippage: float = 0) -> dict:
         """Sell a token for ETH via Uniswap V2. Slippage in % (0 = backend default)."""
         params = dict(contract_address=contract_address, percentage=percentage)
         if slippage > 0:
             params["slippage"] = slippage
-        return self.call_tool("dex_sell_eth", **params)["result"]
+        return self.call_tool("dex_sell_eth", **params)["data"]
 
     def dex_price_sol(self, contract_address: str) -> dict:
         """Get token price on Solana via Jupiter."""
-        return self.call_tool("dex_price_sol", contract_address=contract_address)["result"]
+        return self.call_tool("dex_price_sol", contract_address=contract_address)["data"]
 
     def dex_price_eth(self, contract_address: str) -> dict:
         """Get token price on Ethereum via Uniswap V2."""
-        return self.call_tool("dex_price_eth", contract_address=contract_address)["result"]
+        return self.call_tool("dex_price_eth", contract_address=contract_address)["data"]
 
