@@ -106,13 +106,13 @@ def _save_config(config: dict[str, Any]):
 
 
 def _register_with_gateway(ai_key: str) -> dict[str, str]:
-    """Call POST /auth/ai-key to auto-create account."""
+    """Call POST /auth/ai-key to auto-create account. Fast timeout — never block setup."""
     try:
         import httpx
         resp = httpx.post(
             f"{GATEWAY_URL}/auth/ai-key",
             json={"ai_key": ai_key},
-            timeout=30.0,
+            timeout=5.0,
         )
         if resp.status_code in (200, 201):
             return resp.json()
@@ -127,7 +127,7 @@ def _test_gateway(api_key: str) -> dict | None:
         import httpx
         client = httpx.Client(
             base_url=GATEWAY_URL,
-            timeout=30.0,
+            timeout=5.0,
             headers={"X-API-Key": api_key, "Content-Type": "application/json"},
         )
 
@@ -191,8 +191,8 @@ def _step_ai_key(config: dict) -> dict:
             config["ai_provider"] = provider_id
             console.print(f"\n  [s.green]Detected: {emoji} {label}[/]")
 
-            # Register with gateway
-            console.print("  [s.dim]Registering with Sentinel gateway...[/]", end=" ")
+            # Register with gateway (fast — 5s timeout, never blocks)
+            console.print("  [s.dim]Connecting to Sentinel gateway...[/]", end=" ")
             result = _register_with_gateway(key)
             if result.get("api_key"):
                 config["sentinel_api_key"] = result["api_key"]
@@ -200,21 +200,12 @@ def _step_ai_key(config: dict) -> dict:
                 config["tier"] = result.get("tier", "free")
                 status = result.get("status", "created")
                 if status == "existing":
-                    console.print("[s.green]✓ Welcome back[/]")
+                    console.print("[s.cyan]✓ Welcome back[/]")
                 else:
-                    console.print("[s.green]✓ Account created[/]")
-
-                # Verify with a tool call
-                console.print("  [s.dim]Testing connection...[/]", end=" ")
-                test = _test_gateway(config["sentinel_api_key"])
-                if test and test.get("tool_test") == "pass":
-                    console.print(f"[s.green]✓ BTC = ${test.get('btc_price', '?')}[/]")
-                elif test:
-                    console.print("[s.yellow]⚠ Gateway up, tool test inconclusive[/]")
-                else:
-                    console.print("[s.dim]skipped — will verify on first API call[/]")
+                    console.print("[s.cyan]✓ Account created[/]")
             else:
-                console.print("[s.dim]gateway unavailable — will retry on first API call[/]")
+                console.print("[s.cyan]✓ Key saved[/] [s.dim](gateway will sync on first use)[/]")
+                config["tier"] = "free"
 
             console.print(f"  [s.dim]Saved to ~/.sentinel/config[/]\n")
             break
