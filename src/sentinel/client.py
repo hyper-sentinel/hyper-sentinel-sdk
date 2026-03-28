@@ -1,18 +1,20 @@
 """
-Sentinel SDK v2.0 — Python client for the Sentinel API Gateway.
+Sentinel SDK v2.1 — Python client for the Sentinel API Gateway.
 
 © Sentinel Labs — https://hyper-sentinel.com
 
 Usage:
     from sentinel import SentinelClient
 
-    # Register + authenticate
+    # Web4 Auth — just provide your AI key
+    client = SentinelClient(ai_key="sk-ant-xxx")
+
+    # Or use a Sentinel API key directly
+    client = SentinelClient(api_key="sk-sentinel-xxx")
+
+    # Legacy: email/password
     client = SentinelClient()
     client.register(email="you@example.com", password="pass123", name="You")
-
-    # Or login with existing account
-    client = SentinelClient()
-    client.login(email="you@example.com", password="pass123")
 
     # Market data (all tiers)
     btc = client.get_crypto_price("bitcoin")
@@ -24,17 +26,11 @@ Usage:
 
     # Trading (all tiers — fees apply)
     client.place_hl_order(coin="ETH", side="buy", size=0.1)
-
-    # Wallet management
-    wallet = client.generate_wallet("sol")
-    balance = client.get_wallet_balance(wallet["address"], "sol")
-
-    # Upgrade for lower fees
-    url = client.upgrade("pro")         # $100/mo — lower fees
-    url = client.upgrade("enterprise")  # $1,000/mo — lowest fees
 """
 
+import os
 import time
+from pathlib import Path
 from typing import Any, Optional
 
 import httpx
@@ -47,6 +43,9 @@ from sentinel.exceptions import (
     ToolNotFoundError,
 )
 
+# Local cache directory for sentinel keys
+_SENTINEL_DIR = Path.home() / ".sentinel"
+
 
 class SentinelClient:
     """
@@ -55,26 +54,31 @@ class SentinelClient:
     All 80+ tools are available as typed methods on every tier — Free, Pro, and
     Enterprise. There is no feature gating; upgrading reduces your fee rates.
 
-    Each method calls POST /api/v1/tools/{tool_name} through the Go gateway
-    with JWT authentication and API key metering.
+    Supports three authentication modes:
+        1. **Web4 (recommended):** `SentinelClient(ai_key="sk-ant-xxx")` — your AI
+           provider key is your identity. Account auto-created on first use.
+        2. **API key:** `SentinelClient(api_key="sk-sentinel-xxx")` — direct key auth.
+        3. **Legacy:** `register()` / `login()` with email/password.
 
     Args:
-        api_key: Your Sentinel API key (sk-sentinel-xxx). Optional — generate via register().
+        ai_key: Your AI provider key (sk-ant-xxx, sk-xxx, etc.). Auto-creates an account.
+        api_key: Your Sentinel API key (sk-sentinel-xxx). Direct auth — no registration needed.
         token: JWT token from register/login. Optional — set via register()/login().
-        base_url: API base URL. Defaults to https://sentinel-api-281199879392.us-south1.run.app (production).
-                  Set to http://localhost:8080 for local development.
+        base_url: API base URL. Defaults to production gateway.
         timeout: Request timeout in seconds. Defaults to 30.
         max_retries: Max retries on rate limit (429). Defaults to 3.
     """
 
     def __init__(
         self,
+        ai_key: str = "",
         api_key: str = "",
         token: str = "",
         base_url: str = "https://sentinel-api-281199879392.us-south1.run.app",
         timeout: float = 30.0,
         max_retries: int = 3,
     ):
+        self.ai_key = ai_key
         self.api_key = api_key
         self.token = token
         self.base_url = base_url.rstrip("/")
@@ -82,6 +86,7 @@ class SentinelClient:
         self.max_retries = max_retries
         self.user_id: str = ""
         self.tier: str = ""
+        self._authenticated = False
         self._rate_limit_info: dict = {"limit": 0, "remaining": 0}
         self._client = httpx.Client(
             base_url=self.base_url,
@@ -89,17 +94,82 @@ class SentinelClient:
             headers=self._headers(),
         )
 
+        # If ai_key provided, try to load cached sentinel key or register
+        if self.ai_key and not self.api_key:
+            self._auth_with_ai_key()
+
+
     def _headers(self) -> dict[str, str]:
         h = {"Content-Type": "application/json"}
         if self.token:
             h["Authorization"] = f"Bearer {self.token}"
         if self.api_key:
             h["X-API-Key"] = self.api_key
+        if self.ai_key:
+            h["X-AI-Key"] = self.ai_key
         return h
 
     def _refresh_headers(self):
         """Update client headers after auth state changes."""
         self._client.headers.update(self._headers())
+
+    def _auth_with_ai_key(self):
+        """Authenticate using an AI provider key (Web4 auth).
+
+        Calls POST /auth/ai-key to auto-create or retrieve an account.
+        Caches the returned sk-sentinel-xxx key locally.
+        """
+        # Try to load a cached sentinel key for this AI key
+        cached = self._load_cached_key()
+        if cached:
+            self.api_key = cached
+            self._refresh_headers()
+            self._authenticated = True
+            return
+
+        # No cache — register with the gateway
+        try:
+            resp = self._client.post(
+                "/auth/ai-key",
+                json={"ai_key": self.ai_key},
+            )
+            if resp.status_code in (200, 201):
+                data = resp.json()
+                self.api_key = data.get("api_key", "")
+                self.user_id = data.get("user_id", "")
+                self.tier = data.get("tier", "free")
+                self._authenticated = True
+                self._refresh_headers()
+                # Cache the key locally
+                self._cache_key(self.api_key)
+            else:
+                # Gateway not reachable or error — continue without auth
+                pass
+        except Exception:
+            # Network error — continue without auth, will retry on first call
+            pass
+
+    def _cache_key(self, sentinel_key: str):
+        """Save sentinel API key to ~/.sentinel/key."""
+        try:
+            _SENTINEL_DIR.mkdir(exist_ok=True)
+            key_file = _SENTINEL_DIR / "key"
+            key_file.write_text(sentinel_key)
+            key_file.chmod(0o600)
+        except OSError:
+            pass  # Non-critical — caching is best-effort
+
+    def _load_cached_key(self) -> str:
+        """Load cached sentinel API key from ~/.sentinel/key."""
+        try:
+            key_file = _SENTINEL_DIR / "key"
+            if key_file.exists():
+                key = key_file.read_text().strip()
+                if key.startswith("sk-sentinel-"):
+                    return key
+        except OSError:
+            pass
+        return ""
 
     def close(self):
         """Close the underlying HTTP client."""
