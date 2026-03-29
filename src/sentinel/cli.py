@@ -161,8 +161,27 @@ def _test_gateway(api_key: str) -> dict | None:
 
 def _step_ai_key(config: dict) -> dict:
     """Step 1: AI Provider key (required)."""
+    # If already configured, show current status and offer to reconfigure
+    existing_key = config.get("ai_key", "")
+    existing_provider = config.get("ai_provider", "")
+    if existing_key and existing_provider:
+        detected = _detect_provider(existing_key)
+        if detected:
+            _, label, emoji = detected
+            masked = existing_key[:12] + "..." + existing_key[-4:]
+            console.print(f"  [s.cyan]✓ Already configured:[/] {emoji} {label}")
+            console.print(f"  [s.dim]Key: {masked}[/]\n")
+            try:
+                reconfigure = console.input("  [s.dim]Reconfigure? (y/N):[/] ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                console.print("\n"); return config
+            if reconfigure != "y":
+                console.print("  [s.dim]Keeping existing key.\n[/]")
+                return config
+            console.print()
+
     step = Text()
-    step.append("Step 1 — AI Provider ", style="bold white")
+    step.append("AI Provider ", style="bold white")
     step.append("(required)", style="s.gold")
     console.print(Panel(step, border_style="s.border", box=box.HORIZONTALS))
 
@@ -189,7 +208,7 @@ def _step_ai_key(config: dict) -> dict:
             provider_id, label, emoji = detected
             config["ai_key"] = key
             config["ai_provider"] = provider_id
-            console.print(f"\n  [s.green]Detected: {emoji} {label}[/]")
+            console.print(f"\n  [s.cyan]Detected: {emoji} {label}[/]")
 
             # Register with gateway (fast — 5s timeout, never blocks)
             console.print("  [s.dim]Connecting to Sentinel gateway...[/]", end=" ")
@@ -204,7 +223,7 @@ def _step_ai_key(config: dict) -> dict:
                 else:
                     console.print("[s.cyan]✓ Account created[/]")
             else:
-                console.print("[s.cyan]✓ Key saved[/] [s.dim](gateway will sync on first use)[/]")
+                console.print("[s.cyan]✓ Key saved[/]")
                 config["tier"] = "free"
 
             console.print(f"  [s.dim]Saved to ~/.sentinel/config[/]\n")
@@ -309,48 +328,43 @@ def _show_completion(config: dict):
     tier = config.get("tier", "free")
     tier_info = TIER_INFO.get(tier, TIER_INFO["free"])
 
+    # Detect provider for display
+    provider = config.get("ai_provider", "unknown")
+    detected = _detect_provider(config.get("ai_key", ""))
+    provider_display = f"{detected[2]} {detected[1]}" if detected else provider
+
     # Account summary
-    acct = Table(
-        show_header=False, box=None, padding=(0, 1),
-    )
+    acct = Table(show_header=False, box=None, padding=(0, 1))
     acct.add_column("", style="bold white", min_width=18)
     acct.add_column("", min_width=40)
 
-    sentinel_key = config.get("sentinel_api_key", "")
-    key_display = sentinel_key[:20] + "..." if sentinel_key else "not set"
-    acct.add_row("Sentinel Key", f"[s.green]{key_display}[/]")
-    acct.add_row("Provider", f"[s.green]{config.get('ai_provider', 'unknown')}[/]")
-    acct.add_row("Tier", f"[s.green]{tier_info['label']}[/] [s.dim]({tier_info['price']})[/]")
-    acct.add_row("Rate Limit", f"[s.green]{tier_info['rate']}[/]")
+    acct.add_row("Provider", f"[s.cyan]{provider_display}[/]")
+    acct.add_row("Tier", f"[s.cyan]{tier_info['label']}[/] [s.dim]({tier_info['price']})[/]")
+    acct.add_row("Rate Limit", f"[s.cyan]{tier_info['rate']}[/]")
     acct.add_row("LLM Markup", f"{tier_info['llm']}")
     acct.add_row("Trade Fees", f"maker {tier_info['maker']} / taker {tier_info['taker']}")
     acct.add_row("Config", f"[s.dim]~/.sentinel/config[/]")
 
     console.print(Panel(
         acct,
-        title="[s.green]✅ Setup Complete[/]",
+        title="[s.cyan]✅ Setup Complete[/]",
         title_align="left",
-        border_style="s.green",
+        border_style="s.cyan",
         padding=(1, 2),
     ))
 
-    # Available add commands
+    # Next steps menu
     console.print()
-    console.print("  [bold]Add more services:[/]")
+    console.print("  [bold]Next steps:[/]")
     cmds = Table(show_header=False, box=None, padding=(0, 1))
-    cmds.add_column("Command", style="s.green.bold")
+    cmds.add_column("Command", style="s.cyan.bold")
     cmds.add_column("Description", style="s.dim")
-    cmds.add_row("  sentinel add y2", "Y2 news intelligence + AI recaps")
-    cmds.add_row("  sentinel add x", "X (Twitter) tweets & sentiment")
-    cmds.add_row("  sentinel add fred", "FRED economic data (GDP, CPI, rates)")
-    cmds.add_row("  sentinel add elfa", "Elfa AI trending tokens + social")
+    cmds.add_row("  sentinel status", "View full dashboard")
+    cmds.add_row("  sentinel test", "Smoke test (auth + BTC price)")
+    cmds.add_row("  sentinel add", "Add data sources & trading venues")
+    cmds.add_row("  sentinel wallet", "Manage wallets (SOL/ETH)")
+    cmds.add_row("  sentinel help", "Full command reference")
     console.print(cmds)
-
-    console.print()
-    console.print("  [bold]Quick test:[/]")
-    console.print('  [s.dim]python -c "from sentinel import SentinelClient; c = SentinelClient(); print(c.get_crypto_price(\'bitcoin\'))"[/]')
-    console.print()
-    console.print("  [bold]Or run:[/] [s.green.bold]sentinel test[/]")
     console.print()
 
 
@@ -529,6 +543,8 @@ def _show_status():
     if config.get("sentinel_api_key"):
         key_preview = config["sentinel_api_key"][:16] + "..."
         auth.add_row("🔑 API Key", f"[s.green]● {key_preview}[/]", "~/.sentinel/config")
+    elif config.get("ai_key"):
+        auth.add_row("🔑 API Key", "[s.cyan]● AI key set[/] [s.dim](gateway sync pending)[/]", "~/.sentinel/config")
     else:
         auth.add_row("🔑 API Key", "[s.dim]○ Not configured[/]", "run sentinel-setup")
 
@@ -562,7 +578,7 @@ def _show_status():
     gw.add_row("🔧 Tools", "[s.green]● 62+ registered[/]", "crypto · equities · AI · social · trading")
 
     # Test connectivity if we have a key
-    if config.get("sentinel_api_key"):
+    if config.get("sentinel_api_key") or config.get("ai_key"):
         gw.add_row("📶 Status", "[s.dim]run 'sentinel test' to verify[/]", "")
     else:
         gw.add_row("📶 Status", "[s.dim]○ Not authenticated[/]", "run sentinel-setup")
@@ -662,11 +678,29 @@ def _run_test():
         padding=(0, 3),
     ))
 
-    if not config.get("sentinel_api_key"):
+    if not config.get("sentinel_api_key") and not config.get("ai_key"):
         console.print("  [s.error]✗ No API key found[/] — run [bold]sentinel-setup[/] first.\n")
         return
 
-    api_key = config["sentinel_api_key"]
+    # If we have ai_key but no sentinel_api_key, try to register now
+    api_key = config.get("sentinel_api_key", "")
+    if not api_key and config.get("ai_key"):
+        console.print("  [s.dim]Registering with gateway...[/]", end=" ")
+        result = _register_with_gateway(config["ai_key"])
+        if result.get("api_key"):
+            api_key = result["api_key"]
+            config["sentinel_api_key"] = api_key
+            config["user_id"] = result.get("user_id", "")
+            config["tier"] = result.get("tier", "free")
+            _save_config(config)
+            console.print("[s.cyan]✓[/]")
+        else:
+            console.print("[s.dim]gateway unavailable — test may fail[/]")
+
+    if not api_key:
+        console.print("  [s.error]✗ Could not obtain API key from gateway.[/]\n")
+        return
+
     key_preview = api_key[:16] + "..."
     console.print(f"  [s.dim]Key: {key_preview}[/]")
     console.print(f"  [s.dim]Gateway: {GATEWAY_URL}[/]")
@@ -683,7 +717,7 @@ def _run_test():
         import httpx
         client = httpx.Client(
             base_url=GATEWAY_URL,
-            timeout=30.0,
+            timeout=10.0,
             headers={"X-API-Key": api_key, "Content-Type": "application/json"},
         )
 
@@ -956,13 +990,23 @@ def _show_help():
 def _handle_upgrade(plan: str = "pro"):
     """Open Stripe checkout for tier upgrade."""
     config = _load_config()
-    if not config.get("sentinel_api_key"):
+    if not config.get("sentinel_api_key") and not config.get("ai_key"):
         console.print("  [s.error]✗ Not authenticated[/] — run [bold]sentinel-setup[/] first.\n")
+        return
+    # Try to get sentinel_api_key if we only have ai_key
+    if not config.get("sentinel_api_key") and config.get("ai_key"):
+        result = _register_with_gateway(config["ai_key"])
+        if result.get("api_key"):
+            config["sentinel_api_key"] = result["api_key"]
+            config["tier"] = result.get("tier", "free")
+            _save_config(config)
+    if not config.get("sentinel_api_key"):
+        console.print("  [s.dim]Gateway unavailable — try 'sentinel upgrade' again in a moment.[/]\n")
         return
     console.print(f"\n  [s.magenta]💎 Upgrading to {plan.title()}...[/]")
     try:
         from sentinel import SentinelClient
-        url = SentinelClient().upgrade(plan)
+        url = SentinelClient(api_key=config["sentinel_api_key"], timeout=10).upgrade(plan)
         console.print(f"  [s.cyan]✓ Checkout URL:[/] {url}")
         import webbrowser
         webbrowser.open(url)
@@ -978,13 +1022,36 @@ def _handle_upgrade(plan: str = "pro"):
 def _show_billing():
     """Show billing status from the gateway."""
     config = _load_config()
-    if not config.get("sentinel_api_key"):
+    tier = config.get("tier", "free")
+    t_info = TIER_INFO.get(tier, TIER_INFO["free"])
+    if not config.get("sentinel_api_key") and not config.get("ai_key"):
         console.print("  [s.error]✗ Not authenticated[/] — run [bold]sentinel-setup[/] first.\n")
+        return
+    # Try to get sentinel_api_key if we only have ai_key
+    if not config.get("sentinel_api_key") and config.get("ai_key"):
+        result = _register_with_gateway(config["ai_key"])
+        if result.get("api_key"):
+            config["sentinel_api_key"] = result["api_key"]
+            config["tier"] = result.get("tier", "free")
+            _save_config(config)
+    if not config.get("sentinel_api_key"):
+        # Show offline billing from local config
+        console.print()
+        tbl = Table(title="[bold cyan]🛡️  Billing Status[/] [s.dim](offline)[/]", title_justify="left",
+                    show_header=False, box=box.SIMPLE_HEAVY, border_style="cyan", padding=(0, 2))
+        tbl.add_column("", style="bold white", min_width=18)
+        tbl.add_column("", min_width=40)
+        tbl.add_row("Tier", f"[s.cyan]{t_info['label']}[/] [s.dim]({t_info['price']})[/]")
+        tbl.add_row("Rate Limit", f"[s.cyan]{t_info['rate']}[/]")
+        tbl.add_row("LLM Markup", t_info["llm"])
+        tbl.add_row("Trade Fees", f"maker {t_info['maker']} / taker {t_info['taker']}")
+        console.print(tbl)
+        console.print("  [s.dim]Gateway unavailable — billing data from local config.[/]\n")
         return
     console.print()
     try:
         from sentinel import SentinelClient
-        data = SentinelClient().billing_status()
+        data = SentinelClient(api_key=config["sentinel_api_key"], timeout=10).billing_status()
         tier = data.get("tier", "free")
         t_info = TIER_INFO.get(tier, TIER_INFO["free"])
         tbl = Table(title="[bold cyan]🛡️  Billing Status[/]", title_justify="left",
@@ -1013,13 +1080,23 @@ def _show_billing():
 def _show_tools():
     """List all tools from the gateway."""
     config = _load_config()
-    if not config.get("sentinel_api_key"):
+    if not config.get("sentinel_api_key") and not config.get("ai_key"):
         console.print("  [s.error]✗ Not authenticated[/] — run [bold]sentinel-setup[/] first.\n")
+        return
+    # Try to get sentinel_api_key if we only have ai_key
+    if not config.get("sentinel_api_key") and config.get("ai_key"):
+        result = _register_with_gateway(config["ai_key"])
+        if result.get("api_key"):
+            config["sentinel_api_key"] = result["api_key"]
+            config["tier"] = result.get("tier", "free")
+            _save_config(config)
+    if not config.get("sentinel_api_key"):
+        console.print("  [s.dim]Gateway unavailable — try again in a moment.[/]\n")
         return
     console.print()
     try:
         from sentinel import SentinelClient
-        tools = SentinelClient().list_tools()
+        tools = SentinelClient(api_key=config["sentinel_api_key"], timeout=10).list_tools()
         tbl = Table(title=f"[bold cyan]🔧 Available Tools ({len(tools)})[/]", title_justify="left",
                     show_header=True, box=box.SIMPLE_HEAVY, border_style="cyan", padding=(0, 2))
         tbl.add_column("Tool", style="s.cyan.bold", min_width=28)
@@ -1046,15 +1123,6 @@ def setup():
 
     config = _load_config()
     config = _step_ai_key(config)
-    _save_config(config)
-
-    config = _step_hyperliquid(config)
-    _save_config(config)
-
-    config = _step_polymarket(config)
-    _save_config(config)
-
-    config = _step_aster(config)
     _save_config(config)
 
     _show_completion(config)
