@@ -679,7 +679,7 @@ def _print_dashboard(config: dict, gateway_ok: bool):
         tier = config.get("tier", "free").capitalize()
         infra.add_row("🌐 Gateway", f"[green]● Connected[/]", f"{tier} tier · Cloud Run")
     else:
-        infra.add_row("🌐 Gateway", "[dim]○ Unavailable[/]", "Cold start — retry in a moment")
+        infra.add_row("🌐 Gateway", "[dim]○ Pending[/]", "Auto-connects on first query")
 
     # Tools
     infra.add_row("🔧 Tools", f"[green]● {len(TOOL_SCHEMAS)} tools loaded[/]", "Crypto · Stocks · Macro · Social · Trading")
@@ -717,15 +717,15 @@ def _print_dashboard(config: dict, gateway_ok: bool):
         ds.add_row("💬 Telegram", "[green]● Connected[/]", "read channels + groups + monitor + send")
         ds.add_row("🎮 Discord", "[green]● Connected[/]", "read servers + channels + search + send")
     else:
-        ds.add_row("🏛️ FRED", "[dim]○ Gateway offline[/]", "GDP, CPI, rates, yield curve, VIX")
-        ds.add_row("📰 Y2 Intelligence", "[dim]○ Gateway offline[/]", "news sentiment + recaps + reports")
-        ds.add_row("🔮 Elfa AI", "[dim]○ Gateway offline[/]", "trending tokens + social mentions")
-        ds.add_row("🐦 X (Twitter)", "[dim]○ Gateway offline[/]", "tweets + trends + sentiment")
-        ds.add_row("⚡ Hyperliquid", "[dim]○ Gateway offline[/]", "perp futures + orders + positions")
-        ds.add_row("🌟 Aster DEX", "[dim]○ Gateway offline[/]", "futures + orderbook + klines + leverage")
-        ds.add_row("🎲 Polymarket", "[dim]○ Gateway offline[/]", "browse + bet + positions + orders")
-        ds.add_row("💬 Telegram", "[dim]○ Gateway offline[/]", "channels + groups + monitor")
-        ds.add_row("🎮 Discord", "[dim]○ Gateway offline[/]", "servers + channels + search")
+        ds.add_row("🏛️ FRED", "[dim]○ Gateway pending[/]", "GDP, CPI, rates, yield curve, VIX")
+        ds.add_row("📰 Y2 Intelligence", "[dim]○ Gateway pending[/]", "news sentiment + recaps + reports")
+        ds.add_row("🔮 Elfa AI", "[dim]○ Gateway pending[/]", "trending tokens + social mentions")
+        ds.add_row("🐦 X (Twitter)", "[dim]○ Gateway pending[/]", "tweets + trends + sentiment")
+        ds.add_row("⚡ Hyperliquid", "[dim]○ Gateway pending[/]", "perp futures + orders + positions")
+        ds.add_row("🌟 Aster DEX", "[dim]○ Gateway pending[/]", "futures + orderbook + klines + leverage")
+        ds.add_row("🎲 Polymarket", "[dim]○ Gateway pending[/]", "browse + bet + positions + orders")
+        ds.add_row("💬 Telegram", "[dim]○ Gateway pending[/]", "channels + groups + monitor")
+        ds.add_row("🎮 Discord", "[dim]○ Gateway pending[/]", "servers + channels + search")
 
     console.print(ds)
 
@@ -878,11 +878,51 @@ def run_chat(config: dict):
             parts = cmd.split(None, 1)
             if len(parts) > 1:
                 service = parts[1].strip()
+
+                # Special: reconfigure LLM API key
+                if service == "ai":
+                    console.print()
+                    console.print("  [bold cyan]🤖 Reconfigure AI Provider[/]")
+                    console.print(f"  [s.dim]Current: {provider.upper()} → {model_name}[/]")
+                    console.print()
+                    console.print("  [s.dim]Paste a new API key (or press Enter to keep current):[/]")
+                    console.print("  [s.dim]  sk-ant-xxx  → Anthropic (Claude)[/]")
+                    console.print("  [s.dim]  sk-xxx      → OpenAI (GPT)[/]")
+                    console.print("  [s.dim]  AIza-xxx    → Google (Gemini)[/]")
+                    console.print("  [s.dim]  xai-xxx     → xAI (Grok)[/]")
+                    console.print()
+                    console.print("[s.cyan.bold]  🔑 API Key →[/] ", end="")
+                    new_key = input().strip()
+                    if new_key:
+                        detected = _detect_provider(new_key)
+                        if detected:
+                            new_provider, new_model_default, provider_label = detected
+                            ai_key = new_key
+                            provider = new_provider
+                            model_name = DEFAULT_MODELS.get(new_provider, new_model_default)
+                            config["ai_key"] = ai_key
+                            config["ai_provider"] = provider
+                            # Reset gateway key so it re-registers with new AI key
+                            config.pop("sentinel_api_key", None)
+                            api_key = ""
+                            gateway_registered = False
+                            _save_config(config)
+                            console.print(f"  [green]✓ Switched to {provider_label}[/] → {model_name}")
+                        else:
+                            console.print("  [s.error]✗ Unrecognized key format[/] — key not changed")
+                    else:
+                        console.print(f"  [s.dim]Keeping {provider.upper()}[/]")
+                    console.print()
+                    continue
+
                 from sentinel.cli import _add_service
                 _add_service(service)
                 config = _load_config()  # refresh after add
             else:
                 # Show available services
+                console.print()
+                console.print("  [bold cyan]AI Provider[/]")
+                console.print(f"  [s.cyan]add ai[/]            [s.dim]Change LLM provider (current: {provider.upper()})[/]")
                 console.print()
                 console.print("  [bold cyan]Trading & Prediction Markets[/]")
                 console.print("  [s.cyan]add hl[/]            [s.dim]Hyperliquid perp futures[/]")
