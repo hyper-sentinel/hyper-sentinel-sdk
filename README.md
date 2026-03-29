@@ -6,9 +6,9 @@
   <img alt="Hyper-Sentinel SDK" src="https://img.shields.io/badge/HYPER--SENTINEL-SDK-black?style=for-the-badge">
 </picture>
 
-### Python SDK for the Sentinel API Gateway
+### Local-First AI Trading Agent + Python SDK
 
-80+ tools for crypto trading, AI, market intelligence & autonomous strategies
+80+ tools · 12 scrapers · Zero-config · Sub-second queries
 
 <br/>
 
@@ -30,21 +30,36 @@ pip install hyper-sentinel && sentinel-chat
 
 That's it. On first run you'll be prompted for your AI provider API key (Anthropic, OpenAI, Google, or xAI). No email, no password, no account creation. **Your AI key is your identity.**
 
+## What's New in v3.2.0
+
+- **⚡ Fast Path** — Common queries like `price of btc` execute in <1 second with zero LLM calls
+- **🔌 All Scrapers Local** — All 12 data sources (CoinGecko, Hyperliquid, FRED, Polymarket, etc.) execute locally — no gateway dependency
+- **📊 Config-Aware Dashboard** — Real-time status shows which sources are configured and ready
+- **🛡️ Anti-Hallucination** — System prompt hardened to prevent fabricated dates, stats, and metadata
+- **🔧 Graceful Errors** — Ctrl+C returns to prompt, 10s connect timeouts prevent hangs
+
 ### AI Agent Chat
 
-The agent has access to 36+ tools and calls them automatically based on your questions:
-
 ```
-  ⚡ You → What's the price of Bitcoin and Ethereum?
-
-  ⚙ get_crypto_price(coin_id=bitcoin)
-  ⚙ get_crypto_price(coin_id=ethereum)
+  ⚡ You → price of btc and xmr
 
   ╭─────────────────────── 🛡️ Sentinel ──╮
-  │ Bitcoin:  $87,421.32  (+2.1% 24h)     │
-  │ Ethereum: $3,412.78   (+1.8% 24h)     │
-  ╰─────────────── 2 tools · 1.3s ───────╯
+  │ Bitcoin (BTC): $66,565.00              │
+  │   24h: -0.70%  ·  7d: -3.28%          │
+  │   Market cap: $1,331,764,366,464       │
+  │                                         │
+  │ Monero (XMR): $330.89                  │
+  │   24h: +0.18%  ·  7d: -6.13%          │
+  │   Market cap: $6,118,626,878           │
+  ╰──────────────── ⚡ instant · 0 LLM ───╯
 ```
+
+**Fast Path queries** (zero compute, sub-1-second):
+- `price of btc` / `btc price` / `how much is eth`
+- `price of btc and xmr and sol` (multi-coin)
+- `top 10 crypto` / `top 20 coins`
+
+Everything else goes through your chosen LLM (Claude, GPT-4o, Gemini, Grok) with full tool access.
 
 ### Chat Commands
 
@@ -58,19 +73,17 @@ add fred             # Configure FRED economic data (GDP, CPI, rates)
 add x                # Configure X/Twitter search & sentiment
 add y2               # Configure Y2 Intelligence news
 add elfa             # Configure Elfa AI social intelligence
-tools                # List all 36+ tools the agent can call
+add telegram         # Configure Telegram channel reader
+add discord          # Configure Discord bot integration
+tools                # List all tools the agent can call
 status               # Show infrastructure dashboard
 clear                # Reset conversation context
 quit                 # Exit chat
 ```
 
-> **Free tools** (CoinGecko, YFinance, DexScreener) execute instantly — no gateway needed.
-> **Gateway tools** (FRED, X, Hyperliquid, Polymarket, etc.) auto-connect on first use.
-
 ### One-Shot Queries
 
 ```bash
-# Ask a question directly from the terminal
 sentinel ask "What are the top 5 cryptos by market cap?"
 sentinel ask "Show me AAPL analyst recommendations"
 sentinel ask "What's the current fed funds rate?"
@@ -81,27 +94,46 @@ sentinel ask "What's the current fed funds rate?"
 ```python
 from sentinel import SentinelClient
 
-# After setup, zero arguments needed — keys auto-loaded from ~/.sentinel/config
+# Zero arguments — keys auto-loaded from ~/.sentinel/config
 client = SentinelClient()
 
-# Market data
+# Market data (local, instant)
 btc = client.get_crypto_price("bitcoin")
 top = client.get_crypto_top_n(10)
 aapl = client.get_stock_price("AAPL")
 
-# AI chat (proxied through Sentinel — usage fees apply)
-resp = client.chat("Analyze BTC market structure")
-
-# Perpetual trading (Hyperliquid)
+# Perpetual trading (Hyperliquid — local)
 client.place_hl_order(coin="ETH", side="buy", size=0.5, leverage=5)
 
-# DEX swaps (Solana / Ethereum)
-client.dex_buy_sol(contract_address="So1...", amount_sol=0.5, slippage=5.0)
+# Prediction markets (Polymarket — local)
+markets = client.get_polymarket_markets()
 
-# Social intelligence
+# Social intelligence (Elfa — needs key)
 trending = client.get_trending_tokens()
 news = client.get_news_sentiment("ethereum")
+
+# AI chat (proxied through LLM — usage fees apply)
+resp = client.chat("Analyze BTC market structure")
 ```
+
+## Data Sources
+
+All sources run **locally** via built-in scrapers. No gateway required.
+
+| Source | Status | Tools | Config |
+|:-------|:------:|:------|:-------|
+| 🪙 **CoinGecko** | Always available | `get_crypto_price` `get_crypto_top` `search_crypto` | None needed |
+| 📈 **YFinance** | Always available | `get_stock_quote` `get_stock_analyst` `get_stock_news` | None needed |
+| 📊 **DexScreener** | Always available | `dexscreener_search` `dexscreener_trending` | None needed |
+| 🏛️ **FRED** | Needs key | `get_fred_series` `search_fred` `get_economic_dashboard` | `add fred` |
+| 📰 **Y2 Intelligence** | Needs key | `get_news_sentiment` `get_news_recap` `get_intelligence_reports` | `add y2` |
+| 🔮 **Elfa AI** | Needs key | `get_trending_tokens` `get_top_mentions` `search_mentions` | `add elfa` |
+| 🐦 **X (Twitter)** | Needs key | `search_x` | `add x` |
+| ⚡ **Hyperliquid** | Needs wallet | `get_hl_positions` `place_hl_order` `get_hl_orderbook` + 7 more | `add hl` |
+| 🌟 **Aster DEX** | Needs key | `aster_ticker` `aster_positions` `aster_balance` + 7 more | `add aster` |
+| 🎲 **Polymarket** | Needs key | `get_polymarket_markets` `buy_polymarket` + 8 more | `add polymarket` |
+| 💬 **Telegram** | Needs session | `tg_read_channel` `tg_search_messages` `tg_list_channels` | `add telegram` |
+| 🎮 **Discord** | Needs token | `discord_read_channel` `discord_list_guilds` + 4 more | `add discord` |
 
 ## Authentication — Web4
 
@@ -109,7 +141,6 @@ news = client.get_news_sentiment("ethereum")
 
 ```python
 # Option 1: Interactive setup (recommended)
-# Run once — saves to ~/.sentinel/config
 $ sentinel-setup
 
 # Option 2: Pass directly
@@ -119,7 +150,7 @@ client = SentinelClient(ai_key="sk-ant-xxx")
 client = SentinelClient(api_key="sk-sentinel-xxx")
 ```
 
-Supported providers:
+Supported LLM providers:
 
 | Provider | Key Prefix | Sign Up |
 |:---------|:-----------|:--------|
@@ -128,31 +159,22 @@ Supported providers:
 | Google (Gemini) | `AIza` | [aistudio.google.com](https://aistudio.google.com) |
 | xAI (Grok) | `xai-` | [console.x.ai](https://console.x.ai) |
 
-### How It Works
-
-1. You provide your AI provider key (e.g. `sk-ant-xxx`)
-2. Sentinel hashes it → creates a deterministic account (no email needed)
-3. You get a `sk-sentinel-xxx` key — cached locally to `~/.sentinel/config`
-4. All API calls use your Sentinel key — your AI key is never sent again
-
 ## CLI Commands
 
 ```bash
 # Getting started
-sentinel-setup              # Full onboarding wizard (AI key + wallets)
+sentinel-setup              # Full onboarding wizard
+sentinel-chat               # Interactive AI agent
 sentinel status             # Connection status dashboard
 sentinel test               # Smoke test (auth + health + BTC price)
-sentinel help               # Full categorized command reference
 
-# Wallet management (Phantom-style)
+# Wallet management
 sentinel wallet             # Dashboard — show wallets + balances
 sentinel wallet connect     # Import private key (SOL or ETH)
 sentinel wallet generate sol # Generate a new Solana wallet
 sentinel wallet send        # Send crypto (with confirmation prompt)
-sentinel wallet receive     # Show deposit addresses
 
 # Add data sources & trading venues
-sentinel add                # Show all available integrations
 sentinel add hl             # Hyperliquid DEX trading
 sentinel add aster          # Aster DEX futures
 sentinel add polymarket     # Polymarket prediction markets
@@ -160,65 +182,43 @@ sentinel add y2             # Y2 news intelligence
 sentinel add x              # X (Twitter) API
 sentinel add fred           # FRED economic data
 sentinel add elfa           # Elfa AI social intel
-sentinel add telegram       # Telegram Client
+sentinel add telegram       # Telegram client
 sentinel add discord        # Discord bot
-sentinel add tv             # TradingView webhooks
 
-# Billing & upgrade
+# Billing
 sentinel billing            # View tier, usage, and fees
-sentinel upgrade            # Upgrade to Pro ($100/mo)
-sentinel upgrade enterprise # Upgrade to Enterprise ($1,000/mo)
-sentinel tools              # List all 80+ available tools
+sentinel tools              # List all available tools
 ```
 
-## What's Included
+## Architecture
 
-| Category | Tools | Description |
-|:---------|:------|:------------|
-| **Crypto** | `get_crypto_price` `get_crypto_top_n` `search_crypto` | CoinGecko market data |
-| **Equities** | `get_stock_price` `get_stock_info` `get_analyst_recs` `get_stock_news` `get_stock_history` | yfinance quotes & analysis |
-| **Macro** | `get_fred_series` `search_fred` `get_economic_dashboard` | FRED economic data |
-| **News** | `get_news_sentiment` `get_news_recap` `get_intelligence_reports` | Sentiment & analysis |
-| **Social** | `get_trending_tokens` `get_top_mentions` `search_mentions` `get_trending_narratives` | Elfa AI social intelligence |
-| **X / Twitter** | `search_x` | Real-time social search |
-| **DexScreener** | `dexscreener_search` `dexscreener_trending` `dexscreener_token` `dexscreener_pair` | DEX pair analytics |
-| **Hyperliquid** | `place_hl_order` `get_hl_positions` `get_hl_orderbook` `cancel_hl_order` `close_hl_position` | Perpetual futures |
-| **Aster DEX** | `aster_place_order` `aster_positions` `aster_ticker` `aster_klines` `aster_balance` | Perpetual futures |
-| **DEX Swaps** | `dex_buy_sol` `dex_sell_sol` `dex_buy_eth` `dex_sell_eth` `dex_price_sol` `dex_price_eth` | On-chain trading |
-| **AI Chat** | `chat` `llm_usage` | Claude, GPT-4o, Gemini, Grok |
-| **Algo** | `set_strategy` `start_strategy` `stop_strategy` `list_algos` | Automated strategies |
-| **Wallets** | `generate_wallet` `import_wallet` `list_wallets` `get_wallet_balance` `send_crypto` | Multi-chain wallets |
-| **Telegram** | `tg_get_updates` `tg_send_message` | Messaging integration |
-| **Discord** | `discord_read_channel` `discord_send_message` `discord_list_guilds` | Server integration |
-| **Polymarket** | `get_polymarket_events` `search_polymarket` | Prediction markets |
-| **Journal** | `get_trade_journal` `get_trade_stats` | Trade history & analytics |
-| **Billing** | `usdc_balance` `usdc_deposit_address` `usdc_check_deposits` | USDC balance & usage |
-
-> Every tool is available on every tier. See the [full API reference](https://github.com/hyper-sentinel/docs/blob/main/rest-api/README.md) for parameters and response formats.
-
-## Pricing
-
-All 80+ tools are available on every tier. Upgrading reduces fees and increases rate limits.
-
-| | Free | Pro | Enterprise |
-|:--|:--:|:--:|:--:|
-| **Price** | $0/mo | $100/mo | $1,000/mo |
-| **LLM Markup** | 40% | 20% | 10% |
-| **Maker Fee** | 0.10% | 0.06% | 0.02% |
-| **Taker Fee** | 0.08% | 0.04% | 0.01% |
-| **Rate Limit** | 300/min | 1,000/min | Unlimited |
-
-```python
-# Check billing status
-status = client.billing_status()
-
-# Upgrade via CLI
-# sentinel upgrade pro
-# sentinel upgrade enterprise
-
-# Or check your USDC balance
-balance = client.usdc_balance()
 ```
+ sentinel-chat / sentinel ask / SentinelClient()
+                    │
+       ┌────────────┼────────────┐
+       │            │            │
+   Fast Path     Local       Gateway
+   (regex)     Scrapers     (optional)
+       │            │            │
+   Instant     All 12 →    Sentinel Go API
+   CoinGecko   CoinGecko    (Cloud Run)
+   responses    YFinance         │
+               DexScreener   Premium
+               FRED          features
+               Y2 Intel
+               Elfa AI
+               X/Twitter
+               Hyperliquid
+               Aster DEX
+               Polymarket
+               Telegram
+               Discord
+```
+
+**Execution Priority:**
+1. **Fast Path** — Regex-matched queries (price, top N) → instant, zero LLM
+2. **Local Scrapers** — All tool calls execute locally via built-in scrapers
+3. **Gateway** — Optional fallback for premium/cloud features
 
 ## Error Handling
 
@@ -233,26 +233,17 @@ except AuthError:
     print("Invalid credentials")
 ```
 
-## Architecture
+## Pricing
 
-```
- Your App → hyper-sentinel (Python SDK)
-                │
-     ┌──────────┤
-     │ Direct   │ Gateway (HTTPS)
-     │          │
-  CoinGecko  Sentinel Go API (Cloud Run)
-  YFinance         │ gRPC / HTTP
-  DexScreener   Python Engine (FastAPI)
-                   │
-        ┌──────────┼──────────┐
-      Trading    Data       AI
-      ────────   ────────   ────────
-      Hyperliquid  FRED      Claude
-      Aster DEX    Elfa AI   GPT-4o
-      Jupiter      X/Twitter Gemini
-      Uniswap      Y2 Intel  Grok
-```
+All tools are available on every tier. Upgrading reduces fees and increases rate limits.
+
+| | Free | Pro | Enterprise |
+|:--|:--:|:--:|:--:|
+| **Price** | $0/mo | $100/mo | $1,000/mo |
+| **LLM Markup** | 40% | 20% | 10% |
+| **Maker Fee** | 0.10% | 0.06% | 0.02% |
+| **Taker Fee** | 0.08% | 0.04% | 0.01% |
+| **Rate Limit** | 300/min | 1,000/min | Unlimited |
 
 ## Links
 

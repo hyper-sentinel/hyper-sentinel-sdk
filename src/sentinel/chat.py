@@ -125,7 +125,8 @@ def _register_with_gateway(ai_key: str) -> dict:
 # System Prompt
 # ══════════════════════════════════════════════════════════════
 
-SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent with access to 80+ market intelligence tools.
+SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
+Version: 3.1.2 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -138,13 +139,14 @@ CAPABILITIES:
 - Wallet management (generate, import, balance, send)
 
 RULES:
-- Always use tools to get REAL data. Never fabricate prices or statistics.
+- Always use tools to get REAL data. Never fabricate prices, dates, statistics, or metadata.
+- Do NOT invent version numbers, dates, uptime percentages, or system status details — use only what you know from this prompt.
 - Be concise and data-driven. Lead with numbers.
 - When asked about multiple things, call multiple tools and synthesize ONE unified response.
 - Format numbers clearly: $87,421.32 not 87421.32, 2.3% not 0.023.
 - If a tool fails, say so honestly and suggest alternatives.
 - For trading operations (placing orders, closing positions), confirm the action clearly.
-- Keep responses focused — no unnecessary preamble.
+- Keep responses focused — no unnecessary preamble. Don't dump system status unless asked.
 """
 
 # ══════════════════════════════════════════════════════════════
@@ -964,6 +966,152 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                          "url": t.get("url")} for t in tokens]
             return json.dumps({"trending": results, "source": "dexscreener"})
 
+        # ── Hyperliquid (local scraper, needs wallet config) ─────
+        if tool_name.startswith("get_hl_") or tool_name.startswith("place_hl_") or \
+           tool_name in ("close_hl_position", "cancel_hl_order", "set_hl_leverage", "approve_hl_builder_fee"):
+            try:
+                from sentinel.scrapers import hyperliquid as hl
+                dispatch = {
+                    "get_hl_positions": lambda: hl.get_hl_positions(),
+                    "get_hl_account_info": lambda: hl.get_hl_account_info(),
+                    "get_hl_open_orders": lambda: hl.get_hl_open_orders(),
+                    "get_hl_orderbook": lambda: hl.get_hl_orderbook(**args),
+                    "get_hl_config": lambda: hl.get_hl_config(),
+                    "place_hl_order": lambda: hl.place_hl_order(**args),
+                    "close_hl_position": lambda: hl.close_hl_position(**args),
+                    "cancel_hl_order": lambda: hl.cancel_hl_order(**args),
+                    "set_hl_leverage": lambda: hl.set_hl_leverage(**args),
+                    "approve_hl_builder_fee": lambda: hl.approve_hl_builder_fee(),
+                }
+                if tool_name in dispatch:
+                    return json.dumps(dispatch[tool_name]())
+            except ImportError:
+                return json.dumps({"error": "hyperliquid-python-sdk not installed. Run: pip install hyperliquid-python-sdk eth-account"})
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── FRED (needs API key from config) ──────────────────────
+        if tool_name in ("get_fred_series", "search_fred", "get_economic_dashboard"):
+            try:
+                from sentinel.scrapers import fred
+                if tool_name == "get_fred_series":
+                    return json.dumps(fred.get_fred_series(**args))
+                elif tool_name == "search_fred":
+                    return json.dumps(fred.search_fred(**args))
+                elif tool_name == "get_economic_dashboard":
+                    return json.dumps(fred.get_economic_dashboard())
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── Y2 Intelligence (needs API key) ───────────────────────
+        if tool_name in ("get_news_sentiment", "get_news_recap", "get_intelligence_reports", "get_report_detail"):
+            try:
+                from sentinel.scrapers import y2
+                dispatch = {
+                    "get_news_sentiment": lambda: y2.get_news_sentiment(**args),
+                    "get_news_recap": lambda: y2.get_news_recap(**args),
+                    "get_intelligence_reports": lambda: y2.get_intelligence_reports(**args),
+                    "get_report_detail": lambda: y2.get_report_detail(**args),
+                }
+                if tool_name in dispatch:
+                    return json.dumps(dispatch[tool_name]())
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── Elfa AI (needs API key) ───────────────────────────────
+        if tool_name in ("get_trending_tokens", "get_top_mentions", "search_mentions",
+                         "get_trending_narratives", "get_token_news"):
+            try:
+                from sentinel.scrapers import elfa
+                dispatch = {
+                    "get_trending_tokens": lambda: elfa.get_trending_tokens(**args),
+                    "get_top_mentions": lambda: elfa.get_top_mentions(**args),
+                    "search_mentions": lambda: elfa.search_mentions(**args),
+                    "get_trending_narratives": lambda: elfa.get_trending_narratives(**args),
+                    "get_token_news": lambda: elfa.get_token_news(**args),
+                }
+                if tool_name in dispatch:
+                    return json.dumps(dispatch[tool_name]())
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── Aster DEX (needs API key + secret) ────────────────────
+        if tool_name.startswith("aster_"):
+            try:
+                from sentinel.scrapers import aster
+                dispatch = {
+                    "aster_ticker": lambda: aster.aster_ticker(**args),
+                    "aster_orderbook": lambda: aster.aster_orderbook(**args),
+                    "aster_klines": lambda: aster.aster_klines(**args),
+                    "aster_funding_rate": lambda: aster.aster_funding_rate(**args),
+                    "aster_exchange_info": lambda: aster.aster_exchange_info(**args),
+                    "aster_balance": lambda: aster.aster_balance(),
+                    "aster_positions": lambda: aster.aster_positions(**args),
+                    "aster_config": lambda: aster.aster_config(),
+                    "aster_diagnose": lambda: aster.aster_diagnose(),
+                    "aster_ping": lambda: aster.aster_ping(),
+                }
+                if tool_name in dispatch:
+                    return json.dumps(dispatch[tool_name]())
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── Polymarket (needs private key) ────────────────────────
+        if tool_name.startswith("polymarket_") or tool_name.startswith("get_polymarket_") or \
+           tool_name in ("buy_polymarket", "sell_polymarket", "search_polymarket",
+                         "place_polymarket_limit", "cancel_polymarket_order", "cancel_all_polymarket_orders"):
+            try:
+                from sentinel.scrapers import polymarket as pm
+                dispatch = {
+                    "get_polymarket_markets": lambda: pm.get_polymarket_markets(**args),
+                    "search_polymarket": lambda: pm.search_polymarket(**args),
+                    "get_polymarket_orderbook": lambda: pm.get_polymarket_orderbook(**args),
+                    "get_polymarket_price": lambda: pm.get_polymarket_price(**args),
+                    "get_polymarket_positions": lambda: pm.get_polymarket_positions(),
+                    "buy_polymarket": lambda: pm.buy_polymarket(**args),
+                    "sell_polymarket": lambda: pm.sell_polymarket(**args),
+                    "place_polymarket_limit": lambda: pm.place_polymarket_limit(**args),
+                    "cancel_polymarket_order": lambda: pm.cancel_polymarket_order(**args),
+                    "cancel_all_polymarket_orders": lambda: pm.cancel_all_polymarket_orders(),
+                }
+                if tool_name in dispatch:
+                    return json.dumps(dispatch[tool_name]())
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── Telegram (needs session) ──────────────────────────────
+        if tool_name.startswith("tg_"):
+            try:
+                from sentinel.scrapers import telegram as tg
+                dispatch = {
+                    "tg_read_channel": lambda: tg.tg_read_channel(**args),
+                    "tg_search_messages": lambda: tg.tg_search_messages(**args),
+                    "tg_list_channels": lambda: tg.tg_list_channels(**args),
+                    "tg_send_message": lambda: tg.tg_send_message(**args),
+                    "tg_get_config": lambda: tg.tg_get_config(),
+                }
+                if tool_name in dispatch:
+                    return json.dumps(dispatch[tool_name]())
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── Discord (needs bot token) ─────────────────────────────
+        if tool_name.startswith("discord_"):
+            try:
+                from sentinel.scrapers import discord as dc
+                dispatch = {
+                    "discord_read_channel": lambda: dc.discord_read_channel(**args),
+                    "discord_search_messages": lambda: dc.discord_search_messages(**args),
+                    "discord_list_guilds": lambda: dc.discord_list_guilds(),
+                    "discord_list_channels": lambda: dc.discord_list_channels(**args),
+                    "discord_send_message": lambda: dc.discord_send_message(**args),
+                    "discord_get_config": lambda: dc.discord_get_config(),
+                }
+                if tool_name in dispatch:
+                    return json.dumps(dispatch[tool_name]())
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
     except Exception as e:
         return json.dumps({"error": str(e), "tool": tool_name})
 
@@ -1046,32 +1194,50 @@ def _print_dashboard(config: dict, gateway_ok: bool):
     ds.add_column("Status", min_width=20)
     ds.add_column("Details", style="dim")
 
-    # Always-available sources
+    # Always-available sources (no key needed)
     ds.add_row("🪙 CoinGecko", "[green]● Always available[/]", "10,000+ crypto prices + top N + search")
     ds.add_row("📈 YFinance", "[green]● Always available[/]", "stocks + ETFs + analyst recs + news")
     ds.add_row("📊 DexScreener", "[green]● Always available[/]", "DEX pair data + trending + boosted tokens")
 
-    # Gateway-dependent sources  — check if gateway is connected
-    if gateway_ok:
-        ds.add_row("🏛️ FRED", "[green]● Connected[/]", "GDP, CPI, rates, yield curve, VIX")
-        ds.add_row("📰 Y2 Intelligence", "[green]● Connected[/]", "news sentiment + recaps + reports")
-        ds.add_row("🔮 Elfa AI", "[green]● Connected[/]", "trending tokens + social mentions")
-        ds.add_row("🐦 X (Twitter)", "[green]● Connected[/]", "tweets + trends + sentiment")
-        ds.add_row("⚡ Hyperliquid", "[green]● Connected[/]", "perp futures + orders + positions")
-        ds.add_row("🌟 Aster DEX", "[green]● Connected[/]", "futures + orderbook + klines + leverage")
-        ds.add_row("🎲 Polymarket", "[green]● Connected[/]", "browse + bet + positions + orders")
-        ds.add_row("💬 Telegram", "[green]● Connected[/]", "read channels + groups + monitor + send")
-        ds.add_row("🎮 Discord", "[green]● Connected[/]", "read servers + channels + search + send")
-    else:
-        ds.add_row("🏛️ FRED", "[dim]○ Gateway pending[/]", "GDP, CPI, rates, yield curve, VIX")
-        ds.add_row("📰 Y2 Intelligence", "[dim]○ Gateway pending[/]", "news sentiment + recaps + reports")
-        ds.add_row("🔮 Elfa AI", "[dim]○ Gateway pending[/]", "trending tokens + social mentions")
-        ds.add_row("🐦 X (Twitter)", "[dim]○ Gateway pending[/]", "tweets + trends + sentiment")
-        ds.add_row("⚡ Hyperliquid", "[dim]○ Gateway pending[/]", "perp futures + orders + positions")
-        ds.add_row("🌟 Aster DEX", "[dim]○ Gateway pending[/]", "futures + orderbook + klines + leverage")
-        ds.add_row("🎲 Polymarket", "[dim]○ Gateway pending[/]", "browse + bet + positions + orders")
-        ds.add_row("💬 Telegram", "[dim]○ Gateway pending[/]", "channels + groups + monitor")
-        ds.add_row("🎮 Discord", "[dim]○ Gateway pending[/]", "servers + channels + search")
+    # Config-dependent sources — check if user configured keys
+    def _key_status(key_name: str, label: str, detail: str):
+        """Show green if key is configured, yellow if needs setup."""
+        val = config.get(key_name, os.environ.get(key_name, ""))
+        if val:
+            ds.add_row(label, "[green]● Ready[/]", detail)
+        else:
+            ds.add_row(label, "[yellow]○ Needs key[/]", f"{detail} · [dim]add {key_name.split('_')[0].lower()}[/]")
+
+    _key_status("fred_key", "🏛️ FRED", "GDP, CPI, rates, yield curve, VIX")
+    _key_status("y2_key", "📰 Y2 Intelligence", "news sentiment + recaps + reports")
+    _key_status("elfa_key", "🔮 Elfa AI", "trending tokens + social mentions")
+    _key_status("x_bearer", "🐦 X (Twitter)", "tweets + trends + sentiment")
+
+    # Exchange status — check wallet/key config
+    hl_ok = config.get("hl_wallet") or os.environ.get("HYPERLIQUID_WALLET_ADDRESS", "")
+    ds.add_row("⚡ Hyperliquid",
+               "[green]● Ready[/]" if hl_ok else "[yellow]○ Needs config[/]",
+               "perp futures + orders + positions" + ("" if hl_ok else " · [dim]add hl[/]"))
+
+    aster_ok = config.get("aster_key") or os.environ.get("ASTER_API_KEY", "")
+    ds.add_row("🌟 Aster DEX",
+               "[green]● Ready[/]" if aster_ok else "[yellow]○ Needs config[/]",
+               "futures + orderbook + klines + leverage" + ("" if aster_ok else " · [dim]add aster[/]"))
+
+    pm_ok = config.get("polymarket_key") or os.environ.get("POLYMARKET_PRIVATE_KEY", "")
+    ds.add_row("🎲 Polymarket",
+               "[green]● Ready[/]" if pm_ok else "[yellow]○ Needs config[/]",
+               "browse + bet + positions + orders" + ("" if pm_ok else " · [dim]add polymarket[/]"))
+
+    tg_ok = config.get("tg_api_id") or os.environ.get("TELEGRAM_API_ID", "")
+    ds.add_row("💬 Telegram",
+               "[green]● Ready[/]" if tg_ok else "[yellow]○ Needs config[/]",
+               "read channels + groups + monitor + send" + ("" if tg_ok else " · [dim]add telegram[/]"))
+
+    dc_ok = config.get("discord_token") or os.environ.get("DISCORD_BOT_TOKEN", "")
+    ds.add_row("🎮 Discord",
+               "[green]● Ready[/]" if dc_ok else "[yellow]○ Needs config[/]",
+               "read servers + channels + search + send" + ("" if dc_ok else " · [dim]add discord[/]"))
 
     console.print(ds)
 
@@ -1089,7 +1255,16 @@ def _print_dashboard(config: dict, gateway_ok: bool):
 
     console.print(agents)
 
-    connected = 12 if gateway_ok else 3
+    # Count connected sources
+    connected = 3  # CoinGecko + YFinance + DexScreener always
+    for k in ("fred_key", "y2_key", "elfa_key", "x_bearer"):
+        if config.get(k) or os.environ.get(k, ""):
+            connected += 1
+    if hl_ok: connected += 1
+    if aster_ok: connected += 1
+    if pm_ok: connected += 1
+    if tg_ok: connected += 1
+    if dc_ok: connected += 1
     console.print(f"  [dim]{connected} data sources · Mode: [bold]SOLO (MarketAgent)[/][/]")
     console.print()
     console.print("  Type a question, or [bold]'help'[/] for commands.")
@@ -1363,11 +1538,41 @@ def run_chat(config: dict):
             nonlocal tool_calls_total, api_key, gateway_registered
             tool_calls_total += 1
 
-            # Direct tools (CoinGecko, YFinance, DexScreener) skip gateway
+            # Direct tools — ALL scrapers run locally, no gateway needed
             DIRECT_TOOLS = {
+                # CoinGecko
                 "get_crypto_price", "get_crypto_top", "search_crypto",
+                # YFinance
                 "get_stock_quote", "get_stock_analyst", "get_stock_news",
+                # DexScreener
                 "dexscreener_search", "dexscreener_trending",
+                # Hyperliquid
+                "get_hl_positions", "get_hl_account_info", "get_hl_open_orders",
+                "get_hl_orderbook", "get_hl_config", "place_hl_order",
+                "close_hl_position", "cancel_hl_order", "set_hl_leverage",
+                "approve_hl_builder_fee",
+                # FRED
+                "get_fred_series", "search_fred", "get_economic_dashboard",
+                # Y2 Intelligence
+                "get_news_sentiment", "get_news_recap", "get_intelligence_reports", "get_report_detail",
+                # Elfa AI
+                "get_trending_tokens", "get_top_mentions", "search_mentions",
+                "get_trending_narratives", "get_token_news",
+                # Aster DEX
+                "aster_ticker", "aster_orderbook", "aster_klines", "aster_funding_rate",
+                "aster_exchange_info", "aster_balance", "aster_positions",
+                "aster_config", "aster_diagnose", "aster_ping",
+                # Polymarket
+                "get_polymarket_markets", "search_polymarket", "get_polymarket_orderbook",
+                "get_polymarket_price", "get_polymarket_positions", "buy_polymarket",
+                "sell_polymarket", "place_polymarket_limit", "cancel_polymarket_order",
+                "cancel_all_polymarket_orders",
+                # Telegram
+                "tg_read_channel", "tg_search_messages", "tg_list_channels",
+                "tg_send_message", "tg_get_config",
+                # Discord
+                "discord_read_channel", "discord_search_messages", "discord_list_guilds",
+                "discord_list_channels", "discord_send_message", "discord_get_config",
             }
 
             # Lazy gateway registration — only for gateway-dependent tools
