@@ -563,13 +563,20 @@ def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dic
     if tools:
         payload["tools"] = _tools_for_anthropic(tools)
 
-    resp = httpx.post(
-        "https://api.anthropic.com/v1/messages",
-        headers=headers,
-        json=payload,
-        timeout=120.0,
-    )
-    return resp.json()
+    try:
+        resp = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers,
+            json=payload,
+            timeout=httpx.Timeout(120.0, connect=10.0),
+        )
+        return resp.json()
+    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+        return {"error": {"message": f"Cannot reach Anthropic API: {e}. Check your internet connection."}}
+    except httpx.TimeoutException as e:
+        return {"error": {"message": f"Anthropic API timed out: {e}"}}
+    except Exception as e:
+        return {"error": {"message": f"LLM call failed: {e}"}}
 
 
 def _call_openai_compat(
@@ -593,13 +600,20 @@ def _call_openai_compat(
     if tools:
         payload["tools"] = _tools_for_openai(tools)
 
-    resp = httpx.post(
-        endpoint,
-        headers=headers,
-        json=payload,
-        timeout=120.0,
-    )
-    return resp.json()
+    try:
+        resp = httpx.post(
+            endpoint,
+            headers=headers,
+            json=payload,
+            timeout=httpx.Timeout(120.0, connect=10.0),
+        )
+        return resp.json()
+    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+        return {"error": {"message": f"Cannot reach LLM API: {e}. Check your internet connection."}}
+    except httpx.TimeoutException as e:
+        return {"error": {"message": f"LLM API timed out: {e}"}}
+    except Exception as e:
+        return {"error": {"message": f"LLM call failed: {e}"}}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1154,11 +1168,17 @@ def run_chat(config: dict):
 
             # First LLM call
             console.print("  [s.cyan]⏳ Sentinel thinking...[/]")
-            if provider == "anthropic":
-                llm_resp = _call_anthropic(ai_key, model_name, history, tools)
-            else:
-                endpoint = PROVIDER_ENDPOINTS.get(provider, PROVIDER_ENDPOINTS["openai"])
-                llm_resp = _call_openai_compat(ai_key, model_name, history, tools, endpoint)
+            try:
+                if provider == "anthropic":
+                    llm_resp = _call_anthropic(ai_key, model_name, history, tools)
+                else:
+                    endpoint = PROVIDER_ENDPOINTS.get(provider, PROVIDER_ENDPOINTS["openai"])
+                    llm_resp = _call_openai_compat(ai_key, model_name, history, tools, endpoint)
+            except KeyboardInterrupt:
+                console.print("\n  [s.dim]Cancelled.[/]\n")
+                if history and history[-1].get("role") == "user":
+                    history.pop()
+                continue
 
             # ── Process Anthropic response ────────────
             if provider == "anthropic":
