@@ -1097,6 +1097,8 @@ def _show_tools():
     try:
         from sentinel import SentinelClient
         tools = SentinelClient(api_key=config["sentinel_api_key"], timeout=10).list_tools()
+        if not tools:
+            tools = []
         tbl = Table(title=f"[bold cyan]🔧 Available Tools ({len(tools)})[/]", title_justify="left",
                     show_header=True, box=box.SIMPLE_HEAVY, border_style="cyan", padding=(0, 2))
         tbl.add_column("Tool", style="s.cyan.bold", min_width=28)
@@ -1159,12 +1161,24 @@ def main():
         _add_service(args[1].lower())
     elif cmd == "add":
         _show_add_list()
+    elif cmd == "chat":
+        from sentinel.chat import run_chat
+        run_chat(_load_config())
+    elif cmd == "ask":
+        question = " ".join(args[1:]) if len(args) > 1 else ""
+        if not question:
+            console.print("  [s.error]Usage:[/] sentinel ask \"your question here\"")
+            return
+        from sentinel.chat import run_ask
+        run_ask(_load_config(), question)
     elif cmd in ("version", "--version", "-v"):
         from sentinel import __version__
         console.print(f"  [s.cyan]hyper-sentinel[/] v{__version__}")
     else:
-        console.print(f"  [s.error]Unknown command: {cmd}[/]")
-        console.print("  [s.dim]Run [bold]sentinel help[/] for all commands.[/]")
+        # If no known command, treat everything as a one-shot question
+        question = " ".join(args)
+        from sentinel.chat import run_ask
+        run_ask(_load_config(), question)
 
 
 if __name__ == "__main__":

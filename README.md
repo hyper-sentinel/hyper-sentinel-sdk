@@ -22,18 +22,61 @@
 <br/>
 </div>
 
-## Install
-
-```bash
-pip install hyper-sentinel
-```
-
 ## Quick Start
 
 ```bash
-# One-time setup — paste your AI key, configure wallets
-sentinel-setup
+# Install
+pip install hyper-sentinel
+
+# Launch the AI agent — interactive chat with 80+ tools
+sentinel-chat
 ```
+
+On first run you'll be prompted for your AI provider API key (Anthropic, OpenAI, Google, or xAI). That's it — no email, no password, no account creation. **Your AI key is your identity.**
+
+### AI Agent Chat
+
+The agent has access to 36+ tools and calls them automatically based on your questions:
+
+```
+  ⚡ You → What's the price of Bitcoin and Ethereum?
+
+  ⚙ get_crypto_price(coin_id=bitcoin)
+  ⚙ get_crypto_price(coin_id=ethereum)
+
+  ╭─────────────────────── 🛡️ Sentinel ──╮
+  │ Bitcoin:  $87,421.32  (+2.1% 24h)     │
+  │ Ethereum: $3,412.78   (+1.8% 24h)     │
+  ╰─────────────── 2 tools · 1.3s ───────╯
+```
+
+### Chat Commands
+
+```
+add                  # List available data sources & trading platforms
+add hl               # Configure Hyperliquid perp futures
+add polymarket       # Configure Polymarket prediction markets
+add aster            # Configure Aster DEX futures
+add fred             # Configure FRED economic data (GDP, CPI, rates)
+add x                # Configure X/Twitter search & sentiment
+add y2               # Configure Y2 Intelligence news
+add elfa             # Configure Elfa AI social intelligence
+tools                # List all 36+ tools the agent can call
+status               # Show infrastructure dashboard
+clear                # Reset conversation context
+quit                 # Exit chat
+```
+
+### One-Shot Queries
+
+```bash
+# Ask a question directly from the terminal
+sentinel ask "What are the top 5 cryptos by market cap?"
+sentinel ask "Show me AAPL analyst recommendations"
+sentinel ask "What's the current fed funds rate?"
+```
+
+### Python SDK
 
 ```python
 from sentinel import SentinelClient

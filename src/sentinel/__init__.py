@@ -1,5 +1,5 @@
 """
-Sentinel SDK v2.3.0 — Python client for the Sentinel API.
+Hyper-Sentinel v3.0.0 — AI Agent + Python SDK for Sentinel.
 
 © Sentinel Labs — https://hyper-sentinel.com
 
@@ -21,7 +21,7 @@ from sentinel.exceptions import (
     ToolNotFoundError,
 )
 
-__version__ = "2.3.5"
+__version__ = "3.0.2"
 __all__ = [
     "SentinelClient",
     "SentinelError",
@@ -41,9 +41,9 @@ def _first_run_hint():
             from rich.console import Console
             c = Console(stderr=True)
             c.print()
-            c.print("  [bold #00e5ff]hyper-sentinel[/] installed ✓")
-            c.print("  [dim]Run [bold]sentinel-setup[/dim][bold] to configure your AI key and start using 80+ tools.[/]")
-            c.print("  [dim]Or: [bold]sentinel status[/bold] · [bold]sentinel test[/bold][/]")
+            c.print("  [bold #00e5ff]hyper-sentinel 3.0[/] installed ✓")
+            c.print("  [dim]Run [bold]sentinel-chat[/dim][bold] to launch the AI agent with 80+ tools.[/]")
+            c.print("  [dim]Or: [bold]sentinel-setup[/bold] · [bold]sentinel status[/bold] · [bold]sentinel test[/bold][/]")
             c.print()
         except Exception:
             print("\n  hyper-sentinel installed ✓")
