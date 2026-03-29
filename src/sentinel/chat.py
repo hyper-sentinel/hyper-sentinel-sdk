@@ -617,6 +617,212 @@ def _call_openai_compat(
 
 
 # ══════════════════════════════════════════════════════════════
+# Fast Path — zero LLM compute for known queries
+# ══════════════════════════════════════════════════════════════
+
+import re
+
+# Common symbol mapping for fast path
+_FAST_SYMBOLS = {
+    "btc": "bitcoin", "bitcoin": "bitcoin",
+    "eth": "ethereum", "ethereum": "ethereum",
+    "sol": "solana", "solana": "solana",
+    "xmr": "monero", "monero": "monero",
+    "doge": "dogecoin", "dogecoin": "dogecoin",
+    "xrp": "ripple", "ripple": "ripple",
+    "ada": "cardano", "cardano": "cardano",
+    "dot": "polkadot", "polkadot": "polkadot",
+    "avax": "avalanche-2", "avalanche": "avalanche-2",
+    "matic": "matic-network", "polygon": "matic-network",
+    "link": "chainlink", "chainlink": "chainlink",
+    "bnb": "binancecoin", "binance": "binancecoin",
+    "uni": "uniswap", "uniswap": "uniswap",
+    "atom": "cosmos", "cosmos": "cosmos",
+    "near": "near", "arb": "arbitrum", "arbitrum": "arbitrum",
+    "op": "optimism", "sui": "sui", "apt": "aptos",
+    "pepe": "pepe", "shib": "shiba-inu",
+    "ltc": "litecoin", "litecoin": "litecoin",
+    "hype": "hyperliquid", "hyperliquid": "hyperliquid",
+    "fartcoin": "fartcoin", "fart": "fartcoin",
+}
+
+# Patterns for fast path matching
+_PRICE_PATTERNS = [
+    # "price of btc" / "price of btc and eth"
+    re.compile(r"(?:what(?:'s| is| are)?\s+(?:the\s+)?)?price(?:s)?\s+(?:of\s+)?(.+)", re.I),
+    # "btc price" / "eth price"
+    re.compile(r"^(\w+)\s+price$", re.I),
+    # "how much is btc"
+    re.compile(r"how\s+much\s+(?:is|are|does)\s+(.+?)(?:\s+(?:worth|cost|trading))?$", re.I),
+]
+
+_TOP_PATTERN = re.compile(r"(?:top|best|biggest)\s+(\d+)?\s*(?:crypto|coins?|tokens?)?", re.I)
+
+
+def _fast_path(user_input: str) -> str | None:
+    """Intercept common queries and handle locally without LLM.
+
+    Returns formatted text if fast path matches, None otherwise.
+    """
+    text = user_input.strip().lower()
+
+    # ── Price queries ──────────────────────────────────────
+    for pat in _PRICE_PATTERNS:
+        m = pat.match(text)
+        if m:
+            raw = m.group(1).strip()
+            # Split on "and", ",", "&", spaces
+            parts = re.split(r"\s+and\s+|\s*,\s*|\s*&\s*|\s+", raw)
+            coins = []
+            for p in parts:
+                p = p.strip().lower().rstrip("?.,!")
+                if p in _FAST_SYMBOLS:
+                    coins.append(_FAST_SYMBOLS[p])
+                elif len(p) >= 2:
+                    coins.append(p)  # Try raw as CoinGecko ID
+
+            if not coins:
+                return None
+
+            return _fetch_and_format_prices(coins)
+
+    # ── Top N ──────────────────────────────────────────────
+    m = _TOP_PATTERN.match(text)
+    if m:
+        n = int(m.group(1) or 10)
+        return _fetch_and_format_top(min(n, 25))
+
+    return None
+
+
+def _fetch_and_format_prices(coin_ids: list[str]) -> str | None:
+    """Fetch prices from CoinGecko and format as rich text."""
+    try:
+        from sentinel.scrapers.crypto import get_crypto_price
+    except ImportError:
+        # Fallback to inline httpx
+        try:
+            import httpx
+            results = []
+            for cid in coin_ids:
+                resp = httpx.get(
+                    f"https://api.coingecko.com/api/v3/coins/{cid}",
+                    params={"localization": "false", "tickers": "false",
+                            "community_data": "false", "developer_data": "false"},
+                    timeout=10.0,
+                    headers={"User-Agent": "Sentinel/1.0"},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    md = data.get("market_data", {})
+                    results.append({
+                        "name": data.get("name", cid),
+                        "symbol": data.get("symbol", "").upper(),
+                        "current_price": md.get("current_price", {}).get("usd"),
+                        "price_change_pct_24h": md.get("price_change_percentage_24h"),
+                        "price_change_pct_7d": md.get("price_change_percentage_7d"),
+                        "market_cap_rank": md.get("market_cap_rank"),
+                        "market_cap": md.get("market_cap", {}).get("usd"),
+                    })
+            if not results:
+                return None
+            return _format_price_results(results)
+        except Exception:
+            return None
+
+    results = []
+    for cid in coin_ids:
+        try:
+            data = get_crypto_price(cid)
+            if data and "error" not in data:
+                results.append(data)
+        except Exception:
+            pass
+
+    if not results:
+        return None
+
+    return _format_price_results(results)
+
+
+def _format_price_results(results: list[dict]) -> str:
+    """Format price data as rich text."""
+    lines = []
+    for r in results:
+        name = r.get("name", "?")
+        symbol = r.get("symbol", "").upper()
+        price = r.get("current_price")
+        change_24h = r.get("price_change_pct_24h")
+        change_7d = r.get("price_change_pct_7d")
+        rank = r.get("market_cap_rank")
+        mcap = r.get("market_cap")
+
+        # Format price
+        if price and price >= 1:
+            price_str = f"${price:,.2f}"
+        elif price:
+            price_str = f"${price:.6f}"
+        else:
+            price_str = "N/A"
+
+        # Format changes
+        def _fmt_change(val):
+            if val is None:
+                return "[dim]N/A[/dim]"
+            color = "green" if val >= 0 else "red"
+            return f"[{color}]{val:+.2f}%[/{color}]"
+
+        lines.append(f"[bold cyan]{name}[/bold cyan] ({symbol}): [bold]{price_str}[/bold]")
+        lines.append(f"  24h: {_fmt_change(change_24h)}  ·  7d: {_fmt_change(change_7d)}  ·  Rank #{rank or '?'}")
+        if mcap:
+            lines.append(f"  Market cap: ${mcap:,.0f}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
+def _fetch_and_format_top(n: int) -> str | None:
+    """Fetch top N crypto and format."""
+    try:
+        from sentinel.scrapers.crypto import get_crypto_top_n
+        data = get_crypto_top_n(n)
+    except ImportError:
+        try:
+            import httpx
+            resp = httpx.get(
+                "https://api.coingecko.com/api/v3/coins/markets",
+                params={"vs_currency": "usd", "order": "market_cap_desc",
+                        "per_page": n, "page": 1, "sparkline": "false"},
+                timeout=10.0,
+                headers={"User-Agent": "Sentinel/1.0"},
+            )
+            data = resp.json() if resp.status_code == 200 else None
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+    if not data:
+        return None
+
+    lines = [f"[bold]Top {len(data)} Cryptocurrencies by Market Cap[/bold]\n"]
+    for c in data:
+        rank = c.get("rank") or c.get("market_cap_rank", "?")
+        sym = (c.get("symbol") or "").upper()
+        name = c.get("name", "?")
+        price = c.get("current_price")
+        change = c.get("price_change_pct_24h") or c.get("price_change_percentage_24h")
+
+        price_str = f"${price:,.2f}" if price and price >= 1 else f"${price:.6f}" if price else "N/A"
+        color = "green" if change and change >= 0 else "red"
+        change_str = f"[{color}]{change:+.2f}%[/{color}]" if change is not None else "[dim]N/A[/dim]"
+
+        lines.append(f"  #{rank:<3} [bold]{sym:<6}[/bold] {name:<15} {price_str:<12} {change_str}")
+
+    return "\n".join(lines)
+
+
+# ══════════════════════════════════════════════════════════════
 # Tool Execution via Gateway
 # ══════════════════════════════════════════════════════════════
 
@@ -1120,6 +1326,32 @@ def run_chat(config: dict):
             console.print("  [s.cyan]status[/]       [s.dim]Show infrastructure dashboard[/]")
             console.print("  [s.cyan]quit[/]         [s.dim]Exit chat[/]")
             console.print()
+            continue
+
+        # ── Fast Path — zero LLM compute for known queries ─────
+        fast_result = _fast_path(user_input)
+        if fast_result is not None:
+            t0 = time.time()
+            console.print()
+            elapsed = time.time() - t0
+            console.print(Panel(
+                fast_result,
+                title="[bold]🛡️ Sentinel[/]",
+                border_style="#007a8a",
+                box=box.ROUNDED,
+                subtitle=f"[s.dim]⚡ instant · 0 LLM calls[/]",
+                subtitle_align="right",
+                padding=(1, 3),
+            ))
+            console.print()
+            # Save to history
+            history.append({"role": "user", "content": user_input})
+            history.append({"role": "assistant", "content": [{"type": "text", "text": fast_result}]})
+            save_message(session_id, "user", user_input)
+            save_message(session_id, "assistant", fast_result)
+            if not session_titled:
+                update_session_title(session_id, user_input[:80])
+                session_titled = True
             continue
 
         # ── Agent Tool-Use Loop ───────────────────────
