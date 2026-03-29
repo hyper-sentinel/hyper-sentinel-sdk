@@ -25,14 +25,10 @@
 ## Quick Start
 
 ```bash
-# Install
-pip install hyper-sentinel
-
-# Launch the AI agent — interactive chat with 80+ tools
-sentinel-chat
+pip install hyper-sentinel && sentinel-chat
 ```
 
-On first run you'll be prompted for your AI provider API key (Anthropic, OpenAI, Google, or xAI). That's it — no email, no password, no account creation. **Your AI key is your identity.**
+That's it. On first run you'll be prompted for your AI provider API key (Anthropic, OpenAI, Google, or xAI). No email, no password, no account creation. **Your AI key is your identity.**
 
 ### AI Agent Chat
 
