@@ -18,6 +18,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -960,6 +961,11 @@ def run_chat(config: dict):
     start_session = time.time()
     gateway_registered = gateway_ok  # track if we've registered
 
+    # ── Session memory ────────────────────────────────
+    from sentinel.memory import create_session, save_message, update_session_title, update_session_stats
+    session_id = create_session(provider, model_name)
+    session_titled = False
+
     # ── REPL ──────────────────────────────────────────
     while True:
         try:
@@ -977,14 +983,32 @@ def run_chat(config: dict):
         # ── Built-in commands ─────────────────────────
         if cmd in ("quit", "exit", "q"):
             elapsed = time.time() - start_session
-            console.print(f"\n  [s.dim]{tool_calls_total} tool calls · {len(history)} messages · {elapsed:.0f}s session[/]")
+            update_session_stats(session_id, tool_calls_total)
+            console.print(f"\n  [s.dim]{tool_calls_total} tool calls · {len(history)} messages · {elapsed:.0f}s · session {session_id}[/]")
             console.print("  [bold]Goodbye![/]\n")
             break
 
         if cmd == "clear":
             history = []
             tool_calls_total = 0
-            console.print("  [s.dim]Context cleared.[/]\n")
+            session_id = create_session(provider, model_name)
+            session_titled = False
+            console.print("  [s.dim]Context cleared — new session started.[/]\n")
+            continue
+
+        if cmd in ("sessions", "history"):
+            from sentinel.memory import list_sessions
+            sessions = list_sessions(10)
+            if not sessions:
+                console.print("  [s.dim]No saved sessions yet.[/]\n")
+            else:
+                console.print()
+                console.print("  [bold cyan]📋 Recent Sessions[/]")
+                for s in sessions:
+                    ts = datetime.fromtimestamp(s['updated_at']).strftime('%b %d %H:%M')
+                    active = " [green]← active[/]" if s['id'] == session_id else ""
+                    console.print(f"  [s.cyan]{s['id']}[/]  {ts}  [dim]{s['message_count']} msgs · {s['tool_calls']} tools[/]  {s['title']}{active}")
+                console.print()
             continue
 
         if cmd == "tools":
@@ -1112,6 +1136,13 @@ def run_chat(config: dict):
         try:
             # Add user message
             history.append({"role": "user", "content": user_input})
+            save_message(session_id, "user", user_input)
+
+            # Auto-title from first user message
+            if not session_titled:
+                update_session_title(session_id, user_input[:80])
+                session_titled = True
+
             response_text = None
 
             # First LLM call
