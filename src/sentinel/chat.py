@@ -1117,8 +1117,15 @@ def run_chat(config: dict):
             nonlocal tool_calls_total, api_key, gateway_registered
             tool_calls_total += 1
 
-            # Lazy gateway registration on first tool call
-            if not gateway_registered and not api_key:
+            # Direct tools (CoinGecko, YFinance, DexScreener) skip gateway
+            DIRECT_TOOLS = {
+                "get_crypto_price", "get_crypto_top", "search_crypto",
+                "get_stock_quote", "get_stock_analyst", "get_stock_news",
+                "dexscreener_search", "dexscreener_trending",
+            }
+
+            # Lazy gateway registration — only for gateway-dependent tools
+            if name not in DIRECT_TOOLS and not gateway_registered and not api_key:
                 console.print("  [s.dim]⚙ Connecting to gateway...[/]")
                 result = _register_with_gateway(ai_key)
                 if result.get("api_key"):
