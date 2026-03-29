@@ -21,7 +21,7 @@ from sentinel.exceptions import (
     ToolNotFoundError,
 )
 
-__version__ = "3.0.6"
+__version__ = "3.1.0"
 __all__ = [
     "SentinelClient",
     "SentinelError",

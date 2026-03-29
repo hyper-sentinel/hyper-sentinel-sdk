@@ -1174,6 +1174,16 @@ def main():
     elif cmd in ("version", "--version", "-v"):
         from sentinel import __version__
         console.print(f"  [s.cyan]hyper-sentinel[/] v{__version__}")
+    elif cmd == "serve":
+        port = 8000
+        host = "0.0.0.0"
+        for i, a in enumerate(args[1:], 1):
+            if a in ("--port", "-p") and i + 1 < len(args):
+                port = int(args[i + 1])
+            elif a in ("--host",) and i + 1 < len(args):
+                host = args[i + 1]
+        from sentinel.server import run_server
+        run_server(host=host, port=port)
     else:
         # If no known command, treat everything as a one-shot question
         question = " ".join(args)
