@@ -606,7 +606,14 @@ def _call_openai_compat(
 # ══════════════════════════════════════════════════════════════
 
 def _execute_tool(api_key: str, tool_name: str, tool_args: dict) -> str:
-    """Execute a tool on the Go gateway. Returns JSON string."""
+    """Execute a tool. Free tools run directly; others go through gateway."""
+
+    # ── Direct execution for free/public tools ────────────────
+    direct = _execute_direct(tool_name, tool_args)
+    if direct is not None:
+        return direct
+
+    # ── Gateway execution for everything else ─────────────────
     try:
         resp = httpx.post(
             f"{GATEWAY_URL}/api/v1/tools/{tool_name}",
@@ -622,6 +629,124 @@ def _execute_tool(api_key: str, tool_name: str, tool_args: dict) -> str:
         return json.dumps({"error": f"HTTP {resp.status_code}", "detail": resp.text[:200]})
     except Exception as e:
         return json.dumps({"error": str(e)})
+
+
+def _execute_direct(tool_name: str, args: dict) -> str | None:
+    """Execute free tools directly without gateway. Returns None if not a direct tool."""
+    try:
+        # ── CoinGecko (free, no key) ──────────────────────────
+        if tool_name == "get_crypto_price":
+            symbol = args.get("symbol", "").lower()
+            # CoinGecko simple price API
+            r = httpx.get(
+                "https://api.coingecko.com/api/v3/simple/price",
+                params={"ids": symbol, "vs_currencies": "usd", "include_24hr_change": "true",
+                         "include_market_cap": "true", "include_24hr_vol": "true"},
+                timeout=10.0,
+            )
+            data = r.json()
+            if not data or symbol not in data:
+                # Try search first
+                sr = httpx.get(f"https://api.coingecko.com/api/v3/search?query={symbol}", timeout=10.0)
+                coins = sr.json().get("coins", [])
+                if coins:
+                    coin_id = coins[0]["id"]
+                    r = httpx.get(
+                        "https://api.coingecko.com/api/v3/simple/price",
+                        params={"ids": coin_id, "vs_currencies": "usd", "include_24hr_change": "true",
+                                 "include_market_cap": "true", "include_24hr_vol": "true"},
+                        timeout=10.0,
+                    )
+                    data = r.json()
+                    symbol = coin_id
+            if symbol in data:
+                info = data[symbol]
+                return json.dumps({
+                    "symbol": symbol,
+                    "price_usd": info.get("usd"),
+                    "change_24h_pct": info.get("usd_24h_change"),
+                    "market_cap_usd": info.get("usd_market_cap"),
+                    "volume_24h_usd": info.get("usd_24h_vol"),
+                    "source": "coingecko",
+                })
+            return json.dumps({"error": f"Token '{symbol}' not found on CoinGecko"})
+
+        if tool_name == "get_crypto_top":
+            n = args.get("n", 10)
+            r = httpx.get(
+                "https://api.coingecko.com/api/v3/coins/markets",
+                params={"vs_currency": "usd", "order": "market_cap_desc", "per_page": n, "page": 1},
+                timeout=10.0,
+            )
+            coins = [{"rank": c["market_cap_rank"], "name": c["name"], "symbol": c["symbol"],
+                       "price": c["current_price"], "change_24h": c.get("price_change_percentage_24h"),
+                       "market_cap": c["market_cap"]} for c in r.json()]
+            return json.dumps({"top_coins": coins, "source": "coingecko"})
+
+        if tool_name == "search_crypto":
+            query = args.get("query", "")
+            r = httpx.get(f"https://api.coingecko.com/api/v3/search?query={query}", timeout=10.0)
+            coins = [{"id": c["id"], "name": c["name"], "symbol": c["symbol"],
+                       "market_cap_rank": c.get("market_cap_rank")} for c in r.json().get("coins", [])[:10]]
+            return json.dumps({"results": coins, "source": "coingecko"})
+
+        # ── YFinance (free, no key) ───────────────────────────
+        if tool_name in ("get_stock_quote", "get_stock_analyst", "get_stock_news"):
+            try:
+                import yfinance as yf
+            except ImportError:
+                return json.dumps({"error": "yfinance not installed. Run: pip install yfinance"})
+
+            ticker = args.get("ticker", args.get("symbol", "SPY")).upper()
+            t = yf.Ticker(ticker)
+
+            if tool_name == "get_stock_quote":
+                info = t.info
+                return json.dumps({
+                    "ticker": ticker,
+                    "price": info.get("currentPrice") or info.get("regularMarketPrice"),
+                    "change_pct": info.get("regularMarketChangePercent"),
+                    "market_cap": info.get("marketCap"),
+                    "volume": info.get("volume"),
+                    "name": info.get("shortName"),
+                    "pe_ratio": info.get("trailingPE"),
+                    "52w_high": info.get("fiftyTwoWeekHigh"),
+                    "52w_low": info.get("fiftyTwoWeekLow"),
+                    "source": "yfinance",
+                })
+            elif tool_name == "get_stock_analyst":
+                recs = t.recommendations
+                if recs is not None and len(recs) > 0:
+                    recent = recs.tail(5).to_dict(orient="records")
+                    return json.dumps({"ticker": ticker, "recommendations": recent, "source": "yfinance"})
+                return json.dumps({"ticker": ticker, "recommendations": [], "source": "yfinance"})
+            elif tool_name == "get_stock_news":
+                news = t.news or []
+                items = [{"title": n.get("title"), "publisher": n.get("publisher"),
+                          "link": n.get("link")} for n in news[:5]]
+                return json.dumps({"ticker": ticker, "news": items, "source": "yfinance"})
+
+        # ── DexScreener (free, no key) ────────────────────────
+        if tool_name == "dexscreener_search":
+            query = args.get("query", "")
+            r = httpx.get(f"https://api.dexscreener.com/latest/dex/search?q={query}", timeout=10.0)
+            pairs = r.json().get("pairs", [])[:5]
+            results = [{"name": p.get("baseToken", {}).get("name"), "symbol": p.get("baseToken", {}).get("symbol"),
+                         "price": p.get("priceUsd"), "chain": p.get("chainId"),
+                         "dex": p.get("dexId"), "volume_24h": p.get("volume", {}).get("h24")} for p in pairs]
+            return json.dumps({"pairs": results, "source": "dexscreener"})
+
+        if tool_name == "dexscreener_trending":
+            r = httpx.get("https://api.dexscreener.com/token-boosts/latest/v1", timeout=10.0)
+            tokens = r.json()[:10] if isinstance(r.json(), list) else []
+            results = [{"symbol": t.get("tokenAddress", "")[:8], "chain": t.get("chainId"),
+                         "url": t.get("url")} for t in tokens]
+            return json.dumps({"trending": results, "source": "dexscreener"})
+
+    except Exception as e:
+        return json.dumps({"error": str(e), "tool": tool_name})
+
+    return None  # Not a direct tool — fall through to gateway
 
 
 # ══════════════════════════════════════════════════════════════

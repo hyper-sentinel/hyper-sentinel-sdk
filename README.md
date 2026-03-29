@@ -50,6 +50,7 @@ The agent has access to 36+ tools and calls them automatically based on your que
 
 ```
 add                  # List available data sources & trading platforms
+add ai               # Change LLM provider (Claude ↔ GPT ↔ Gemini ↔ Grok)
 add hl               # Configure Hyperliquid perp futures
 add polymarket       # Configure Polymarket prediction markets
 add aster            # Configure Aster DEX futures
@@ -62,6 +63,9 @@ status               # Show infrastructure dashboard
 clear                # Reset conversation context
 quit                 # Exit chat
 ```
+
+> **Free tools** (CoinGecko, YFinance, DexScreener) execute instantly — no gateway needed.
+> **Gateway tools** (FRED, X, Hyperliquid, Polymarket, etc.) auto-connect on first use.
 
 ### One-Shot Queries
 
@@ -232,19 +236,22 @@ except AuthError:
 ## Architecture
 
 ```
-Your App → hyper-sentinel (Python SDK)
-               │ HTTPS
-         Sentinel Go Gateway (Cloud Run)
-               │ gRPC / HTTP
-         Python Engine (FastAPI)
-               │
-     ┌─────────┼──────────┐
-   Trading   Data       AI
-   ────────  ────────   ────────
-   Hyperliquid  CoinGecko   Claude
-   Aster DEX    yfinance    GPT-4o
-   Jupiter      FRED        Gemini
-   Uniswap      Elfa AI     Grok
+ Your App → hyper-sentinel (Python SDK)
+                │
+     ┌──────────┤
+     │ Direct   │ Gateway (HTTPS)
+     │          │
+  CoinGecko  Sentinel Go API (Cloud Run)
+  YFinance         │ gRPC / HTTP
+  DexScreener   Python Engine (FastAPI)
+                   │
+        ┌──────────┼──────────┐
+      Trading    Data       AI
+      ────────   ────────   ────────
+      Hyperliquid  FRED      Claude
+      Aster DEX    Elfa AI   GPT-4o
+      Jupiter      X/Twitter Gemini
+      Uniswap      Y2 Intel  Grok
 ```
 
 ## Links
