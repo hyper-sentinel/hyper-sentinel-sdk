@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyper-sentinel"
-version = "0.3.0"
+version = "0.3.1"
 description = "Python SDK + AI Agent for Sentinel — 80+ crypto trading, AI, and market intelligence tools with interactive chat. Free access, usage-based fees."
 readme = "README.md"
 license = "AGPL-3.0-only"

@@ -63,7 +63,7 @@ BANNER = """
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]
-[dim]AI Agent · 80+ Tools · Gateway-Powered · Zero-Trust[/]
+[dim]AI Agent · 65+ Tools · Local-First · Zero-Config[/]
 """
 
 
@@ -565,23 +565,40 @@ def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dic
     if tools:
         payload["tools"] = _tools_for_anthropic(tools)
 
-    try:
-        resp = httpx.post(
-            "https://api.anthropic.com/v1/messages",
-            headers=headers,
-            json=payload,
-            timeout=httpx.Timeout(120.0, connect=10.0),
-        )
+    import time as _time
+    last_err = ""
+    for attempt in range(3):
         try:
-            return resp.json()
-        except (ValueError, Exception):
-            return {"error": {"message": f"Anthropic returned HTTP {resp.status_code} with empty/invalid response. Try again."}}
-    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
-        return {"error": {"message": f"Cannot reach Anthropic API: {e}. Check your internet connection."}}
-    except httpx.TimeoutException as e:
-        return {"error": {"message": f"Anthropic API timed out: {e}"}}
-    except Exception as e:
-        return {"error": {"message": f"LLM call failed: {e}"}}
+            resp = httpx.post(
+                "https://api.anthropic.com/v1/messages",
+                headers=headers,
+                json=payload,
+                timeout=httpx.Timeout(120.0, connect=10.0),
+            )
+            if resp.status_code in (403, 429, 500, 502, 503, 529) and attempt < 2:
+                last_err = f"HTTP {resp.status_code}"
+                _time.sleep(1.5 * (attempt + 1))
+                continue
+            # Non-200: try to parse JSON error, otherwise show body snippet
+            if resp.status_code != 200:
+                try:
+                    return resp.json()  # Anthropic returns JSON errors
+                except (ValueError, Exception):
+                    body_snippet = resp.text[:200].replace('\n', ' ').strip()
+                    return {"error": {"message": f"Anthropic HTTP {resp.status_code}: {body_snippet}"}}
+            try:
+                return resp.json()
+            except (ValueError, Exception):
+                if attempt < 2:
+                    _time.sleep(1.5 * (attempt + 1))
+                    continue
+                return {"error": {"message": f"Anthropic returned empty response after 3 retries."}}
+        except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+            return {"error": {"message": f"Cannot reach Anthropic API: {e}. Check your internet connection."}}
+        except httpx.TimeoutException as e:
+            return {"error": {"message": f"Anthropic API timed out: {e}"}}
+        except Exception as e:
+            return {"error": {"message": f"LLM call failed: {e}"}}
 
 
 def _call_openai_compat(
@@ -605,23 +622,31 @@ def _call_openai_compat(
     if tools:
         payload["tools"] = _tools_for_openai(tools)
 
-    try:
-        resp = httpx.post(
-            endpoint,
-            headers=headers,
-            json=payload,
-            timeout=httpx.Timeout(120.0, connect=10.0),
-        )
+    import time as _time
+    for attempt in range(3):
         try:
-            return resp.json()
-        except (ValueError, Exception):
-            return {"error": {"message": f"LLM API returned HTTP {resp.status_code} with empty/invalid response. Try again."}}
-    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
-        return {"error": {"message": f"Cannot reach LLM API: {e}. Check your internet connection."}}
-    except httpx.TimeoutException as e:
-        return {"error": {"message": f"LLM API timed out: {e}"}}
-    except Exception as e:
-        return {"error": {"message": f"LLM call failed: {e}"}}
+            resp = httpx.post(
+                endpoint,
+                headers=headers,
+                json=payload,
+                timeout=httpx.Timeout(120.0, connect=10.0),
+            )
+            if resp.status_code in (403, 429, 500, 502, 503, 529) and attempt < 2:
+                _time.sleep(1.5 * (attempt + 1))
+                continue
+            try:
+                return resp.json()
+            except (ValueError, Exception):
+                if attempt < 2:
+                    _time.sleep(1.5 * (attempt + 1))
+                    continue
+                return {"error": {"message": f"LLM API returned HTTP {resp.status_code} with invalid response after 3 retries."}}
+        except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+            return {"error": {"message": f"Cannot reach LLM API: {e}. Check your internet connection."}}
+        except httpx.TimeoutException as e:
+            return {"error": {"message": f"LLM API timed out: {e}"}}
+        except Exception as e:
+            return {"error": {"message": f"LLM call failed: {e}"}}
 
 
 # ══════════════════════════════════════════════════════════════
