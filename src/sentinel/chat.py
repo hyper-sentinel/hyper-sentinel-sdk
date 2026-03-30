@@ -126,7 +126,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.3.9 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.3.10 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -1615,14 +1615,12 @@ def run_chat(config: dict):
         console.print("  [s.error]✗ No AI key configured[/] — run [bold]sentinel-setup[/] first.\n")
         return
 
-    # ── Banner + Dashboard (instant — no blocking calls) ──
+    # ── Animated Boot Sequence ─────────────────────────────────
     console.print(BANNER)
 
     gateway_ok = bool(api_key)
 
-    # ── Bridge config → env vars for scrapers ─────────
-    # Scrapers read os.getenv(), but user keys are stored in ~/.sentinel/config.
-    # Bridge them so all scrapers see the credentials.
+    # Bridge config → env (must happen before dashboard)
     _CONFIG_TO_ENV = {
         "hyperliquid_wallet": "HYPERLIQUID_WALLET_ADDRESS",
         "hyperliquid_key": "HYPERLIQUID_PRIVATE_KEY",
@@ -1639,10 +1637,81 @@ def run_chat(config: dict):
         "discord_token": "DISCORD_BOT_TOKEN",
         "eodhd_api_key": "EODHD_API_KEY",
     }
-    for config_key, env_key in _CONFIG_TO_ENV.items():
-        val = config.get(config_key, "")
-        if val and not os.environ.get(env_key):
-            os.environ[env_key] = str(val)
+
+    # ── Staged boot with spinners ─────────────────────────────
+    from rich.live import Live
+    from rich.text import Text
+    import time as _time
+
+    detected = _detect_provider(ai_key) if ai_key else None
+    provider_label = detected[1] if detected else "UNKNOWN"
+
+    boot_stages = [
+        ("🤖", "Authenticating LLM", f"{provider_label} → {DEFAULT_MODELS.get(provider, 'claude-sonnet-4-20250514')}", 0.3),
+        ("🔑", "Loading credentials", f"~/.sentinel/config", 0.2),
+        ("🔧", "Initializing tool registry", f"{len(TOOL_SCHEMAS)} tools", 0.25),
+        ("📡", "Bridging environment", f"{sum(1 for k in _CONFIG_TO_ENV if config.get(k))} services", 0.15),
+        ("📊", "Connecting data sources", "CoinGecko · YFinance · DexScreener", 0.2),
+    ]
+
+    # Count exchange connections
+    exchanges = []
+    if config.get("hyperliquid_wallet"): exchanges.append("Hyperliquid")
+    if config.get("aster_api_key"): exchanges.append("Aster")
+    if config.get("polymarket_key"): exchanges.append("Polymarket")
+    if exchanges:
+        boot_stages.append(("⚡", "Connecting exchanges", " · ".join(exchanges), 0.25))
+
+    # Social feeds
+    socials = []
+    if config.get("x_bearer_token"): socials.append("X")
+    if config.get("y2_api_key"): socials.append("Y2")
+    if config.get("tg_api_id"): socials.append("Telegram")
+    if config.get("discord_token"): socials.append("Discord")
+    if socials:
+        boot_stages.append(("🐦", "Connecting social feeds", " · ".join(socials), 0.15))
+
+    boot_stages.append(("🛡️", "Deploying MarketAgent", "sentinel.market.data", 0.2))
+
+    spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+    with Live(console=console, refresh_per_second=15, transient=True) as live:
+        completed = []
+        for i, (icon, label, detail, duration) in enumerate(boot_stages):
+            # Animate spinner for this stage
+            frames = int(duration / 0.067)  # ~15fps
+            for f in range(max(frames, 3)):
+                lines = []
+                # Show completed stages
+                for ci, cl, cd in completed:
+                    lines.append(f"  [green]✓[/] {ci} [bold]{cl}[/] [dim]— {cd}[/]")
+                # Show current stage with spinner
+                spin = spinner_frames[f % len(spinner_frames)]
+                lines.append(f"  [cyan]{spin}[/] {icon} [bold]{label}[/] [dim]— {detail}[/]")
+                live.update(Text.from_markup("\n".join(lines)))
+                _time.sleep(0.067)
+
+            # Do the actual work for this stage
+            if "Bridging" in label:
+                for config_key, env_key in _CONFIG_TO_ENV.items():
+                    val = config.get(config_key, "")
+                    if val and not os.environ.get(env_key):
+                        os.environ[env_key] = str(val)
+
+            completed.append((icon, label, detail))
+
+        # Final render — all green
+        final_lines = []
+        for ci, cl, cd in completed:
+            final_lines.append(f"  [green]✓[/] {ci} [bold]{cl}[/] [dim]— {cd}[/]")
+        live.update(Text.from_markup("\n".join(final_lines)))
+        _time.sleep(0.15)
+
+    # Print final boot summary (persists after Live clears)
+    console.print()
+    for ci, cl, cd in completed:
+        console.print(f"  [green]✓[/] {ci} [bold]{cl}[/] [dim]— {cd}[/]")
+    console.print()
 
     _print_dashboard(config, gateway_ok)
 

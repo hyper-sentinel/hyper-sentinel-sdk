@@ -21,7 +21,7 @@ from sentinel.exceptions import (
     ToolNotFoundError,
 )
 
-__version__ = "0.3.9"
+__version__ = "0.3.10"
 __all__ = [
     "SentinelClient",
     "SentinelError",
@@ -31,22 +31,27 @@ __all__ = [
     "ToolNotFoundError",
 ]
 
-# ── First-run hint ────────────────────────────────────────────
-# Show setup instructions on first import if no config exists.
+# ── Post-install message ──────────────────────────────────────
+# Shows once on first import when no config exists yet.
 def _first_run_hint():
     from pathlib import Path
     config = Path.home() / ".sentinel" / "config"
     if not config.exists():
         try:
             from rich.console import Console
+            from rich.panel import Panel
             c = Console(stderr=True)
             c.print()
-            c.print("  [bold #00e5ff]hyper-sentinel 0.3.9[/] installed ✓")
-            c.print("  [dim]Run [bold]sentinel-chat[/dim][bold] to launch the AI agent with 80+ tools.[/]")
-            c.print("  [dim]Or: [bold]sentinel-setup[/bold] · [bold]sentinel status[/bold] · [bold]sentinel test[/bold][/]")
+            msg = (
+                "[bold #00e5ff]H Y P E R  ·  S E N T I N E L[/]\n"
+                f"[dim]v{__version__} · Quantitative AI Agent · 80+ Tools[/]\n"
+                "\n"
+                "[bold white]→ Type [bold #00e5ff]sentinel[/bold #00e5ff] to launch[/bold white]"
+            )
+            c.print(Panel(msg, border_style="#007a8a", padding=(1, 4)))
             c.print()
         except Exception:
-            print("\n  hyper-sentinel installed ✓")
-            print("  Run 'sentinel-setup' to configure your AI key.\n")
+            print(f"\n  hyper-sentinel v{__version__} installed ✓")
+            print("  Type 'sentinel' to launch.\n")
 
 _first_run_hint()
