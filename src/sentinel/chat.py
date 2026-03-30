@@ -126,11 +126,11 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 3.1.2 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.3.3 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
-- Stock data (YFinance — prices, analyst recs, financials, news)
+- Stock data (YFinance — prices, analyst recs, financials, news, full quant analysis)
 - Economic data (FRED — GDP, CPI, unemployment, interest rates)
 - DEX data (DexScreener — pairs, trending tokens, on-chain analytics)
 - Social intelligence (X/Twitter search, Elfa AI trending, Y2 news)
@@ -147,6 +147,23 @@ RULES:
 - If a tool fails, say so honestly and suggest alternatives.
 - For trading operations (placing orders, closing positions), confirm the action clearly.
 - Keep responses focused — no unnecessary preamble. Don't dump system status unless asked.
+
+ANALYSIS FORMATTING:
+When performing stock/crypto analysis or "quant analysis", produce a COMPREHENSIVE report with these sections:
+1. 📊 CURRENT PRICE & MARKET DATA — price, change, day range, market cap
+2. 📈 VALUATION METRICS — P/E (trailing & forward), P/B, P/S, PEG, EV/EBITDA. Flag extremes with ⚠️
+3. 💰 FINANCIAL HEALTH — margins (profit, gross, operating, EBITDA), ROE, ROA, growth rates, balance sheet (cash, debt, ratios), cash flow
+4. 📊 TECHNICAL ANALYSIS — 50-day & 200-day MA, price vs MA %, trend direction, volume vs average
+5. 🎯 ANALYST SENTIMENT — recommendation breakdown, price targets (high/mean/median/low), implied upside
+6. ⚠️ RISK FACTORS — beta, overall risk score, short interest, governance risk
+7. 📉 FUNDAMENTAL CONCERNS — bullet list of negatives
+8. ✅ POSITIVE FACTORS — bullet list of positives
+9. 🎯 QUANTITATIVE SUMMARY — score out of 10 with breakdown (valuation, financial health, growth, technical, momentum, risk-adjusted)
+10. 💡 TRADING PERSPECTIVE — key support/resistance levels, momentum signals
+11. 🎪 FINAL VERDICT — BULLISH/NEUTRAL/BEARISH with reasoning and entry point recommendations
+
+Use section dividers (────) between each section. Use emoji indicators: 🔴 bad, 🟡 mixed, 🟢 good, ⚠️ warning.
+For quant analysis, ALWAYS use the run_stock_analysis tool to get comprehensive data in a single call.
 """
 
 # ══════════════════════════════════════════════════════════════
@@ -247,6 +264,17 @@ TOOL_SCHEMAS = [
             "properties": {
                 "symbol": {"type": "string", "description": "Stock ticker symbol"},
                 "period": {"type": "string", "description": "Time period: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max", "default": "1mo"},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "run_stock_analysis",
+        "description": "Run comprehensive quantitative analysis on a stock — valuation, financials, technicals (50/200 MA), risk metrics, analyst targets, short interest, balance sheet, and growth. Use this for deep analysis requests.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Stock ticker symbol (e.g. TSLA, AAPL, NVDA)"},
             },
             "required": ["symbol"],
         },
@@ -945,7 +973,7 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
             return json.dumps({"results": coins, "source": "coingecko"})
 
         # ── YFinance (free, no key) ───────────────────────────
-        if tool_name in ("get_stock_price", "get_stock_info", "get_analyst_recs", "get_stock_news", "get_stock_history"):
+        if tool_name in ("get_stock_price", "get_stock_info", "get_analyst_recs", "get_stock_news", "get_stock_history", "run_stock_analysis"):
             try:
                 import yfinance as yf
             except ImportError:
@@ -1018,6 +1046,119 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                     "data_points": len(closes),
                     "source": "yfinance",
                 })
+            elif tool_name == "run_stock_analysis":
+                info = t.info
+                # Pull 1Y history for technicals
+                hist = t.history(period="1y")
+                closes_1y = hist["Close"].tolist() if not hist.empty else []
+                # 1mo for short-term
+                hist_1m = t.history(period="1mo")
+                closes_1m = hist_1m["Close"].tolist() if not hist_1m.empty else []
+
+                # Compute returns & volatility
+                if len(closes_1y) > 1:
+                    returns = [(closes_1y[i] - closes_1y[i-1])/closes_1y[i-1] for i in range(1, len(closes_1y))]
+                    avg_ret = sum(returns)/len(returns)
+                    vol = (sum((r - avg_ret)**2 for r in returns)/len(returns))**0.5
+                    sharpe = (avg_ret / vol * (252**0.5)) if vol > 0 else 0
+                else:
+                    avg_ret, vol, sharpe = 0, 0, 0
+
+                # Moving averages
+                ma50 = sum(closes_1y[-50:])/50 if len(closes_1y) >= 50 else None
+                ma200 = sum(closes_1y[-200:])/200 if len(closes_1y) >= 200 else None
+                price = info.get("currentPrice") or info.get("regularMarketPrice") or (closes_1y[-1] if closes_1y else None)
+
+                # Analyst targets
+                recs = t.recommendations
+                rec_summary = {}
+                if recs is not None and len(recs) > 0:
+                    latest = recs.tail(1).to_dict(orient="records")
+                    if latest:
+                        rec_summary = latest[0]
+
+                result = {
+                    "ticker": ticker,
+                    "name": info.get("shortName"),
+                    "sector": info.get("sector"),
+                    "industry": info.get("industry"),
+                    # ── Price ──
+                    "current_price": price,
+                    "previous_close": info.get("previousClose"),
+                    "day_high": info.get("dayHigh"),
+                    "day_low": info.get("dayLow"),
+                    "52w_high": info.get("fiftyTwoWeekHigh"),
+                    "52w_low": info.get("fiftyTwoWeekLow"),
+                    "change_pct": info.get("regularMarketChangePercent"),
+                    # ── Valuation ──
+                    "market_cap": info.get("marketCap"),
+                    "pe_trailing": info.get("trailingPE"),
+                    "pe_forward": info.get("forwardPE"),
+                    "peg_ratio": info.get("pegRatio"),
+                    "price_to_book": info.get("priceToBook"),
+                    "price_to_sales": info.get("priceToSalesTrailing12Months"),
+                    "enterprise_value": info.get("enterpriseValue"),
+                    "ev_to_ebitda": info.get("enterpriseToEbitda"),
+                    # ── Financials ──
+                    "revenue": info.get("totalRevenue"),
+                    "revenue_growth": info.get("revenueGrowth"),
+                    "earnings_growth": info.get("earningsGrowth"),
+                    "profit_margin": info.get("profitMargins"),
+                    "gross_margin": info.get("grossMargins"),
+                    "operating_margin": info.get("operatingMargins"),
+                    "ebitda_margin": info.get("ebitdaMargins"),
+                    "roe": info.get("returnOnEquity"),
+                    "roa": info.get("returnOnAssets"),
+                    "eps_trailing": info.get("trailingEps"),
+                    "eps_forward": info.get("forwardEps"),
+                    # ── Balance Sheet ──
+                    "total_cash": info.get("totalCash"),
+                    "total_debt": info.get("totalDebt"),
+                    "debt_to_equity": info.get("debtToEquity"),
+                    "current_ratio": info.get("currentRatio"),
+                    "quick_ratio": info.get("quickRatio"),
+                    "operating_cash_flow": info.get("operatingCashflow"),
+                    "free_cash_flow": info.get("freeCashflow"),
+                    # ── Technicals ──
+                    "ma_50": round(ma50, 2) if ma50 else None,
+                    "ma_200": round(ma200, 2) if ma200 else None,
+                    "price_vs_ma50_pct": round((price/ma50 - 1) * 100, 2) if ma50 and price else None,
+                    "price_vs_ma200_pct": round((price/ma200 - 1) * 100, 2) if ma200 and price else None,
+                    "avg_volume": info.get("averageVolume"),
+                    "volume": info.get("volume"),
+                    # ── Risk ──
+                    "beta": info.get("beta"),
+                    "overall_risk": info.get("overallRisk"),
+                    "audit_risk": info.get("auditRisk"),
+                    "board_risk": info.get("boardRisk"),
+                    "compensation_risk": info.get("compensationRisk"),
+                    "shareholder_rights_risk": info.get("shareHolderRightsRisk"),
+                    "short_pct_of_float": info.get("shortPercentOfFloat"),
+                    "short_ratio": info.get("shortRatio"),
+                    "shares_short": info.get("sharesShort"),
+                    # ── Analyst Targets ──
+                    "target_high": info.get("targetHighPrice"),
+                    "target_mean": info.get("targetMeanPrice"),
+                    "target_median": info.get("targetMedianPrice"),
+                    "target_low": info.get("targetLowPrice"),
+                    "recommendation_key": info.get("recommendationKey"),
+                    "number_of_analysts": info.get("numberOfAnalystOpinions"),
+                    "analyst_recommendations": rec_summary,
+                    # ── Quant Metrics ──
+                    "1y_return_pct": round((closes_1y[-1]/closes_1y[0] - 1) * 100, 2) if len(closes_1y) > 1 else None,
+                    "daily_volatility_pct": round(vol * 100, 4) if vol else None,
+                    "annualized_sharpe": round(sharpe, 2) if sharpe else None,
+                    "1y_high": round(max(closes_1y), 2) if closes_1y else None,
+                    "1y_low": round(min(closes_1y), 2) if closes_1y else None,
+                    # ── Dividend ──
+                    "dividend_yield": info.get("dividendYield"),
+                    "dividend_rate": info.get("dividendRate"),
+                    "payout_ratio": info.get("payoutRatio"),
+                    "source": "yfinance",
+                }
+                # Remove None values to keep response clean
+                result = {k: v for k, v in result.items() if v is not None}
+                return json.dumps(result)
 
         # ── DexScreener (free, no key) ────────────────────────
         if tool_name == "dexscreener_search":
@@ -1613,7 +1754,7 @@ def run_chat(config: dict):
                 # CoinGecko
                 "get_crypto_price", "get_crypto_top", "search_crypto",
                 # YFinance
-                "get_stock_price", "get_stock_info", "get_analyst_recs", "get_stock_news", "get_stock_history",
+                "get_stock_price", "get_stock_info", "get_analyst_recs", "get_stock_news", "get_stock_history", "run_stock_analysis",
                 # DexScreener
                 "dexscreener_search", "dexscreener_trending",
                 # Hyperliquid
