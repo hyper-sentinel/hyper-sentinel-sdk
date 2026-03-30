@@ -1124,7 +1124,9 @@ def main():
     args = sys.argv[1:]
 
     if not args:
-        _show_status()
+        # No args = launch chat (the main experience)
+        from sentinel.chat import run_chat
+        run_chat(_load_config())
         return
 
     cmd = args[0].lower()

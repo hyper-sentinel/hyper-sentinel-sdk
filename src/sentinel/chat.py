@@ -126,7 +126,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.3.8 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.3.9 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -437,6 +437,55 @@ TOOL_SCHEMAS = [
             "type": "object",
             "properties": {"limit": {"type": "integer", "description": "Number of markets", "default": 10}},
             "required": [],
+        },
+    },
+
+    {
+        "name": "get_polymarket_positions",
+        "description": "Get your current Polymarket positions and portfolio.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "buy_polymarket",
+        "description": "Buy shares on a Polymarket prediction market.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "token_id": {"type": "string", "description": "The token ID for the outcome to buy"},
+                "amount": {"type": "number", "description": "Amount in USDC to spend"},
+                "order_type": {"type": "string", "description": "Order type: 'market' or 'limit'", "default": "market"},
+            },
+            "required": ["token_id", "amount"],
+        },
+    },
+    {
+        "name": "sell_polymarket",
+        "description": "Sell shares on a Polymarket prediction market.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "token_id": {"type": "string", "description": "The token ID for the outcome to sell"},
+                "amount": {"type": "number", "description": "Number of shares to sell"},
+            },
+            "required": ["token_id", "amount"],
+        },
+    },
+    {
+        "name": "get_polymarket_price",
+        "description": "Get the current price/odds for a specific Polymarket token.",
+        "parameters": {
+            "type": "object",
+            "properties": {"token_id": {"type": "string", "description": "Token ID to get price for"}},
+            "required": ["token_id"],
+        },
+    },
+    {
+        "name": "get_polymarket_orderbook",
+        "description": "Get the order book for a Polymarket token.",
+        "parameters": {
+            "type": "object",
+            "properties": {"token_id": {"type": "string", "description": "Token ID to get orderbook for"}},
+            "required": ["token_id"],
         },
     },
 
@@ -1637,7 +1686,10 @@ def run_chat(config: dict):
             tool_calls_total = 0
             session_id = create_session(provider, model_name)
             session_titled = False
-            console.print("  [s.dim]Context cleared — new session started.[/]\n")
+            console.clear()
+            console.print(BANNER)
+            _print_dashboard(config, gateway_ok)
+            console.print()
             continue
 
         if cmd in ("sessions", "history"):
