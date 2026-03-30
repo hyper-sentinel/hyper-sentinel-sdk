@@ -397,19 +397,8 @@ _VERIFY_MAP = {
 
 
 def _verify_after_save(config_key: str, label: str):
-    """Verify a service by calling the gateway after saving the key."""
-    verify = _VERIFY_MAP.get(config_key)
-    if not verify:
-        return
-    tool_name, args, success_msg = verify
-    try:
-        from sentinel import SentinelClient
-        client = SentinelClient()
-        console.print(f"  [s.dim]Verifying {label}...[/]", end=" ")
-        client.call_tool(tool_name, **args)
-        console.print(f"[s.cyan]✓ {success_msg}[/]")
-    except Exception:
-        console.print("[s.dim]skipped — will verify on first use[/]")
+    """Confirm service key was saved — no gateway needed (local-first)."""
+    console.print(f"  [s.dim]Key saved — {label} will be used on next query.[/]")
 
 
 def _show_add_list():

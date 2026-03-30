@@ -1200,26 +1200,26 @@ def _print_dashboard(config: dict, gateway_ok: bool):
     ds.add_row("📊 DexScreener", "[green]● Always available[/]", "DEX pair data + trending + boosted tokens")
 
     # Config-dependent sources — check if user configured keys
-    def _key_status(key_name: str, label: str, detail: str):
+    def _key_status(key_name: str, label: str, detail: str, add_cmd: str):
         """Show green if key is configured, yellow if needs setup."""
         val = config.get(key_name, os.environ.get(key_name, ""))
         if val:
             ds.add_row(label, "[green]● Ready[/]", detail)
         else:
-            ds.add_row(label, "[yellow]○ Needs key[/]", f"{detail} · [dim]add {key_name.split('_')[0].lower()}[/]")
+            ds.add_row(label, "[yellow]○ Needs key[/]", f"{detail} · [dim]add {add_cmd}[/]")
 
-    _key_status("fred_key", "🏛️ FRED", "GDP, CPI, rates, yield curve, VIX")
-    _key_status("y2_key", "📰 Y2 Intelligence", "news sentiment + recaps + reports")
-    _key_status("elfa_key", "🔮 Elfa AI", "trending tokens + social mentions")
-    _key_status("x_bearer", "🐦 X (Twitter)", "tweets + trends + sentiment")
+    _key_status("fred_api_key", "🏛️ FRED", "GDP, CPI, rates, yield curve, VIX", "fred")
+    _key_status("y2_api_key", "📰 Y2 Intelligence", "news sentiment + recaps + reports", "y2")
+    _key_status("elfa_api_key", "🔮 Elfa AI", "trending tokens + social mentions", "elfa")
+    _key_status("x_bearer_token", "🐦 X (Twitter)", "tweets + trends + sentiment", "x")
 
     # Exchange status — check wallet/key config
-    hl_ok = config.get("hl_wallet") or os.environ.get("HYPERLIQUID_WALLET_ADDRESS", "")
+    hl_ok = config.get("hyperliquid_wallet") or os.environ.get("HYPERLIQUID_WALLET_ADDRESS", "")
     ds.add_row("⚡ Hyperliquid",
                "[green]● Ready[/]" if hl_ok else "[yellow]○ Needs config[/]",
                "perp futures + orders + positions" + ("" if hl_ok else " · [dim]add hl[/]"))
 
-    aster_ok = config.get("aster_key") or os.environ.get("ASTER_API_KEY", "")
+    aster_ok = config.get("aster_api_key") or os.environ.get("ASTER_API_KEY", "")
     ds.add_row("🌟 Aster DEX",
                "[green]● Ready[/]" if aster_ok else "[yellow]○ Needs config[/]",
                "futures + orderbook + klines + leverage" + ("" if aster_ok else " · [dim]add aster[/]"))
@@ -1257,7 +1257,7 @@ def _print_dashboard(config: dict, gateway_ok: bool):
 
     # Count connected sources
     connected = 3  # CoinGecko + YFinance + DexScreener always
-    for k in ("fred_key", "y2_key", "elfa_key", "x_bearer"):
+    for k in ("fred_api_key", "y2_api_key", "elfa_api_key", "x_bearer_token"):
         if config.get(k) or os.environ.get(k, ""):
             connected += 1
     if hl_ok: connected += 1
