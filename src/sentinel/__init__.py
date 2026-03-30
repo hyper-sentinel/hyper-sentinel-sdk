@@ -21,7 +21,7 @@ from sentinel.exceptions import (
     ToolNotFoundError,
 )
 
-__version__ = "0.3.4"
+__version__ = "0.3.5"
 __all__ = [
     "SentinelClient",
     "SentinelError",
@@ -41,7 +41,7 @@ def _first_run_hint():
             from rich.console import Console
             c = Console(stderr=True)
             c.print()
-            c.print("  [bold #00e5ff]hyper-sentinel 0.3.4[/] installed ✓")
+            c.print("  [bold #00e5ff]hyper-sentinel 0.3.5[/] installed ✓")
             c.print("  [dim]Run [bold]sentinel-chat[/dim][bold] to launch the AI agent with 80+ tools.[/]")
             c.print("  [dim]Or: [bold]sentinel-setup[/bold] · [bold]sentinel status[/bold] · [bold]sentinel test[/bold][/]")
             c.print()

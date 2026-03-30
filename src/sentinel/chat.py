@@ -126,7 +126,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.3.3 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.3.4 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -1570,6 +1570,31 @@ def run_chat(config: dict):
     console.print(BANNER)
 
     gateway_ok = bool(api_key)
+
+    # ── Bridge config → env vars for scrapers ─────────
+    # Scrapers read os.getenv(), but user keys are stored in ~/.sentinel/config.
+    # Bridge them so all scrapers see the credentials.
+    _CONFIG_TO_ENV = {
+        "hyperliquid_wallet": "HYPERLIQUID_WALLET_ADDRESS",
+        "hyperliquid_key": "HYPERLIQUID_PRIVATE_KEY",
+        "aster_api_key": "ASTER_API_KEY",
+        "aster_secret_key": "ASTER_SECRET_KEY",
+        "polymarket_key": "POLYMARKET_PRIVATE_KEY",
+        "polymarket_funder": "POLYMARKET_FUNDER_ADDRESS",
+        "fred_api_key": "FRED_API_KEY",
+        "y2_api_key": "Y2_API_KEY",
+        "elfa_api_key": "ELFA_API_KEY",
+        "x_bearer_token": "X_BEARER_TOKEN",
+        "tg_api_id": "TELEGRAM_API_ID",
+        "tg_api_hash": "TELEGRAM_API_HASH",
+        "discord_token": "DISCORD_BOT_TOKEN",
+        "eodhd_api_key": "EODHD_API_KEY",
+    }
+    for config_key, env_key in _CONFIG_TO_ENV.items():
+        val = config.get(config_key, "")
+        if val and not os.environ.get(env_key):
+            os.environ[env_key] = str(val)
+
     _print_dashboard(config, gateway_ok)
 
     # ── Session state ─────────────────────────────────
