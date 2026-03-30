@@ -126,7 +126,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.3.4 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.3.7 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -1489,7 +1489,7 @@ def _print_dashboard(config: dict, gateway_ok: bool):
     if _swarm_available:
         console.print(f"  [dim]{connected} data sources · Mode: [bold]SOLO (MarketAgent)[/] · Swarm: [green]available[/] · type [bold]'swarm'[/] to activate[/]")
     else:
-        console.print(f"  [dim]{connected} data sources · Mode: [bold]SOLO (MarketAgent)[/] · Swarm: [yellow]pip install 'hyper-sentinel[swarm]'[/][/]")
+        console.print(f"  [dim]{connected} data sources · Mode: [bold]SOLO (MarketAgent)[/] · Swarm: [yellow]pip install 'hyper-sentinel\\[swarm]'[/][/]")
     console.print()
     console.print("  Type a question, or [bold]'help'[/] for commands.")
     console.print()
@@ -1783,7 +1783,7 @@ def run_chat(config: dict):
                     _swarm_agents = {}
             except ImportError:
                 console.print("  [s.error]✗ upsonic not installed[/]")
-                console.print("  [s.dim]Install with: pip install 'hyper-sentinel[swarm]'[/]")
+                console.print("  [s.dim]Install with: pip install 'hyper-sentinel\\[swarm]'[/]")
                 console.print()
                 _swarm_team = None
                 _swarm_agents = {}
