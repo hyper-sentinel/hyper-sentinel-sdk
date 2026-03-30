@@ -572,7 +572,10 @@ def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dic
             json=payload,
             timeout=httpx.Timeout(120.0, connect=10.0),
         )
-        return resp.json()
+        try:
+            return resp.json()
+        except (ValueError, Exception):
+            return {"error": {"message": f"Anthropic returned HTTP {resp.status_code} with empty/invalid response. Try again."}}
     except (httpx.ConnectError, httpx.ConnectTimeout) as e:
         return {"error": {"message": f"Cannot reach Anthropic API: {e}. Check your internet connection."}}
     except httpx.TimeoutException as e:
@@ -609,7 +612,10 @@ def _call_openai_compat(
             json=payload,
             timeout=httpx.Timeout(120.0, connect=10.0),
         )
-        return resp.json()
+        try:
+            return resp.json()
+        except (ValueError, Exception):
+            return {"error": {"message": f"LLM API returned HTTP {resp.status_code} with empty/invalid response. Try again."}}
     except (httpx.ConnectError, httpx.ConnectTimeout) as e:
         return {"error": {"message": f"Cannot reach LLM API: {e}. Check your internet connection."}}
     except httpx.TimeoutException as e:
