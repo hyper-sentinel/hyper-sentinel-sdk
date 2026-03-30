@@ -945,7 +945,7 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
             return json.dumps({"results": coins, "source": "coingecko"})
 
         # ── YFinance (free, no key) ───────────────────────────
-        if tool_name in ("get_stock_quote", "get_stock_analyst", "get_stock_news"):
+        if tool_name in ("get_stock_price", "get_stock_info", "get_analyst_recs", "get_stock_news", "get_stock_history"):
             try:
                 import yfinance as yf
             except ImportError:
@@ -954,7 +954,7 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
             ticker = args.get("ticker", args.get("symbol", "SPY")).upper()
             t = yf.Ticker(ticker)
 
-            if tool_name == "get_stock_quote":
+            if tool_name == "get_stock_price":
                 info = t.info
                 return json.dumps({
                     "ticker": ticker,
@@ -968,7 +968,23 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                     "52w_low": info.get("fiftyTwoWeekLow"),
                     "source": "yfinance",
                 })
-            elif tool_name == "get_stock_analyst":
+            elif tool_name == "get_stock_info":
+                info = t.info
+                return json.dumps({
+                    "ticker": ticker,
+                    "name": info.get("shortName"),
+                    "sector": info.get("sector"),
+                    "industry": info.get("industry"),
+                    "market_cap": info.get("marketCap"),
+                    "pe_ratio": info.get("trailingPE"),
+                    "forward_pe": info.get("forwardPE"),
+                    "dividend_yield": info.get("dividendYield"),
+                    "52w_high": info.get("fiftyTwoWeekHigh"),
+                    "52w_low": info.get("fiftyTwoWeekLow"),
+                    "description": (info.get("longBusinessSummary") or "")[:300],
+                    "source": "yfinance",
+                })
+            elif tool_name == "get_analyst_recs":
                 recs = t.recommendations
                 if recs is not None and len(recs) > 0:
                     recent = recs.tail(5).to_dict(orient="records")
@@ -979,6 +995,29 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                 items = [{"title": n.get("title"), "publisher": n.get("publisher"),
                           "link": n.get("link")} for n in news[:5]]
                 return json.dumps({"ticker": ticker, "news": items, "source": "yfinance"})
+            elif tool_name == "get_stock_history":
+                period = args.get("period", "1mo")
+                hist = t.history(period=period)
+                if hist.empty:
+                    return json.dumps({"error": f"No history for {ticker}"})
+                closes = hist["Close"].tolist()
+                returns = [(closes[i] - closes[i-1])/closes[i-1] for i in range(1, len(closes))]
+                avg_return = sum(returns)/len(returns) if returns else 0
+                volatility = (sum((r - avg_return)**2 for r in returns) / len(returns))**0.5 if returns else 0
+                sharpe = (avg_return / volatility * (252**0.5)) if volatility > 0 else 0
+                return json.dumps({
+                    "ticker": ticker,
+                    "period": period,
+                    "current_price": float(closes[-1]),
+                    "period_return_pct": round((closes[-1]/closes[0] - 1) * 100, 2),
+                    "daily_avg_return_pct": round(avg_return * 100, 4),
+                    "daily_volatility_pct": round(volatility * 100, 4),
+                    "annualized_sharpe": round(sharpe, 2),
+                    "high": round(max(closes), 2),
+                    "low": round(min(closes), 2),
+                    "data_points": len(closes),
+                    "source": "yfinance",
+                })
 
         # ── DexScreener (free, no key) ────────────────────────
         if tool_name == "dexscreener_search":
@@ -1574,7 +1613,7 @@ def run_chat(config: dict):
                 # CoinGecko
                 "get_crypto_price", "get_crypto_top", "search_crypto",
                 # YFinance
-                "get_stock_quote", "get_stock_analyst", "get_stock_news",
+                "get_stock_price", "get_stock_info", "get_analyst_recs", "get_stock_news", "get_stock_history",
                 # DexScreener
                 "dexscreener_search", "dexscreener_trending",
                 # Hyperliquid
