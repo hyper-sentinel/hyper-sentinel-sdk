@@ -1464,6 +1464,16 @@ def _print_dashboard(config: dict, gateway_ok: bool):
 
     agents.add_row("📊 MarketAgent", "[green]● ONLINE[/]", "sentinel.market.data")
 
+    # Check for Upsonic swarm availability
+    try:
+        import upsonic  # noqa: F401
+        agents.add_row("📊 Analyst", "[dim]○ Ready[/]", "[dim]sentinel.analyst · type 'swarm'[/]")
+        agents.add_row("⚠️  RiskManager", "[dim]○ Ready[/]", "[dim]sentinel.risk[/]")
+        agents.add_row("💰 Trader", "[dim]○ Ready[/]", "[dim]sentinel.trader[/]")
+        _swarm_available = True
+    except ImportError:
+        _swarm_available = False
+
     console.print(agents)
 
     # Count connected sources
@@ -1476,7 +1486,10 @@ def _print_dashboard(config: dict, gateway_ok: bool):
     if pm_ok: connected += 1
     if tg_ok: connected += 1
     if dc_ok: connected += 1
-    console.print(f"  [dim]{connected} data sources · Mode: [bold]SOLO (MarketAgent)[/][/]")
+    if _swarm_available:
+        console.print(f"  [dim]{connected} data sources · Mode: [bold]SOLO (MarketAgent)[/] · Swarm: [green]available[/] · type [bold]'swarm'[/] to activate[/]")
+    else:
+        console.print(f"  [dim]{connected} data sources · Mode: [bold]SOLO (MarketAgent)[/] · Swarm: [yellow]pip install 'hyper-sentinel[swarm]'[/][/]")
     console.print()
     console.print("  Type a question, or [bold]'help'[/] for commands.")
     console.print()
@@ -1706,6 +1719,11 @@ def run_chat(config: dict):
             console.print("  [s.cyan]add fred[/]     [s.dim]Configure FRED economic data[/]")
             console.print("  [s.cyan]add x[/]        [s.dim]Configure X/Twitter search[/]")
             console.print()
+            console.print("  [bold cyan]Multi-Agent Swarm[/]")
+            console.print("  [s.cyan]swarm[/]        [s.dim]Start Upsonic multi-agent mode (Analyst + Risk + Trader)[/]")
+            console.print("  [s.cyan]swarm status[/] [s.dim]Show swarm agent status[/]")
+            console.print("  [s.cyan]solo[/]         [s.dim]Return to single-agent mode[/]")
+            console.print()
             console.print("  [bold cyan]Session[/]")
             console.print("  [s.cyan]clear[/]        [s.dim]Reset conversation context[/]")
             console.print("  [s.cyan]tools[/]        [s.dim]List all available tools[/]")
@@ -1714,7 +1732,98 @@ def run_chat(config: dict):
             console.print()
             continue
 
-        # ── Fast Path — zero LLM compute for known queries ─────
+        # ── Swarm Commands ──────────────────────────────────────
+        if cmd == "swarm" or cmd == "swarm start":
+            console.print()
+            console.print("  [bold cyan]🤖 Initializing Sentinel Swarm...[/]")
+            try:
+                from sentinel.swarm import build_swarm, swarm_status as _swarm_status
+                _swarm_team, _swarm_agents = build_swarm()
+                if _swarm_team:
+                    status = _swarm_status(_swarm_team, _swarm_agents)
+                    console.print()
+                    console.print("  [bold green]🛡️  Sentinel Swarm — ONLINE[/]")
+                    console.print()
+                    for ag in status.get("agents", []):
+                        console.print(f"    [s.cyan]{ag['name']:<16}[/] [green]● ONLINE[/]    [s.dim]{ag['subject']}[/]")
+                    console.print()
+                    console.print(f"  [s.dim]{len(status.get('agents', []))} agents · Mode: {status.get('mode', 'coordinate').upper()} · {status.get('tool_count', 0)} tools · {status.get('model', 'unknown')}[/]")
+                    console.print()
+                    console.print("  [s.dim]Swarm mode active. All queries will be routed through the agent team.[/]")
+                    console.print("  [s.dim]Type 'solo' to return to single-agent mode.[/]")
+                    console.print()
+                else:
+                    console.print("  [s.error]✗ Swarm init failed — check logs[/]")
+                    _swarm_team = None
+                    _swarm_agents = {}
+            except ImportError:
+                console.print("  [s.error]✗ upsonic not installed[/]")
+                console.print("  [s.dim]Install with: pip install 'hyper-sentinel[swarm]'[/]")
+                console.print()
+                _swarm_team = None
+                _swarm_agents = {}
+            continue
+
+        if cmd == "swarm status":
+            try:
+                if '_swarm_team' in dir() and _swarm_team:
+                    from sentinel.swarm import swarm_status as _swarm_status
+                    status = _swarm_status(_swarm_team, _swarm_agents)
+                    console.print()
+                    console.print("  [bold green]🛡️  Sentinel Swarm — ONLINE[/]")
+                    for ag in status.get("agents", []):
+                        console.print(f"    [s.cyan]{ag['name']:<16}[/] [green]● ONLINE[/]    [s.dim]{ag['subject']}[/]")
+                    console.print(f"  [s.dim]{len(status.get('agents', []))} agents · Mode: {status.get('mode', 'coordinate').upper()}[/]")
+                    console.print()
+                else:
+                    console.print("  [s.dim]Swarm not active. Type 'swarm' to start.[/]")
+                    console.print()
+            except Exception:
+                console.print("  [s.dim]Swarm not active. Type 'swarm' to start.[/]")
+                console.print()
+            continue
+
+        if cmd == "solo":
+            _swarm_team = None
+            _swarm_agents = {}
+            console.print("  [s.dim]Returned to single-agent mode.[/]\n")
+            continue
+
+        # ── Swarm Mode Intercept ───────────────────────────────
+        # If swarm is active, route through Upsonic Team instead of direct LLM
+        _swarm_active = '_swarm_team' in dir() and locals().get('_swarm_team') is not None
+        if _swarm_active:
+            console.print()
+            console.print("  [bold s.cyan]⏳ Swarm processing...[/]")
+            t0 = time.time()
+            try:
+                from sentinel.swarm import swarm_chat
+                swarm_result = swarm_chat(_swarm_team, user_input)
+                elapsed = time.time() - t0
+                console.print(Panel(
+                    swarm_result,
+                    title="[bold]🛡️ Sentinel Swarm[/]",
+                    border_style="#007a8a",
+                    box=box.ROUNDED,
+                    subtitle=f"[s.dim]3 agents · coordinate · {elapsed:.1f}s[/]",
+                    subtitle_align="right",
+                    padding=(1, 3),
+                ))
+                console.print()
+                history.append({"role": "user", "content": user_input})
+                history.append({"role": "assistant", "content": [{"type": "text", "text": swarm_result}]})
+                save_message(session_id, "user", user_input)
+                save_message(session_id, "assistant", swarm_result)
+                if not session_titled:
+                    update_session_title(session_id, user_input[:80])
+                    session_titled = True
+            except Exception as e:
+                console.print(f"  [s.error]Swarm error: {e}[/]")
+                console.print("  [s.dim]Falling back to single-agent mode...[/]")
+                _swarm_team = None
+                _swarm_agents = {}
+            continue
+
         fast_result = _fast_path(user_input)
         if fast_result is not None:
             t0 = time.time()
