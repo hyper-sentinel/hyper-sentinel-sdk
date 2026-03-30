@@ -35,7 +35,6 @@ That's it. On first run you'll be prompted for your AI provider API key (Anthrop
 - **⚡ Fast Path** — Common queries like `price of btc` execute in <1 second with zero LLM calls
 - **🔌 All Scrapers Local** — All 12 data sources (CoinGecko, Hyperliquid, FRED, Polymarket, etc.) execute locally — no gateway dependency
 - **📊 Config-Aware Dashboard** — Real-time status shows which sources are configured and ready
-- **🛡️ Anti-Hallucination** — System prompt hardened to prevent fabricated dates, stats, and metadata
 - **🔧 Graceful Errors** — Ctrl+C returns to prompt, 10s connect timeouts prevent hangs
 
 ### AI Agent Chat
