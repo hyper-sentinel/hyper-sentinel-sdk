@@ -134,19 +134,21 @@ All sources run **locally** via built-in scrapers. No gateway required.
 | 💬 **Telegram** | Needs session | `tg_read_channel` `tg_search_messages` `tg_list_channels` | `add telegram` |
 | 🎮 **Discord** | Needs token | `discord_read_channel` `discord_list_guilds` + 4 more | `add discord` |
 
-## Authentication — Web4
+## Authentication
 
-**No email. No password. Your AI provider key is your identity.**
+**Just add your LLM API key — that's it.**
+
+```bash
+# First run prompts you automatically
+sentinel-chat
+
+# Or run setup wizard
+sentinel-setup
+```
 
 ```python
-# Option 1: Interactive setup (recommended)
-$ sentinel-setup
-
-# Option 2: Pass directly
+# Or pass directly in code
 client = SentinelClient(ai_key="sk-ant-xxx")
-
-# Option 3: Use your Sentinel API key directly
-client = SentinelClient(api_key="sk-sentinel-xxx")
 ```
 
 Supported LLM providers:
