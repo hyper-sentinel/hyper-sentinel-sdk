@@ -1,6 +1,7 @@
 """
 Hyperliquid Trading Scraper — Execute trades on Hyperliquid DEX
 Supports market orders, limit orders, position management, and account info.
+Includes TradFi/commodity perps via the XYZ builder dex (GOLD, SILVER, OIL, stocks).
 
 IMPORTANT: This module executes REAL TRADES with REAL FUNDS.
 The agent will always confirm with the user before placing orders.
@@ -11,12 +12,63 @@ Auth: HYPERLIQUID_PRIVATE_KEY + HYPERLIQUID_WALLET_ADDRESS in .env
 
 import os
 import json
+import requests
 
 # ── Builder Fee Configuration ──
 # Every trade placed through Sentinel earns 0.01% to the builder wallet
 BUILDER_FEE_ADDRESS = os.getenv("HYPERLIQUID_BUILDER_FEE_ADDRESS", "").strip()
 BUILDER_FEE_RATE = 10  # tenths of a BPS → 10 = 1 BPS = 0.01%
 _builder_fee_approved = False  # Module-level flag — only approve once per session
+
+# ── TradFi / Commodity Aliases ──
+# Maps user-friendly names → xyz dex coin names so the LLM can just say "GOLD" or "oil"
+TRADFI_ALIASES = {
+    # Commodities
+    "GOLD": "xyz:GOLD", "XAU": "xyz:GOLD",
+    "SILVER": "xyz:SILVER", "XAG": "xyz:SILVER",
+    "OIL": "xyz:CL", "WTIOIL": "xyz:CL", "WTI": "xyz:CL", "CL": "xyz:CL", "CRUDEOIL": "xyz:CL",
+    "BRENTOIL": "xyz:BRENTOIL", "BRENT": "xyz:BRENTOIL",
+    "COPPER": "xyz:COPPER", "NATGAS": "xyz:NATGAS", "NATURALGAS": "xyz:NATGAS",
+    "PLATINUM": "xyz:PLATINUM", "PALLADIUM": "xyz:PALLADIUM",
+    "ALUMINIUM": "xyz:ALUMINIUM", "ALUMINUM": "xyz:ALUMINIUM",
+    "CORN": "xyz:CORN", "URANIUM": "xyz:URANIUM",
+    # Indices
+    "SP500": "xyz:SP500", "S&P500": "xyz:SP500", "S&P": "xyz:SP500", "SPX": "xyz:SP500",
+    "XYZ100": "xyz:XYZ100",
+    "JP225": "xyz:JP225", "NIKKEI": "xyz:JP225",
+    "KR200": "xyz:KR200", "KOSPI": "xyz:KR200",
+    "VIX": "xyz:VIX",
+    "DXY": "xyz:DXY",
+    # Forex
+    "EURUSD": "xyz:EUR", "EUR": "xyz:EUR",
+    "USDJPY": "xyz:JPY", "JPY": "xyz:JPY",
+    # Stocks
+    "TSLA": "xyz:TSLA", "NVDA": "xyz:NVDA", "AAPL": "xyz:AAPL", "MSFT": "xyz:MSFT",
+    "GOOGL": "xyz:GOOGL", "AMZN": "xyz:AMZN", "META": "xyz:META", "AMD": "xyz:AMD",
+    "MSTR": "xyz:MSTR", "COIN": "xyz:COIN", "HOOD": "xyz:HOOD", "PLTR": "xyz:PLTR",
+    "NFLX": "xyz:NFLX", "INTC": "xyz:INTC", "MU": "xyz:MU", "ORCL": "xyz:ORCL",
+    "GME": "xyz:GME", "RIVN": "xyz:RIVN", "BABA": "xyz:BABA", "COST": "xyz:COST",
+    "LLY": "xyz:LLY", "TSM": "xyz:TSM", "HIMS": "xyz:HIMS", "DKNG": "xyz:DKNG",
+    "SNDK": "xyz:SNDK", "CRCL": "xyz:CRCL",
+}
+
+
+def _resolve_coin(coin: str) -> str:
+    """
+    Resolve a human-friendly coin name to the correct HL API identifier.
+    Native perps: 'BTC', 'ETH', 'SOL' → returned as-is (uppercased).
+    TradFi perps: 'GOLD', 'OIL', 'TSLA' → resolved to 'xyz:GOLD', 'xyz:CL', 'xyz:TSLA'.
+    Already-prefixed: 'xyz:GOLD' → returned as-is.
+    """
+    coin = coin.strip()
+    # Already has a dex prefix
+    if ":" in coin:
+        return coin
+    upper = coin.upper()
+    # Check alias map first
+    if upper in TRADFI_ALIASES:
+        return TRADFI_ALIASES[upper]
+    return upper
 
 
 def approve_hl_builder_fee() -> dict:
@@ -64,7 +116,7 @@ def _ensure_builder_fee_approved():
 
 
 def _get_exchange():
-    """Initialize the Hyperliquid exchange client."""
+    """Initialize the Hyperliquid exchange client with native + TradFi (xyz) perps."""
     try:
         from hyperliquid.info import Info
         from hyperliquid.exchange import Exchange
@@ -80,14 +132,15 @@ def _get_exchange():
     account = eth_account.Account.from_key(private_key)
     wallet_address = account.address
 
-    info = Info(constants.MAINNET_API_URL, skip_ws=True)
+    # Load both native perps ("") and TradFi builder dex ("xyz")
+    info = Info(constants.MAINNET_API_URL, skip_ws=True, perp_dexs=["", "xyz"])
     exchange = Exchange(account, constants.MAINNET_API_URL)
 
     return exchange, info, wallet_address
 
 
 def _get_info():
-    """Initialize just the info client (read-only, no private key needed)."""
+    """Initialize just the info client (read-only, no private key needed) with TradFi support."""
     try:
         from hyperliquid.info import Info
         from hyperliquid.utils import constants
@@ -95,7 +148,8 @@ def _get_info():
         raise ImportError("hyperliquid-python-sdk not installed. Run: uv add hyperliquid-python-sdk")
 
     wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
-    info = Info(constants.MAINNET_API_URL, skip_ws=True)
+    # Load both native perps ("") and TradFi builder dex ("xyz")
+    info = Info(constants.MAINNET_API_URL, skip_ws=True, perp_dexs=["", "xyz"])
     return info, wallet
 
 
@@ -201,12 +255,13 @@ def get_hl_orderbook(coin: str, depth: int = 5) -> dict:
     Get the orderbook for a coin on Hyperliquid.
 
     Args:
-        coin: Trading pair (e.g. 'BTC', 'ETH', 'SOL')
+        coin: Trading pair — crypto (BTC, ETH, SOL) or TradFi (GOLD, SILVER, OIL, TSLA, SP500)
         depth: Number of levels to show
     """
     try:
+        resolved = _resolve_coin(coin)
         info, _ = _get_info()
-        l2 = info.l2_snapshot(coin.upper())
+        l2 = info.l2_snapshot(resolved)
 
         bids = [{"price": b["px"], "size": b["sz"]} for b in l2.get("levels", [[]])[0][:depth]]
         asks = [{"price": a["px"], "size": a["sz"]} for a in l2.get("levels", [[], []])[1][:depth]]
@@ -215,8 +270,11 @@ def get_hl_orderbook(coin: str, depth: int = 5) -> dict:
         if bids and asks:
             mid_price = round((float(bids[0]["price"]) + float(asks[0]["price"])) / 2, 4)
 
+        asset_type = "tradfi" if resolved.startswith("xyz:") else "crypto"
         return {
-            "coin": coin.upper(),
+            "coin": resolved,
+            "display_name": coin.upper(),
+            "asset_type": asset_type,
             "mid_price": mid_price,
             "best_bid": bids[0] if bids else None,
             "best_ask": asks[0] if asks else None,
@@ -263,7 +321,7 @@ def place_hl_order(coin: str, side: str, size: float, price: float = None,
     ⚠️ THIS EXECUTES A REAL TRADE WITH REAL FUNDS.
 
     Args:
-        coin: Trading pair (e.g. 'BTC', 'ETH', 'SOL')
+        coin: Trading pair — crypto (BTC, ETH, SOL) or TradFi (GOLD, SILVER, OIL, TSLA, SP500, NVDA)
         side: 'buy' or 'sell'
         size: Order size in coin units
         price: Limit price (required for limit orders, ignored for market)
@@ -279,7 +337,7 @@ def place_hl_order(coin: str, side: str, size: float, price: float = None,
             return {"error": "HYPERLIQUID_PRIVATE_KEY not set in .env. Trading requires a private key."}
 
         exchange, info, wallet = result
-        coin = coin.upper()
+        coin = _resolve_coin(coin)
         is_buy = side.lower() == "buy"
 
         def _execute_order(use_builder: bool = True):
@@ -347,7 +405,7 @@ def set_hl_leverage(coin: str, leverage: int, is_cross: bool = True) -> dict:
     Set leverage for a coin on Hyperliquid.
 
     Args:
-        coin: Trading pair (e.g. 'ETH', 'BTC')
+        coin: Trading pair — crypto (ETH, BTC) or TradFi (GOLD, TSLA, SP500)
         leverage: Leverage multiplier (1-50)
         is_cross: True for cross margin, False for isolated
 
@@ -360,7 +418,7 @@ def set_hl_leverage(coin: str, leverage: int, is_cross: bool = True) -> dict:
             return {"error": "HYPERLIQUID_PRIVATE_KEY not set in .env."}
 
         exchange, info, wallet = result
-        coin = coin.upper()
+        coin = _resolve_coin(coin)
         leverage = max(1, min(leverage, 50))  # Clamp 1-50
 
         resp = exchange.update_leverage(
@@ -385,7 +443,7 @@ def cancel_hl_order(coin: str, oid: int) -> dict:
     Cancel an open order on Hyperliquid.
 
     Args:
-        coin: Trading pair (e.g. 'BTC')
+        coin: Trading pair — crypto (BTC) or TradFi (GOLD, TSLA)
         oid: Order ID from get_hl_open_orders
     """
     try:
@@ -394,11 +452,12 @@ def cancel_hl_order(coin: str, oid: int) -> dict:
             return {"error": "HYPERLIQUID_PRIVATE_KEY not set in .env"}
 
         exchange, _, _ = result
-        result = exchange.cancel(coin.upper(), oid)
+        resolved = _resolve_coin(coin)
+        result = exchange.cancel(resolved, oid)
 
         return {
             "status": "CANCELLED",
-            "coin": coin.upper(),
+            "coin": resolved,
             "oid": oid,
             "response": str(result),
         }
@@ -411,7 +470,7 @@ def close_hl_position(coin: str) -> dict:
     Close an entire position on Hyperliquid (market close).
 
     Args:
-        coin: Trading pair to close (e.g. 'BTC', 'ETH')
+        coin: Trading pair to close — crypto (BTC, ETH) or TradFi (GOLD, TSLA, SP500)
     """
     try:
         result = _get_exchange()
@@ -419,19 +478,20 @@ def close_hl_position(coin: str) -> dict:
             return {"error": "HYPERLIQUID_PRIVATE_KEY not set in .env"}
 
         exchange, info, wallet = result
-        coin = coin.upper()
+        resolved = _resolve_coin(coin)
 
-        # Get current position
-        user_state = info.user_state(wallet)
+        # Get current position — check both native and xyz dex
+        dex = "xyz" if resolved.startswith("xyz:") else ""
+        user_state = info.user_state(wallet, dex=dex)
         current_pos = None
         for pos in user_state.get("assetPositions", []):
             p = pos.get("position", {})
-            if p.get("coin") == coin and float(p.get("szi", 0)) != 0:
+            if p.get("coin") == resolved and float(p.get("szi", 0)) != 0:
                 current_pos = p
                 break
 
         if not current_pos:
-            return {"error": f"No open position found for {coin}"}
+            return {"error": f"No open position found for {resolved}"}
 
         size = abs(float(current_pos["szi"]))
         is_long = float(current_pos["szi"]) > 0
@@ -441,7 +501,7 @@ def close_hl_position(coin: str) -> dict:
         if BUILDER_FEE_ADDRESS:
             builder = {"b": BUILDER_FEE_ADDRESS, "f": BUILDER_FEE_RATE}
         result = exchange.market_open(
-            coin, not is_long, size, None, builder=builder,
+            resolved, not is_long, size, None, builder=builder,
         )
 
         # If builder fee not approved, retry without it
@@ -449,15 +509,131 @@ def close_hl_position(coin: str) -> dict:
             resp_str = str(result.get("response", ""))
             if result.get("status") == "err" and ("builder" in resp_str.lower() or "approved" in resp_str.lower()):
                 result = exchange.market_open(
-                    coin, not is_long, size, None, builder=None,
+                    resolved, not is_long, size, None, builder=None,
                 )
 
         return {
             "status": "CLOSED",
-            "coin": coin,
+            "coin": resolved,
             "closed_size": size,
             "was_long": is_long,
             "response": str(result)[:200],
         }
     except Exception as e:
         return {"error": f"Hyperliquid close error: {str(e)}"}
+
+
+# ── TradFi Discovery Functions ──────────────────────────────────
+
+def get_hl_tradfi_assets() -> dict:
+    """
+    List all available TradFi / commodity / stock perps on Hyperliquid (xyz dex).
+    Includes live prices, max leverage, and asset categories.
+    """
+    try:
+        HL_API = "https://api.hyperliquid.xyz/info"
+
+        # Get xyz meta
+        r_meta = requests.post(HL_API, json={"type": "meta", "dex": "xyz"}, timeout=10)
+        meta = r_meta.json()
+        universe = meta.get("universe", [])
+
+        # Get live prices
+        r_mids = requests.post(HL_API, json={"type": "allMids", "dex": "xyz"}, timeout=10)
+        mids = r_mids.json()
+
+        # Categorize assets
+        categories = {
+            "commodities": ["GOLD", "SILVER", "CL", "BRENTOIL", "COPPER", "NATGAS",
+                           "PLATINUM", "PALLADIUM", "ALUMINIUM", "CORN", "URANIUM"],
+            "indices": ["SP500", "XYZ100", "JP225", "KR200", "VIX", "DXY"],
+            "forex": ["EUR", "JPY"],
+            "stocks": [],  # Everything else
+        }
+        commodity_set = set(categories["commodities"])
+        index_set = set(categories["indices"])
+        forex_set = set(categories["forex"])
+
+        assets = []
+        for entry in universe:
+            raw_name = entry["name"]  # e.g. "xyz:GOLD"
+            symbol = raw_name.replace("xyz:", "")
+            price_str = mids.get(raw_name, "0")
+
+            # Determine category
+            if symbol in commodity_set:
+                cat = "commodity"
+            elif symbol in index_set:
+                cat = "index"
+            elif symbol in forex_set:
+                cat = "forex"
+            else:
+                cat = "stock"
+
+            assets.append({
+                "symbol": symbol,
+                "hl_coin": raw_name,
+                "category": cat,
+                "price": price_str,
+                "max_leverage": entry.get("maxLeverage", "?"),
+                "sz_decimals": entry.get("szDecimals", "?"),
+            })
+
+        # Sort by category then symbol
+        assets.sort(key=lambda x: (x["category"], x["symbol"]))
+
+        return {
+            "total_assets": len(assets),
+            "dex": "xyz",
+            "assets": assets,
+        }
+    except Exception as e:
+        return {"error": f"Failed to fetch TradFi assets: {str(e)}"}
+
+
+def get_hl_tradfi_price(symbol: str) -> dict:
+    """
+    Get the current price and market context for a TradFi asset on Hyperliquid.
+
+    Args:
+        symbol: Asset symbol — GOLD, SILVER, OIL, TSLA, SP500, NVDA, etc.
+    """
+    try:
+        resolved = _resolve_coin(symbol)
+        dex = "xyz" if resolved.startswith("xyz:") else ""
+
+        HL_API = "https://api.hyperliquid.xyz/info"
+
+        # Get orderbook
+        r_book = requests.post(HL_API, json={"type": "l2Book", "coin": resolved}, timeout=5)
+        book = r_book.json()
+        levels = book.get("levels", [[], []])
+
+        bid = float(levels[0][0]["px"]) if levels[0] else None
+        ask = float(levels[1][0]["px"]) if levels[1] else None
+        mid = round((bid + ask) / 2, 4) if bid and ask else None
+        spread_bps = round((ask - bid) / mid * 10000, 2) if mid else None
+
+        # Get funding rate
+        import time
+        now_ms = int(time.time() * 1000)
+        r_fund = requests.post(HL_API, json={
+            "type": "fundingHistory", "coin": resolved,
+            "startTime": now_ms - 3600000,  # last hour
+        }, timeout=5)
+        funding = r_fund.json()
+        latest_funding = funding[-1].get("fundingRate", "0") if funding else "0"
+
+        return {
+            "symbol": symbol.upper(),
+            "hl_coin": resolved,
+            "asset_type": "tradfi" if dex == "xyz" else "crypto",
+            "mid_price": mid,
+            "bid": bid,
+            "ask": ask,
+            "spread_bps": spread_bps,
+            "funding_rate": latest_funding,
+            "funding_rate_annualized": f"{float(latest_funding) * 8760 * 100:.2f}%" if latest_funding else None,
+        }
+    except Exception as e:
+        return {"error": f"TradFi price error: {str(e)}"}

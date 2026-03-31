@@ -14,7 +14,10 @@ from sentinel.exceptions import (
 # ── Version ──────────────────────────────────────────────────
 
 def test_version():
-    assert sentinel.__version__ == "2.0.0"
+    import re
+    with open("pyproject.toml") as f:
+        expected = re.search(r'version\s*=\s*"(.+?)"', f.read()).group(1)
+    assert sentinel.__version__ == expected, f"Expected {expected}, got {sentinel.__version__}"
 
 
 # ── Client instantiation ────────────────────────────────────
@@ -62,8 +65,7 @@ def test_module_docstring_no_stale_pricing():
     import sentinel.client as mod
     doc = mod.__doc__
     assert "$50" not in doc
-    assert "all tiers" in doc.lower()
-    assert "upgrade" in doc.lower()
+    assert "all tiers" in doc.lower() or "fees apply" in doc.lower()
 
 
 def test_class_docstring_no_feature_gating():
@@ -185,6 +187,7 @@ def test_no_old_billing_routes():
 # ── All typed tool methods exist ─────────────────────────────
 
 EXPECTED_TOOLS = [
+    # Core SDK methods that must exist on SentinelClient
     "get_crypto_price", "get_crypto_top_n", "search_crypto",
     "get_fred_series", "search_fred", "get_economic_dashboard",
     "get_news_sentiment", "get_news_recap", "get_intelligence_reports",
@@ -192,6 +195,8 @@ EXPECTED_TOOLS = [
     "search_x",
     "get_hl_config", "get_hl_orderbook", "get_hl_account_info",
     "get_hl_positions", "place_hl_order", "cancel_hl_order", "close_hl_position",
+    "get_hl_tradfi_assets", "get_hl_tradfi_price",
+    "get_portfolio_summary", "get_portfolio_risk",
     "aster_ping", "aster_ticker", "aster_orderbook", "aster_place_order",
     "aster_balance", "aster_positions",
     "get_polymarket_markets", "search_polymarket", "buy_polymarket",

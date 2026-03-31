@@ -1,9 +1,13 @@
 """
-Hyper-Sentinel v3.0.0 — AI Agent + Python SDK for Sentinel.
+Hyper-Sentinel v0.3.14 — Quantitative AI Agent + Python SDK
+
+  Soli Deo Gloria — To the Glory of God alone.
+  Dedicated to the Glory of Jesus Christ, the Son of God.
 
 © Sentinel Labs — https://hyper-sentinel.com
 
-Full access on every tier — upgrade for lower fees.
+49 tools · 12 scrapers · 3 trading venues · TradFi + Crypto + Macro
+Hyperliquid · Aster DEX · Polymarket · Technical Analysis · DexScreener
 
 Usage:
     from sentinel import SentinelClient
@@ -21,7 +25,7 @@ from sentinel.exceptions import (
     ToolNotFoundError,
 )
 
-__version__ = "0.3.13"
+__version__ = "0.3.14"
 __all__ = [
     "SentinelClient",
     "SentinelError",
@@ -44,7 +48,7 @@ def _first_run_hint():
             c.print()
             msg = (
                 "[bold #00e5ff]H Y P E R  ·  S E N T I N E L[/]\n"
-                f"[dim]v{__version__} · Quantitative AI Agent · 80+ Tools[/]\n"
+                f"[dim]v{__version__} · Quantitative AI Agent · Local-First[/]\n"
                 "\n"
                 "[bold white]→ Type [bold #00e5ff]sentinel[/bold #00e5ff] to launch[/bold white]"
             )

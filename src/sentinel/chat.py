@@ -54,7 +54,11 @@ CONFIG_FILE = SENTINEL_DIR / "config"
 # Banner
 # ══════════════════════════════════════════════════════════════
 
-BANNER = """
+def _make_banner() -> str:
+    """Build the startup banner with live version + tool count."""
+    from sentinel import __version__
+    n_tools = len(TOOL_SCHEMAS)
+    return f"""
 [bold cyan]██╗  ██╗██╗   ██╗██████╗ ███████╗██████╗[/]
 [bold cyan]██║  ██║╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗[/]
 [bold cyan]███████║ ╚████╔╝ ██████╔╝█████╗  ██████╔╝[/]
@@ -63,7 +67,7 @@ BANNER = """
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]
-[dim]Quantitative AI Agent · 80+ Tools · Local-First[/]
+[dim]Quantitative AI Agent · {n_tools} Tools · Local-First · v{__version__}[/]
 """
 
 
@@ -324,20 +328,44 @@ TOOL_SCHEMAS = [
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
 
-    # ── DexScreener ───────────────────────────────────────────
+    # ── DexScreener (free, no key) ─────────────────────────────
     {
         "name": "dexscreener_search",
-        "description": "Search for DEX trading pairs by token name or symbol.",
+        "description": "Search for DEX trading pairs by token name, symbol, or contract address across all chains and DEXes. Returns price, volume, liquidity, market cap. No API key needed. Example queries: 'PEPE', 'SOL/USDC', or a contract address.",
         "parameters": {
             "type": "object",
-            "properties": {"query": {"type": "string", "description": "Token name or symbol to search"}},
+            "properties": {"query": {"type": "string", "description": "Token name, symbol, pair name, or contract address to search"}},
             "required": ["query"],
         },
     },
     {
+        "name": "dexscreener_token_lookup",
+        "description": "Look up all DEX pairs for a specific token by its contract address. Optionally filter by chain. Returns price, liquidity, volume, market cap for each pair. No API key needed.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "token_address": {"type": "string", "description": "Token contract address (e.g. 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC on Solana)"},
+                "chain": {"type": "string", "description": "Optional chain filter: solana, ethereum, bsc, base, arbitrum, polygon, avalanche", "default": ""},
+            },
+            "required": ["token_address"],
+        },
+    },
+    {
         "name": "dexscreener_trending",
-        "description": "Get trending tokens across all DEXes (hot memecoins, new listings, etc).",
+        "description": "Get the hottest trending/boosted tokens across all DEXes right now. Shows memecoins, new launches, and promoted tokens with active boosts. No API key needed.",
         "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "dexscreener_pair",
+        "description": "Get detailed pair info (price, liquidity, volume, market cap, 24h change) by chain and pair address. No API key needed.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "chain": {"type": "string", "description": "Blockchain: solana, ethereum, bsc, base, arbitrum, polygon, avalanche"},
+                "pair_address": {"type": "string", "description": "The DEX pair contract address"},
+            },
+            "required": ["chain", "pair_address"],
+        },
     },
 
     # ── Social (X/Twitter) ────────────────────────────────────
@@ -375,18 +403,18 @@ TOOL_SCHEMAS = [
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
 
-    # ── Hyperliquid ───────────────────────────────────────────
+    # ── Hyperliquid (crypto + TradFi perps) ─────────────────────
     {
         "name": "get_hl_positions",
-        "description": "Get current open positions on Hyperliquid DEX.",
+        "description": "Get current open positions on Hyperliquid DEX (crypto and TradFi).",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
         "name": "get_hl_orderbook",
-        "description": "Get the order book for a Hyperliquid trading pair.",
+        "description": "Get the order book for a Hyperliquid trading pair — supports crypto (BTC, ETH) and TradFi (GOLD, SILVER, OIL, TSLA, SP500).",
         "parameters": {
             "type": "object",
-            "properties": {"coin": {"type": "string", "description": "Trading pair symbol (e.g. ETH, BTC, SOL)"}},
+            "properties": {"coin": {"type": "string", "description": "Trading pair — crypto (ETH, BTC, SOL) or TradFi (GOLD, SILVER, OIL, TSLA, SP500, NVDA)"}},
             "required": ["coin"],
         },
     },
@@ -397,11 +425,11 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "place_hl_order",
-        "description": "Place a trade on Hyperliquid. Supports market and limit orders.",
+        "description": "Place a trade on Hyperliquid — supports crypto (BTC, ETH, SOL) AND TradFi (GOLD, SILVER, OIL, TSLA, SP500, NVDA). Market and limit orders.",
         "parameters": {
             "type": "object",
             "properties": {
-                "coin": {"type": "string", "description": "Trading pair (e.g. ETH, BTC)"},
+                "coin": {"type": "string", "description": "Trading pair — crypto (ETH, BTC) or TradFi (GOLD, SILVER, OIL, TSLA, SP500, NVDA)"},
                 "side": {"type": "string", "description": "'buy' (long) or 'sell' (short)"},
                 "size": {"type": "number", "description": "Order size in contracts"},
                 "price": {"type": "number", "description": "Limit price (0 for market order)", "default": 0},
@@ -412,12 +440,80 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "close_hl_position",
-        "description": "Close an open Hyperliquid position for a specific coin.",
+        "description": "Close an open Hyperliquid position — supports crypto and TradFi.",
         "parameters": {
             "type": "object",
-            "properties": {"coin": {"type": "string", "description": "Position to close (e.g. ETH, BTC)"}},
+            "properties": {"coin": {"type": "string", "description": "Position to close — crypto (ETH, BTC) or TradFi (GOLD, TSLA, SP500)"}},
             "required": ["coin"],
         },
+    },
+    {
+        "name": "get_hl_tradfi_assets",
+        "description": "List all available TradFi / commodity / stock perps on Hyperliquid — GOLD, SILVER, OIL, TSLA, NVDA, SP500, and 50+ more with live prices and max leverage.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_hl_tradfi_price",
+        "description": "Get current price, spread, and funding for a TradFi asset on Hyperliquid — GOLD, SILVER, OIL, TSLA, SP500, NVDA, etc.",
+        "parameters": {
+            "type": "object",
+            "properties": {"symbol": {"type": "string", "description": "Asset symbol — GOLD, SILVER, OIL, TSLA, SP500, NVDA, AAPL, etc."}},
+            "required": ["symbol"],
+        },
+    },
+
+    # ── Technical Analysis ────────────────────────────────────
+    {
+        "name": "get_ta_indicators",
+        "description": "Get full TA indicators for any asset — SMA(9/21), EMA(12/26), RSI(14), MACD, Bollinger Bands. Works for crypto (BTC, ETH), TradFi (GOLD, TSLA), or Aster DEX (BTCUSDT). Supports intervals: 1m, 5m, 15m, 1h, 4h, 1d.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Asset symbol — BTC, ETH, GOLD, TSLA, BTCUSDT"},
+                "interval": {"type": "string", "description": "Candle interval — 1m, 5m, 15m, 1h, 4h, 1d. Default: 5m"},
+                "venue": {"type": "string", "description": "Data source — hl (Hyperliquid), aster (Aster DEX), tradfi (TradFi). Default: hl"}
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_ta_signal",
+        "description": "Get SMA crossover signal + RSI for any asset. Returns bullish/bearish/neutral + overbought/oversold. Quick signal check for trading decisions.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Asset symbol — BTC, ETH, GOLD, TSLA"},
+                "interval": {"type": "string", "description": "Candle interval — 5m, 15m, 1h, 4h, 1d. Default: 5m"},
+                "venue": {"type": "string", "description": "Data source — hl, aster, tradfi. Default: hl"}
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_klines",
+        "description": "Get raw OHLCV candlestick data for any asset. Returns open, high, low, close, volume for each candle period.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Asset symbol — BTC, ETH, GOLD, TSLA, BTCUSDT"},
+                "interval": {"type": "string", "description": "Candle interval — 1m, 5m, 15m, 1h, 4h, 1d. Default: 5m"},
+                "limit": {"type": "integer", "description": "Number of candles. Default: 50"},
+                "venue": {"type": "string", "description": "Data source — hl, aster, tradfi. Default: hl"}
+            },
+            "required": ["symbol"],
+        },
+    },
+
+    # ── Portfolio ─────────────────────────────────────────────
+    {
+        "name": "get_portfolio_summary",
+        "description": "Get a unified portfolio summary across all connected trading venues (Hyperliquid, Aster, Polymarket). Shows total equity, per-venue breakdowns, all open positions, and unrealized PnL.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_portfolio_risk",
+        "description": "Analyze portfolio risk: position concentration, effective leverage, venue allocation, and risk level (LOW/MEDIUM/HIGH). Requires at least one connected venue.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
     },
 
     # ── Polymarket ────────────────────────────────────────────
@@ -1213,18 +1309,84 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
         if tool_name == "dexscreener_search":
             query = args.get("query", "")
             r = httpx.get(f"https://api.dexscreener.com/latest/dex/search?q={query}", timeout=10.0)
-            pairs = r.json().get("pairs", [])[:5]
-            results = [{"name": p.get("baseToken", {}).get("name"), "symbol": p.get("baseToken", {}).get("symbol"),
-                         "price": p.get("priceUsd"), "chain": p.get("chainId"),
-                         "dex": p.get("dexId"), "volume_24h": p.get("volume", {}).get("h24")} for p in pairs]
+            pairs = r.json().get("pairs", [])[:8]
+            results = [{
+                "name": p.get("baseToken", {}).get("name"),
+                "symbol": p.get("baseToken", {}).get("symbol"),
+                "price_usd": p.get("priceUsd"),
+                "chain": p.get("chainId"),
+                "dex": p.get("dexId"),
+                "volume_24h": p.get("volume", {}).get("h24"),
+                "liquidity_usd": p.get("liquidity", {}).get("usd"),
+                "market_cap": p.get("marketCap"),
+                "price_change_24h": p.get("priceChange", {}).get("h24"),
+                "url": p.get("url"),
+            } for p in pairs]
             return json.dumps({"pairs": results, "source": "dexscreener"})
 
+        if tool_name == "dexscreener_token_lookup":
+            token_address = args.get("token_address", "")
+            chain = args.get("chain", "")
+            if chain:
+                r = httpx.get(f"https://api.dexscreener.com/token-pairs/v1/{chain}/{token_address}", timeout=10.0)
+            else:
+                r = httpx.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_address}", timeout=10.0)
+            data = r.json()
+            pairs_raw = data if isinstance(data, list) else data.get("pairs", [])
+            pairs = pairs_raw[:8]
+            results = [{
+                "name": p.get("baseToken", {}).get("name"),
+                "symbol": p.get("baseToken", {}).get("symbol"),
+                "price_usd": p.get("priceUsd"),
+                "chain": p.get("chainId"),
+                "dex": p.get("dexId"),
+                "volume_24h": p.get("volume", {}).get("h24"),
+                "liquidity_usd": p.get("liquidity", {}).get("usd"),
+                "market_cap": p.get("marketCap"),
+                "price_change_24h": p.get("priceChange", {}).get("h24"),
+                "url": p.get("url"),
+            } for p in pairs]
+            return json.dumps({"token": token_address, "chain": chain or "all", "pairs": results, "source": "dexscreener"})
+
         if tool_name == "dexscreener_trending":
-            r = httpx.get("https://api.dexscreener.com/token-boosts/latest/v1", timeout=10.0)
-            tokens = r.json()[:10] if isinstance(r.json(), list) else []
-            results = [{"symbol": t.get("tokenAddress", "")[:8], "chain": t.get("chainId"),
-                         "url": t.get("url")} for t in tokens]
+            r = httpx.get("https://api.dexscreener.com/token-boosts/top/v1", timeout=10.0)
+            tokens = r.json()[:12] if isinstance(r.json(), list) else []
+            results = [{
+                "chain": t.get("chainId"),
+                "token_address": t.get("tokenAddress"),
+                "boost_amount": t.get("totalAmount"),
+                "description": t.get("description", ""),
+                "url": t.get("url"),
+            } for t in tokens]
             return json.dumps({"trending": results, "source": "dexscreener"})
+
+        if tool_name == "dexscreener_pair":
+            chain = args.get("chain", "")
+            pair_address = args.get("pair_address", "")
+            r = httpx.get(f"https://api.dexscreener.com/latest/dex/pairs/{chain}/{pair_address}", timeout=10.0)
+            data = r.json()
+            pairs = data.get("pairs", []) if isinstance(data, dict) else data if isinstance(data, list) else []
+            if not pairs:
+                return json.dumps({"error": f"Pair not found: {chain}/{pair_address}"})
+            p = pairs[0]
+            result = {
+                "name": p.get("baseToken", {}).get("name"),
+                "symbol": f"{p.get('baseToken', {}).get('symbol')}/{p.get('quoteToken', {}).get('symbol')}",
+                "price_usd": p.get("priceUsd"),
+                "chain": p.get("chainId"),
+                "dex": p.get("dexId"),
+                "volume_24h": p.get("volume", {}).get("h24"),
+                "liquidity_usd": p.get("liquidity", {}).get("usd"),
+                "market_cap": p.get("marketCap"),
+                "fdv": p.get("fdv"),
+                "price_change_5m": p.get("priceChange", {}).get("m5"),
+                "price_change_1h": p.get("priceChange", {}).get("h1"),
+                "price_change_24h": p.get("priceChange", {}).get("h24"),
+                "url": p.get("url"),
+                "source": "dexscreener",
+            }
+            return json.dumps(result)
+
 
         # ── Hyperliquid (local scraper, needs wallet config) ─────
         if tool_name.startswith("get_hl_") or tool_name.startswith("place_hl_") or \
@@ -1242,11 +1404,63 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                     "cancel_hl_order": lambda: hl.cancel_hl_order(**args),
                     "set_hl_leverage": lambda: hl.set_hl_leverage(**args),
                     "approve_hl_builder_fee": lambda: hl.approve_hl_builder_fee(),
+                    "get_hl_tradfi_assets": lambda: hl.get_hl_tradfi_assets(),
+                    "get_hl_tradfi_price": lambda: hl.get_hl_tradfi_price(**args),
                 }
                 if tool_name in dispatch:
                     return json.dumps(dispatch[tool_name]())
             except ImportError:
                 return json.dumps({"error": "hyperliquid-python-sdk not installed. Run: pip install hyperliquid-python-sdk eth-account"})
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── Technical Analysis (local, uses YFinance/Aster klines) ─
+        if tool_name in ("get_ta_indicators", "get_ta_signal", "get_klines"):
+            try:
+                from sentinel.scrapers import ta as ta_engine
+                if tool_name == "get_ta_indicators":
+                    result = ta_engine.compute_indicators(
+                        args.get("symbol", "BTC"),
+                        interval=args.get("interval", "5m"),
+                        venue=args.get("venue", "hl"),
+                    )
+                elif tool_name == "get_ta_signal":
+                    result = ta_engine.get_ta_summary(
+                        args.get("symbol", "BTC"),
+                        interval=args.get("interval", "5m"),
+                        venue=args.get("venue", "hl"),
+                    )
+                elif tool_name == "get_klines":
+                    df = ta_engine.klines_to_df(
+                        args.get("symbol", "BTC"),
+                        interval=args.get("interval", "5m"),
+                        limit=args.get("limit", 50),
+                        venue=args.get("venue", "hl"),
+                    )
+                    if df is not None:
+                        records = df.tail(args.get("limit", 50)).reset_index().to_dict("records")
+                        # Convert timestamps to strings
+                        for r in records:
+                            for k, v in r.items():
+                                if hasattr(v, 'isoformat'):
+                                    r[k] = v.isoformat()
+                        result = {"symbol": args.get("symbol", "BTC"), "candles": len(records), "data": records}
+                    else:
+                        result = {"error": f"No kline data for {args.get('symbol', 'BTC')}"}
+                return json.dumps(result)
+            except ImportError as e:
+                return json.dumps({"error": f"TA dependencies missing: {e}. Run: pip install pandas yfinance"})
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── Portfolio Tracker ──────────────────────────────────────
+        if tool_name in ("get_portfolio_summary", "get_portfolio_risk"):
+            try:
+                from sentinel.scrapers import portfolio
+                if tool_name == "get_portfolio_summary":
+                    return json.dumps(portfolio.get_portfolio_summary())
+                elif tool_name == "get_portfolio_risk":
+                    return json.dumps(portfolio.get_portfolio_risk())
             except Exception as e:
                 return json.dumps({"error": str(e), "tool": tool_name})
 
@@ -1527,8 +1741,9 @@ def _print_dashboard(config: dict, gateway_ok: bool):
     if hl_ok: connected += 1
     if aster_ok: connected += 1
     if pm_ok: connected += 1
-    if tg_ok: connected += 1
-    if dc_ok: connected += 1
+    # tg/dc archived — uncomment when re-enabled
+    # if tg_ok: connected += 1
+    # if dc_ok: connected += 1
     if _swarm_available:
         console.print(f"  [dim]{connected} data sources · Mode: [bold]SOLO (MarketAgent)[/] · Swarm: [green]available[/] · type [bold]'swarm'[/] to activate[/]")
     else:
@@ -1610,7 +1825,7 @@ def run_chat(config: dict):
         return
 
     # ── Animated Boot Sequence ─────────────────────────────────
-    console.print(BANNER)
+    console.print(_make_banner())
 
     gateway_ok = bool(api_key)
 
@@ -1750,7 +1965,7 @@ def run_chat(config: dict):
             session_id = create_session(provider, model_name)
             session_titled = False
             console.clear()
-            console.print(BANNER)
+            console.print(_make_banner())
             _print_dashboard(config, gateway_ok)
             console.print()
             continue
@@ -2003,12 +2218,16 @@ def run_chat(config: dict):
                 # YFinance
                 "get_stock_price", "get_stock_info", "get_analyst_recs", "get_stock_news", "get_stock_history", "run_stock_analysis",
                 # DexScreener
-                "dexscreener_search", "dexscreener_trending",
+                "dexscreener_search", "dexscreener_token_lookup", "dexscreener_trending", "dexscreener_pair",
                 # Hyperliquid
                 "get_hl_positions", "get_hl_account_info", "get_hl_open_orders",
                 "get_hl_orderbook", "get_hl_config", "place_hl_order",
                 "close_hl_position", "cancel_hl_order", "set_hl_leverage",
-                "approve_hl_builder_fee",
+                "approve_hl_builder_fee", "get_hl_tradfi_assets", "get_hl_tradfi_price",
+                # Technical Analysis
+                "get_ta_indicators", "get_ta_signal", "get_klines",
+                # Portfolio
+                "get_portfolio_summary", "get_portfolio_risk",
                 # FRED
                 "get_fred_series", "search_fred", "get_economic_dashboard",
                 # Y2 Intelligence

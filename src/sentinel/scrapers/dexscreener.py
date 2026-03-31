@@ -71,14 +71,14 @@ def get_token_pairs(token_address: str) -> list:
 
 def get_token_pairs_by_chain(chain: str, token_address: str) -> list:
     """
-    Get DEX pairs for a token on a specific chain.
+    Get DEX pairs for a token on a specific chain using the v1 endpoint.
 
     Chains: solana, ethereum, bsc, arbitrum, polygon, base, avalanche, etc.
 
     Example:
         get_token_pairs_by_chain("solana", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
     """
-    data = _get(f"/latest/dex/tokens/{token_address}")
+    data = _get(f"/token-pairs/v1/{chain}/{token_address}")
     if isinstance(data, dict) and "error" in data:
         return [data]
     if isinstance(data, list):

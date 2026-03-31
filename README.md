@@ -12,9 +12,9 @@
 
 # Hyper-Sentinel
 
-**Quantitative AI Agent — Crypto, Equities & Macro**
+**Quantitative AI Agent — Crypto, TradFi, Equities & Macro**
 
-10 data sources · 80+ tools · Multi-agent swarm · Sub-second queries
+12 data sources · 49 tools · Multi-agent swarm · Sub-second queries
 
 <br/>
 
@@ -73,8 +73,8 @@ When you launch `sentinel`, the system runs an animated boot sequence — authen
 ```
   ✓ 🤖 Authenticating LLM — CLAUDE → claude-sonnet-4-20250514
   ✓ 🔑 Loading credentials — ~/.sentinel/config
-  ✓ 🔧 Initializing tool registry — 80+ tools
-  ✓ 📡 Bridging environment — 8 services
+   ✓ 🔧 Initializing tool registry — 49 tools
+   ✓ 📡 Bridging environment — 12 services
   ✓ 📊 Connecting data sources — CoinGecko · YFinance · DexScreener
   ✓ ⚡ Connecting exchanges — Hyperliquid · Aster · Polymarket
   ✓ 🛡️ Deploying MarketAgent — sentinel.market.data
@@ -90,8 +90,9 @@ All sources execute **locally** via built-in scrapers. No gateway dependency.
 |:-------|:-------------|:------|
 | 🪙 **CoinGecko** | 10,000+ coins · prices · market data · trending | None — always on |
 | 📈 **YFinance** | Stocks · ETFs · options · analyst recs · financials | None — always on |
-| 📊 **DexScreener** | DEX pairs · trending tokens · new listings | None — always on |
-| ⚡ **Hyperliquid** | Perps · positions · orders · balances · funding | `add hl` |
+| 📊 **DexScreener** | DEX pairs · trending tokens · new listings · search | None — always on |
+| 📉 **Technical Analysis** | SMA · EMA · RSI · MACD · Bollinger Bands · signals | None — always on |
+| ⚡ **Hyperliquid** | Perps · positions · orders · TradFi (Gold, Oil, Stocks) | `add hl` |
 | 🌟 **Aster DEX** | Futures · positions · klines · leverage · orderbook | `add aster` |
 | 🎲 **Polymarket** | Prediction markets · positions · buy/sell · odds | `add polymarket` |
 | 🏛️ **FRED** | GDP · CPI · rates · 800K+ economic series | `add fred` |
@@ -126,7 +127,7 @@ pip install 'hyper-sentinel[swarm]'
     ⚠️  RiskManager   ● ONLINE    sentinel.risk
     💰 Trader        ● ONLINE    sentinel.trader
 
-  3 agents · Mode: COORDINATE · 80+ tools
+   3 agents · Mode: COORDINATE · 49 tools
 ```
 
 ---
@@ -145,13 +146,20 @@ top = client.get_crypto_top_n(10)
 # Equities — deep quant
 analysis = client.run_stock_analysis("TSLA")
 
-# Perpetual futures (Hyperliquid)
+# Perpetual futures — Crypto (Hyperliquid)
 positions = client.get_hl_positions()
 client.place_hl_order(coin="ETH", side="buy", size=0.5)
 
+# TradFi — Gold, Oil, Stocks, Indices (Hyperliquid xyz dex)
+gold = client.get_hl_tradfi_price("GOLD")
+client.place_hl_order(coin="TSLA", side="buy", size=1.0)
+
+# Technical Analysis — any asset, any venue
+ta = client.get_ta_indicators("BTC", interval="1h")
+signal = client.get_ta_signal("GOLD", interval="4h")
+
 # Prediction markets (Polymarket)
 markets = client.get_polymarket_markets()
-positions = client.get_polymarket_positions()
 
 # Macro (FRED)
 gdp = client.get_fred_series("GDP")
@@ -181,12 +189,12 @@ sentinel status              # Infrastructure dashboard
 sentinel tools               # List all tools
 
 # Inside chat
-add hl          Hyperliquid perps
+add hl          Hyperliquid perps (crypto + TradFi)
 add aster       Aster DEX futures
 add polymarket  Prediction markets
 swarm           Activate multi-agent mode
 clear           Fresh dashboard + reset context
-tools           List all 80+ tools
+tools           List all 49 tools
 help            Show all commands
 ```
 
@@ -195,7 +203,7 @@ help            Show all commands
 ## Architecture
 
 ```
-          sentinel / sentinel ask / SentinelClient
+           sentinel / sentinel ask / SentinelClient
                          │
             ┌────────────┼────────────┐
             │            │            │
@@ -205,8 +213,8 @@ help            Show all commands
          < 1 sec     CoinGecko    3 Agents
          zero LLM    YFinance     Analyst
                      DexScreener  RiskManager
-                     FRED · Y2    Trader
-                     Elfa · X       │
+                     TA Engine    Trader
+                     FRED · Y2      │
                      HL · Aster   coordinate
                      PM · TG      mode
                      Discord
@@ -216,21 +224,30 @@ help            Show all commands
 
 ## Changelog
 
+### v0.3.14 — TradFi Integration + Technical Analysis
+
+> *Soli Deo Gloria* — Dedicated to the Glory of Jesus Christ, the Son of God.
+
+- **NEW**: TradFi perp trading — GOLD, SILVER, OIL, TSLA, NVDA, SP500 + 50 more via Hyperliquid xyz dex
+- **NEW**: `TRADFI_ALIASES` — say "GOLD" and the agent resolves `xyz:GOLD` automatically
+- **NEW**: `get_hl_tradfi_assets` / `get_hl_tradfi_price` — discovery + live pricing
+- **NEW**: Technical Analysis engine — SMA, EMA, RSI(14), MACD, Bollinger Bands
+- **NEW**: `get_ta_indicators` / `get_ta_signal` / `get_klines` — TA tools for any asset
+- **NEW**: DexScreener tools — `search_dexscreener`, `get_dexscreener_trending`, `get_token_pairs`, `get_dexscreener_token`
+- **NEW**: Dual-dex initialization: `perp_dexs=["", "xyz"]` loads crypto + TradFi universes
+- **TOTAL**: 49 tools · 12 scrapers · 3 trading venues
+
 ### v0.3.10 — Boot Sequence + Polymarket Full Integration
 - **NEW**: Animated boot sequence with staged spinner initialization
 - **NEW**: 5 Polymarket tools exposed (positions, buy, sell, price, orderbook)
 - **NEW**: `sentinel` (no args) launches chat directly
-- **FIX**: `clear` re-renders full banner + dashboard
-- **FIX**: Post-install message — clean panel with launch CTA
 
 ### v0.3.8 — Aster Fix + Credential Sync
 - **FIX**: Added `tenacity` to core dependencies (Aster scraper)
-- **FIX**: Hyperliquid private key sync from production env
-- **VERIFIED**: 7/7 integrations passing (CoinGecko, YFinance, HL, Aster, PM, DexScreener, CLOB)
+- **VERIFIED**: 7/7 integrations passing
 
 ### v0.3.4 — Multi-Agent Swarm
 - **ADD**: Upsonic multi-agent swarm (Analyst, RiskManager, Trader)
-- **ADD**: Dashboard shows swarm availability and agent roster
 
 ### v0.3.3 — Quant Analysis Engine
 - **ADD**: `run_stock_analysis` — deep quantitative analysis
@@ -247,3 +264,9 @@ help            Show all commands
 ## License
 
 [AGPL-3.0](LICENSE) — © 2026 Sentinel Labs
+
+---
+
+<div align="center">
+<sub><i>Soli Deo Gloria</i> — To the Glory of God alone.</sub>
+</div>

@@ -51,7 +51,7 @@ class SentinelClient:
     """
     Python client for the Sentinel API Gateway.
 
-    All 80+ tools are available as typed methods on every tier — Free, Pro, and
+    All tools are available as typed methods on every tier — Free, Pro, and
     Enterprise. There is no feature gating; upgrading reduces your fee rates.
 
     Supports three authentication modes:
@@ -637,6 +637,30 @@ class SentinelClient:
     def close_hl_position(self, coin: str) -> dict:
         """Close a Hyperliquid position."""
         return self.call_tool("close_hl_position", coin=coin)["data"]
+
+    # ══════════════════════════════════════════════════════════
+    # Hyperliquid — TradFi (Gold, Oil, Stocks, Indices, Forex)
+    # ══════════════════════════════════════════════════════════
+
+    def get_hl_tradfi_assets(self) -> dict:
+        """List all available TradFi/commodity/stock perps on Hyperliquid xyz dex."""
+        return self.call_tool("get_hl_tradfi_assets")["data"]
+
+    def get_hl_tradfi_price(self, symbol: str) -> dict:
+        """Get current price for a TradFi asset (GOLD, OIL, TSLA, SP500, etc.)."""
+        return self.call_tool("get_hl_tradfi_price", symbol=symbol)["data"]
+
+    # ══════════════════════════════════════════════════════════
+    # Portfolio — Cross-venue aggregation
+    # ══════════════════════════════════════════════════════════
+
+    def get_portfolio_summary(self) -> dict:
+        """Get unified portfolio summary across Hyperliquid, Aster, and Polymarket."""
+        return self.call_tool("get_portfolio_summary")["data"]
+
+    def get_portfolio_risk(self) -> dict:
+        """Analyze portfolio risk: concentration, leverage, venue allocation."""
+        return self.call_tool("get_portfolio_risk")["data"]
 
     # ══════════════════════════════════════════════════════════
     # Aster DEX — PUBLIC (market data)

@@ -41,7 +41,9 @@ SENTINEL_THEME = Theme({
 console = Console(theme=SENTINEL_THEME)
 
 # ── Branding ──────────────────────────────────────────────────
-BANNER = """[s.cyan]
+def _make_cli_banner() -> str:
+    from sentinel import __version__
+    return f"""[s.cyan]
 ██╗  ██╗██╗   ██╗██████╗ ███████╗██████╗
 ██║  ██║╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗
 ███████║ ╚████╔╝ ██████╔╝█████╗  ██████╔╝
@@ -50,7 +52,7 @@ BANNER = """[s.cyan]
 ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [s.gold]S E N T I N E L   S D K[/]
-[s.dim]Python Client · 80+ Tools · Web4 Auth[/]
+[s.dim]Python Client · v{__version__} · Local-First[/]
 """
 
 # ── Config ────────────────────────────────────────────────────
@@ -517,7 +519,7 @@ def _show_status():
     tier_info = TIER_INFO.get(tier, TIER_INFO["free"])
 
     console.print()
-    console.print(BANNER)
+    console.print(_make_cli_banner())
 
     # ── Auth & Account ──
     auth = Table(
@@ -966,7 +968,7 @@ def _show_help():
         ("sentinel upgrade enterprise", "Upgrade to Enterprise ($1,000/mo)"),
     ])
     _section("System", "dim", [
-        ("sentinel tools", "List all 80+ available tools"),
+        ("sentinel tools", "List all available tools"),
         ("sentinel help", "Show this help"),
     ])
     console.print()
@@ -1110,7 +1112,7 @@ def _show_tools():
 def setup():
     """Full first-run setup flow."""
     console.print()
-    console.print(BANNER)
+    console.print(_make_cli_banner())
 
     config = _load_config()
     config = _step_ai_key(config)
