@@ -1,5 +1,5 @@
 """
-Hyper-Sentinel v0.3.15 — Quantitative AI Agent + Python SDK
+Hyper-Sentinel v0.3.16 — Quantitative AI Agent + Python SDK
 
   Soli Deo Gloria — To the Glory of God alone.
   Dedicated to the Glory of Jesus Christ, the Son of God.
@@ -25,7 +25,7 @@ from sentinel.exceptions import (
     ToolNotFoundError,
 )
 
-__version__ = "0.3.15"
+__version__ = "0.3.16"
 __all__ = [
     "SentinelClient",
     "SentinelError",
