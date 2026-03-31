@@ -126,7 +126,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.3.12 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.3.13 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -1489,15 +1489,9 @@ def _print_dashboard(config: dict, gateway_ok: bool):
                "[green]● Ready[/]" if pm_ok else "[yellow]○ Needs config[/]",
                "browse + bet + positions + orders" + ("" if pm_ok else " · [dim]add polymarket[/]"))
 
-    tg_ok = config.get("tg_api_id") or os.environ.get("TELEGRAM_API_ID", "")
-    ds.add_row("💬 Telegram",
-               "[green]● Ready[/]" if tg_ok else "[yellow]○ Needs config[/]",
-               "read channels + groups + monitor + send" + ("" if tg_ok else " · [dim]add telegram[/]"))
-
-    dc_ok = config.get("discord_token") or os.environ.get("DISCORD_BOT_TOKEN", "")
-    ds.add_row("🎮 Discord",
-               "[green]● Ready[/]" if dc_ok else "[yellow]○ Needs config[/]",
-               "read servers + channels + search + send" + ("" if dc_ok else " · [dim]add discord[/]"))
+    # Telegram + Discord: archived — re-enable when tested
+    # tg_ok = config.get("tg_api_id") or os.environ.get("TELEGRAM_API_ID", "")
+    # dc_ok = config.get("discord_token") or os.environ.get("DISCORD_BOT_TOKEN", "")
 
     console.print(ds)
 
@@ -1849,8 +1843,6 @@ def run_chat(config: dict):
                 console.print("  [s.cyan]add y2[/]            [s.dim]Y2 Intelligence news[/]")
                 console.print("  [s.cyan]add elfa[/]          [s.dim]Elfa AI social intelligence[/]")
                 console.print("  [s.cyan]add eodhd[/]         [s.dim]EODHD historical market data[/]")
-                console.print("  [s.cyan]add telegram[/]      [s.dim]Telegram channel reader[/]")
-                console.print("  [s.cyan]add discord[/]       [s.dim]Discord bot integration[/]")
                 console.print()
             continue
 

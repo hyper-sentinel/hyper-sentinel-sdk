@@ -14,7 +14,7 @@
 
 **Quantitative AI Agent — Crypto, Equities & Macro**
 
-12 data sources · 80+ tools · Multi-agent swarm · Sub-second queries
+10 data sources · 80+ tools · Multi-agent swarm · Sub-second queries
 
 <br/>
 
@@ -98,8 +98,6 @@ All sources execute **locally** via built-in scrapers. No gateway dependency.
 | 📰 **Y2 Intelligence** | News sentiment · intelligence reports · recaps | `add y2` |
 | 🔮 **Elfa AI** | Trending tokens · social mentions · sentiment | `add elfa` |
 | 🐦 **X / Twitter** | Tweet search · accounts · trends | `add x` |
-| 💬 **Telegram** | Channel reads · search · monitoring | `add telegram` |
-| 🎮 **Discord** | Server reads · channel search · messaging | `add discord` |
 
 > 3 sources work instantly. The rest activate the moment you add a key — no restart required.
 
