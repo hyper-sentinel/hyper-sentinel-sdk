@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyper-Sentinel — Quantitative AI Trading Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface-2: #1a1a2e;
+    --border: #2a2a3e;
+    --cyan: #00e5ff;
+    --cyan-dim: #007a8a;
+    --cyan-glow: rgba(0, 229, 255, 0.15);
+    --gold: #ffd700;
+    --green: #00ff88;
+    --red: #ff4466;
+    --text: #e8e8f0;
+    --text-dim: #8888aa;
+    --text-muted: #555570;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 60px 48px;
+  }
+
+  /* ── Hero ──────────────────────────────────── */
+  .hero {
+    text-align: center;
+    padding: 80px 0 60px;
+    position: relative;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, var(--cyan-glow) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .hero h1 {
+    font-size: 3.2rem;
+    font-weight: 900;
+    letter-spacing: 12px;
+    background: linear-gradient(135deg, var(--cyan) 0%, #00aaff 50%, var(--cyan) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    position: relative;
+    z-index: 1;
+    margin-bottom: 8px;
+  }
+
+  .hero .sub {
+    font-size: 1.1rem;
+    font-weight: 300;
+    color: var(--text-dim);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero .tagline {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 32px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero .dedication {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Sections ─────────────────────────────── */
+  .section {
+    margin: 56px 0;
+  }
+
+  .section h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--cyan);
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 24px 0 12px;
+  }
+
+  .section p {
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    font-size: 0.95rem;
+  }
+
+  .section p strong {
+    color: var(--text);
+  }
+
+  /* ── Stats bar ────────────────────────────── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin: 40px 0;
+  }
+
+  .stat {
+    text-align: center;
+    padding: 24px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .stat .number {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--cyan);
+    display: block;
+  }
+
+  .stat .label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+    display: block;
+  }
+
+  /* ── Tables ───────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.88rem;
+  }
+
+  thead th {
+    text-align: left;
+    padding: 10px 14px;
+    color: var(--cyan);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  tbody td:first-child {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  tbody tr:hover {
+    background: var(--surface);
+  }
+
+  .status-built {
+    color: var(--green);
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+
+  .status-coming {
+    color: var(--gold);
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+
+  .status-shipped {
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  /* ── Code block ───────────────────────────── */
+  .terminal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.8;
+    overflow-x: auto;
+    margin: 20px 0;
+  }
+
+  .terminal .prompt { color: var(--cyan); }
+  .terminal .response { color: var(--text-dim); }
+  .terminal .success { color: var(--green); }
+  .terminal .comment { color: var(--text-muted); }
+
+  /* ── Callout ──────────────────────────────── */
+  .callout {
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
+    border-left: 3px solid var(--cyan);
+    border-radius: 0 12px 12px 0;
+    padding: 20px 24px;
+    margin: 24px 0;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+  }
+
+  .callout strong { color: var(--text); }
+
+  /* ── Roadmap ──────────────────────────────── */
+  .roadmap {
+    margin: 24px 0;
+  }
+
+  .roadmap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .roadmap-item:last-child { border-bottom: none; }
+
+  .roadmap-version {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--cyan);
+    min-width: 60px;
+  }
+
+  .roadmap-content {
+    flex: 1;
+  }
+
+  .roadmap-title {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+
+  .roadmap-desc {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    margin-top: 2px;
+  }
+
+  .roadmap-status {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+
+  .roadmap-status.shipped {
+    background: rgba(0, 255, 136, 0.1);
+    color: var(--green);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+  }
+
+  .roadmap-status.next {
+    background: rgba(0, 229, 255, 0.1);
+    color: var(--cyan);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+  }
+
+  .roadmap-status.future {
+    background: rgba(255, 215, 0, 0.1);
+    color: var(--gold);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+  }
+
+  /* ── Footer ───────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 60px 0 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+  }
+
+  .footer .brand {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 2px;
+  }
+
+  .footer .founder {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+
+  .footer .glory {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 16px;
+  }
+
+  /* ── Install box ──────────────────────────── */
+  .install {
+    text-align: center;
+    padding: 40px;
+    background: var(--surface);
+    border: 1px solid var(--cyan-dim);
+    border-radius: 16px;
+    margin: 40px 0;
+  }
+
+  .install h3 {
+    color: var(--text);
+    margin-bottom: 16px;
+    font-size: 1.2rem;
+  }
+
+  .install code {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--cyan);
+    padding: 12px 32px;
+    border-radius: 8px;
+    font-size: 1rem;
+    margin: 4px;
+    border: 1px solid var(--border);
+  }
+
+  .install .note {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 16px;
+  }
+
+  /* ── Print / PDF ──────────────────────────── */
+  @media print {
+    body { background: #0a0a0f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 20px 32px; }
+    .hero { padding: 40px 0 30px; }
+    .hero::before { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1>HYPER SENTINEL</h1>
+    <div class="sub">Quantitative AI Trading Agent</div>
+    <div class="tagline">An AI That Trades For You.</div>
+    <div class="dedication">Soli Deo Gloria — To the Glory of God alone.</div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat">
+      <span class="number">285</span>
+      <span class="label">Tradeable Assets</span>
+    </div>
+    <div class="stat">
+      <span class="number">51</span>
+      <span class="label">AI Tools</span>
+    </div>
+    <div class="stat">
+      <span class="number">3</span>
+      <span class="label">Trading Venues</span>
+    </div>
+    <div class="stat">
+      <span class="number">4</span>
+      <span class="label">AI Providers</span>
+    </div>
+  </div>
+
+  <!-- WHAT IS IT -->
+  <div class="section">
+    <h2>What Is It?</h2>
+    <p>Hyper-Sentinel is a <strong>quantitative AI trading agent</strong> you talk to in plain English. Say <em>"buy Gold"</em> and it buys Gold. Say <em>"what's my portfolio?"</em> and it shows you everything — across every exchange, every asset class, in one place.</p>
+    <p>It runs <strong>on your machine</strong>. Your keys never leave your laptop. No cloud. No middleman. No trust required. <strong>Local-first.</strong></p>
+  </div>
+
+  <!-- WHAT CAN IT TRADE -->
+  <div class="section">
+    <h2>What Can It Trade?</h2>
+    <table>
+      <thead>
+        <tr><th>Asset Class</th><th>Examples</th><th>Venue</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Crypto Perpetuals</td><td>BTC, ETH, SOL, DOGE, HYPE + 224 more</td><td>Hyperliquid</td></tr>
+        <tr><td>Gold & Metals</td><td>GOLD, SILVER, PLATINUM, PALLADIUM</td><td>Hyperliquid (on-chain)</td></tr>
+        <tr><td>Oil & Energy</td><td>Crude Oil (WTI), Brent, Natural Gas</td><td>Hyperliquid (on-chain)</td></tr>
+        <tr><td>US Stocks</td><td>TSLA, NVDA, AAPL, MSFT, META, GOOGL, AMD + 15 more</td><td>Hyperliquid (on-chain)</td></tr>
+        <tr><td>Indices</td><td>S&P 500, Nikkei 225, VIX, DXY</td><td>Hyperliquid (on-chain)</td></tr>
+        <tr><td>Forex</td><td>EUR/USD, USD/JPY</td><td>Hyperliquid (on-chain)</td></tr>
+        <tr><td>Prediction Markets</td><td>Elections, events, crypto bets</td><td>Polymarket</td></tr>
+        <tr><td>DeFi Futures</td><td>BTCUSDT, ETHUSDT + 50 more</td><td>Aster DEX</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Long Gold. Short Oil. All from a Python terminal. All on-chain. No broker. No KYC.</strong></p>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div class="section">
+    <h2>How It Works</h2>
+    <p>You talk to it. It thinks. It acts.</p>
+    <div class="terminal">
+      <span class="prompt">⚡ You →</span> What's the price of Gold and Tesla?<br><br>
+      <span class="response">🛡️ Sentinel</span><br>
+      <span class="response">&nbsp;&nbsp;&nbsp;GOLD: $4,667.20 · Spread: 0.8 bps · Funding: +0.003%</span><br>
+      <span class="response">&nbsp;&nbsp;&nbsp;TSLA: $373.41 · Spread: 1.2 bps · Funding: -0.001%</span><br><br>
+      <span class="prompt">⚡ You →</span> Buy 1 GOLD with 5x leverage<br><br>
+      <span class="response">🛡️ Sentinel</span><br>
+      <span class="success">&nbsp;&nbsp;&nbsp;✓ Leverage set to 5x for xyz:GOLD</span><br>
+      <span class="success">&nbsp;&nbsp;&nbsp;✓ Market buy 1 GOLD @ $4,667.20</span><br>
+      <span class="success">&nbsp;&nbsp;&nbsp;✓ Position open — $933.44 margin</span><br>
+    </div>
+    <p><strong>51 tools</strong> under the hood — price feeds, orderbooks, technical analysis, portfolio tracking, news sentiment, economic data. The AI picks the right tools automatically.</p>
+  </div>
+
+  <!-- AI -->
+  <div class="section">
+    <h2>The AI</h2>
+    <p>Bring your own AI subscription — <strong>Claude, GPT, Gemini, or Grok</strong>. Sentinel uses it to understand what you want and orchestrate the tools.</p>
+    <p>Simple queries don't even touch the AI. Price checks, top coins, basic lookups — those resolve in under a second with <strong>zero AI cost</strong>.</p>
+
+    <h3>Multi-Agent Swarm</h3>
+    <p>For complex operations, Sentinel deploys a <strong>team of specialized agents</strong>:</p>
+    <table>
+      <thead><tr><th>Agent</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td>📊 Analyst</td><td>Research, technicals, macro, sentiment</td></tr>
+        <tr><td>⚠️ Risk Manager</td><td>Position sizing, leverage checks, portfolio risk</td></tr>
+        <tr><td>💰 Trader</td><td>Executes orders across all venues</td></tr>
+      </tbody>
+    </table>
+    <p>They coordinate. The Analyst researches, the Risk Manager validates, the Trader executes. <strong>All autonomous.</strong></p>
+  </div>
+
+  <!-- ALGO ENGINE -->
+  <div class="section">
+    <h2>Algo Trading Engine</h2>
+    <p>6 algorithmic strategies — <strong>built and running</strong> in our private high-performance terminal. Being ported to the public SDK in v0.5.0.</p>
+    <table>
+      <thead><tr><th>Strategy</th><th>What It Does</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>SMA Crossover</td><td>Classic moving average crossover — rides trends</td><td><span class="status-built">✅ Built</span></td></tr>
+        <tr><td>Bollinger Bands</td><td>Mean reversion — buys lows, shorts highs</td><td><span class="status-built">✅ Built</span></td></tr>
+        <tr><td>MACD Momentum</td><td>Catches momentum shifts with MACD crossover</td><td><span class="status-built">✅ Built</span></td></tr>
+        <tr><td>EMA Spread</td><td>Detects trend exhaustion and reversals</td><td><span class="status-built">✅ Built</span></td></tr>
+        <tr><td>Gain EMA</td><td>Simple momentum with EMA levels</td><td><span class="status-built">✅ Built</span></td></tr>
+        <tr><td>Sentinel ICT</td><td>RSI + fair value gaps + breaker blocks</td><td><span class="status-built">✅ Built</span></td></tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <strong>4,000+ lines of battle-tested Python.</strong> Full trade journaling, P&L tracking, win rate curves, DCA engine, and guardrails with kill switch. The algos work on TradFi too — MACD on Gold, Bollinger on Tesla. All on-chain.
+    </div>
+  </div>
+
+  <!-- TECH STACK -->
+  <div class="section">
+    <h2>Tech Stack</h2>
+    <table>
+      <thead><tr><th>What</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>AI Providers</td><td>Claude · GPT · Gemini · Grok</td></tr>
+        <tr><td>Assets</td><td>285 — Crypto + Gold + Oil + Stocks + Indices + Forex</td></tr>
+        <tr><td>Venues</td><td>Hyperliquid · Aster DEX · Polymarket</td></tr>
+        <tr><td>Data Sources</td><td>CoinGecko · Yahoo Finance · FRED · DexScreener + 8 more</td></tr>
+        <tr><td>Technical Analysis</td><td>SMA · EMA · RSI · MACD · Bollinger Bands</td></tr>
+        <tr><td>Portfolio</td><td>Cross-venue equity, positions, and risk — one view</td></tr>
+        <tr><td>Revenue</td><td>Builder fee on every Hyperliquid trade</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ROADMAP -->
+  <div class="section">
+    <h2>Roadmap</h2>
+    <div class="roadmap">
+      <div class="roadmap-item">
+        <span class="roadmap-version">0.3.14</span>
+        <div class="roadmap-content">
+          <div class="roadmap-title">TradFi + Technical Analysis + 285 Assets</div>
+          <div class="roadmap-desc">Gold, Oil, Stocks, Indices on Hyperliquid. Full TA engine with RSI, MACD, Bollinger.</div>
+        </div>
+        <span class="roadmap-status shipped">SHIPPED ✓</span>
+      </div>
+      <div class="roadmap-item">
+        <span class="roadmap-version">0.4.0</span>
+        <div class="roadmap-content">
+          <div class="roadmap-title">Advanced Orders + Portfolio Tracker</div>
+          <div class="roadmap-desc">Take-Profit, Stop-Loss, Trailing Stop, TWAP. Cross-venue portfolio aggregation.</div>
+        </div>
+        <span class="roadmap-status next">IN PROGRESS</span>
+      </div>
+      <div class="roadmap-item">
+        <span class="roadmap-version">0.5.0</span>
+        <div class="roadmap-content">
+          <div class="roadmap-title">Algo Engine in the SDK</div>
+          <div class="roadmap-desc">6 strategies + DCA + trade journal + guardrails — ported from private terminal.</div>
+        </div>
+        <span class="roadmap-status future">PLANNED</span>
+      </div>
+      <div class="roadmap-item">
+        <span class="roadmap-version">1.0.0</span>
+        <div class="roadmap-content">
+          <div class="roadmap-title">Web Terminal — SaaS Launch</div>
+          <div class="roadmap-desc">Multi-pane dashboard, real-time data, Stripe billing, USDC on-chain billing.</div>
+        </div>
+        <span class="roadmap-status future">THE BIG ONE</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVENUE -->
+  <div class="section">
+    <h2>Revenue Model</h2>
+    <p>Every trade executed through Sentinel generates a <strong>builder fee</strong> — a small percentage routed to our wallet on every Hyperliquid order. Users trade, we earn. <strong>No subscriptions needed at the trading layer.</strong></p>
+    <p>The SaaS layer (web terminal, API access) will add tiered subscriptions on top — Free, Pro, and Enterprise.</p>
+  </div>
+
+  <!-- WEB4 -->
+  <div class="section">
+    <h2>Web4 — The AI-Native Internet</h2>
+    <div class="callout">
+      Web1 was <strong>read</strong>. Web2 was <strong>write</strong>. Web3 was <strong>own</strong>. Web4 is <strong>direct</strong>.
+    </div>
+    <p>Your AI subscription is your identity. Your wallet is your execution layer. No email. No password. No OAuth. Paste your AI key — you're authenticated, you're intelligent, you're trading.</p>
+    <p>We're building the interface layer between <strong>human intent and on-chain execution</strong>. You think it. The AI does it. The blockchain settles it.</p>
+  </div>
+
+  <!-- INSTALL -->
+  <div class="install">
+    <h3>Try It Now</h3>
+    <code>pip install hyper-sentinel</code>
+    <code>sentinel</code>
+    <div class="note">Paste any AI key. Start talking.</div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="brand">HYPER-SENTINEL · SENTINEL LABS · 2026</div>
+    <div class="founder">Morgan Fisher · Founder</div>
+    <div class="glory">Soli Deo Gloria — To the Glory of God alone.<br>Dedicated to the Glory of Jesus Christ, the Son of God.</div>
+  </div>
+
+</div>
+
+</body>
+</html>

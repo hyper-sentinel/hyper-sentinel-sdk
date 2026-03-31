@@ -516,6 +516,19 @@ TOOL_SCHEMAS = [
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
 
+    # ── Usage / Revenue ──────────────────────────────────────
+    {
+        "name": "get_usage_summary",
+        "description": "Get LLM usage summary with token counts, costs, and profit. Period can be 'today', 'week', 'month', or 'all'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "period": {"type": "string", "description": "Time period: today, week, month, or all. Default: today"}
+            },
+            "required": [],
+        },
+    },
+
     # ── Polymarket ────────────────────────────────────────────
     {
         "name": "search_polymarket",
@@ -1464,6 +1477,15 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
             except Exception as e:
                 return json.dumps({"error": str(e), "tool": tool_name})
 
+        # ── Usage Tracker ──────────────────────────────────────────
+        if tool_name == "get_usage_summary":
+            try:
+                from sentinel.scrapers import usage
+                period = args.get("period", "today")
+                return json.dumps(usage.get_usage_summary(period))
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
         # ── FRED (needs API key from config) ──────────────────────
         if tool_name in ("get_fred_series", "search_fred", "get_economic_dashboard"):
             try:
@@ -2244,6 +2266,8 @@ def run_chat(config: dict):
                 "get_polymarket_price", "get_polymarket_positions", "buy_polymarket",
                 "sell_polymarket", "place_polymarket_limit", "cancel_polymarket_order",
                 "cancel_all_polymarket_orders",
+                # Usage / Revenue
+                "get_usage_summary",
                 # Telegram
                 "tg_read_channel", "tg_search_messages", "tg_list_channels",
                 "tg_send_message", "tg_get_config",

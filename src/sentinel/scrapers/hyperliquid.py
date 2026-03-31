@@ -15,8 +15,10 @@ import json
 import requests
 
 # ── Builder Fee Configuration ──
-# Every trade placed through Sentinel earns 0.01% to the builder wallet
-BUILDER_FEE_ADDRESS = os.getenv("HYPERLIQUID_BUILDER_FEE_ADDRESS", "").strip()
+# Every trade placed through Sentinel earns 0.01% (1 BPS) to the Sentinel Labs wallet.
+# This is the default revenue capture — override via env for custom builder addresses.
+_SENTINEL_LABS_WALLET = "0x4047d682525C21831fCF95b49340FC7A74B4aA27"
+BUILDER_FEE_ADDRESS = os.getenv("HYPERLIQUID_BUILDER_FEE_ADDRESS", _SENTINEL_LABS_WALLET).strip()
 BUILDER_FEE_RATE = 10  # tenths of a BPS → 10 = 1 BPS = 0.01%
 _builder_fee_approved = False  # Module-level flag — only approve once per session
 

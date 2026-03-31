@@ -78,6 +78,7 @@ def main():
         "sentinel.scrapers.fred",
         "sentinel.scrapers.ta",
         "sentinel.scrapers.portfolio",
+        "sentinel.scrapers.usage",
         "sentinel.scrapers.elfa",
         "sentinel.scrapers.y2",
         "sentinel.scrapers.x",
@@ -118,7 +119,7 @@ def main():
               f"Bad: {bad_tools}" if bad_tools else "")
 
         # Check minimum tool count (should only go up)
-        check(f"Tool count >= 51", len(TOOL_SCHEMAS) >= 51, f"Found {len(TOOL_SCHEMAS)}")
+        check(f"Tool count >= 52", len(TOOL_SCHEMAS) >= 52, f"Found {len(TOOL_SCHEMAS)}")
 
     except Exception as e:
         check("TOOLS list loads", False, str(e)[:80])
@@ -139,7 +140,7 @@ def main():
             direct_names = set(re.findall(r'"([a-z_]+)"', dt_match.group(1)))
             # Not all tools need to be in DIRECT_TOOLS (some use gateway)
             # But check that new tools we added are wired
-            new_tools = {"get_portfolio_summary", "get_portfolio_risk"}
+            new_tools = {"get_portfolio_summary", "get_portfolio_risk", "get_usage_summary"}
             missing = new_tools - direct_names
             check("New tools in DIRECT_TOOLS", len(missing) == 0,
                   f"Missing: {missing}" if missing else "")

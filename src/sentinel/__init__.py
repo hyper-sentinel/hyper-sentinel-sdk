@@ -1,12 +1,12 @@
 """
-Hyper-Sentinel v0.3.14 — Quantitative AI Agent + Python SDK
+Hyper-Sentinel v0.3.15 — Quantitative AI Agent + Python SDK
 
   Soli Deo Gloria — To the Glory of God alone.
   Dedicated to the Glory of Jesus Christ, the Son of God.
 
 © Sentinel Labs — https://hyper-sentinel.com
 
-49 tools · 12 scrapers · 3 trading venues · TradFi + Crypto + Macro
+52 tools · 13 scrapers · 3 trading venues · TradFi + Crypto + Macro
 Hyperliquid · Aster DEX · Polymarket · Technical Analysis · DexScreener
 
 Usage:
@@ -25,7 +25,7 @@ from sentinel.exceptions import (
     ToolNotFoundError,
 )
 
-__version__ = "0.3.14"
+__version__ = "0.3.15"
 __all__ = [
     "SentinelClient",
     "SentinelError",
