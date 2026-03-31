@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyper-sentinel"
-version = "0.3.11"
+version = "0.3.12"
 description = "Python SDK + AI Agent for Sentinel — 80+ crypto trading, AI, and market intelligence tools with interactive chat. Free access, usage-based fees."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -32,6 +32,8 @@ dependencies = [
     "requests>=2.31.0",
     "yfinance>=0.2.0",
     "tenacity>=8.0",
+    "py-clob-client>=0.17.0",
+    "eth-account>=0.11.0",
 ]
 
 [project.scripts]
@@ -42,6 +44,7 @@ sentinel-chat = "sentinel.chat:_entry_chat"
 [project.optional-dependencies]
 serve = ["fastapi>=0.111.0", "uvicorn[standard]>=0.29.0"]
 swarm = ["upsonic>=0.30.0"]
+telegram = ["telethon>=1.36.0"]
 async = ["httpx[http2]"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4", "build", "twine"]
 
