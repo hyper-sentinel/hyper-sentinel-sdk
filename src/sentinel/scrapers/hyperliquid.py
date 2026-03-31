@@ -342,6 +342,9 @@ def place_hl_order(coin: str, side: str, size: float, price: float = None,
         coin = _resolve_coin(coin)
         is_buy = side.lower() == "buy"
 
+        # Auto-approve builder fee on first trade of session (revenue capture)
+        _ensure_builder_fee_approved()
+
         def _execute_order(use_builder: bool = True):
             """Execute the order, optionally with builder fee."""
             builder = None
@@ -499,6 +502,7 @@ def close_hl_position(coin: str) -> dict:
         is_long = float(current_pos["szi"]) > 0
 
         # Close by opening opposite side — with builder fee fallback
+        _ensure_builder_fee_approved()  # Auto-approve on first trade (revenue capture)
         builder = None
         if BUILDER_FEE_ADDRESS:
             builder = {"b": BUILDER_FEE_ADDRESS, "f": BUILDER_FEE_RATE}

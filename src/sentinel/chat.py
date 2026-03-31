@@ -735,6 +735,25 @@ def _tools_for_openai(tools: list[dict]) -> list[dict]:
 # LLM API Callers
 # ══════════════════════════════════════════════════════════════
 
+def _track_llm_usage(resp_data: dict, provider: str, model: str):
+    """Log LLM usage to the local usage tracker (non-blocking, best-effort)."""
+    try:
+        from sentinel.scrapers import usage
+        inp = out = 0
+        if provider == "anthropic":
+            u = resp_data.get("usage", {})
+            inp, out = u.get("input_tokens", 0), u.get("output_tokens", 0)
+        elif provider in ("openai", "xai"):
+            u = resp_data.get("usage", {})
+            inp, out = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
+        elif provider == "google":
+            u = resp_data.get("usageMetadata", {})
+            inp, out = u.get("promptTokenCount", 0), u.get("candidatesTokenCount", 0)
+        if inp or out:
+            usage.log_usage(provider, model, inp, out)
+    except Exception:
+        pass  # Usage tracking is best-effort — never block the user
+
 def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dict:
     """Call Anthropic Messages API with tool support."""
     headers = {
@@ -773,7 +792,9 @@ def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dic
                     body_snippet = resp.text[:200].replace('\n', ' ').strip()
                     return {"error": {"message": f"Anthropic HTTP {resp.status_code}: {body_snippet}"}}
             try:
-                return resp.json()
+                data = resp.json()
+                _track_llm_usage(data, "anthropic", model)
+                return data
             except (ValueError, Exception):
                 if attempt < 2:
                     _time.sleep(1.5 * (attempt + 1))
@@ -821,7 +842,15 @@ def _call_openai_compat(
                 _time.sleep(1.5 * (attempt + 1))
                 continue
             try:
-                return resp.json()
+                data = resp.json()
+                # Detect provider from endpoint for tracking
+                _prov = "openai"
+                if "x.ai" in endpoint:
+                    _prov = "xai"
+                elif "googleapis" in endpoint:
+                    _prov = "google"
+                _track_llm_usage(data, _prov, model)
+                return data
             except (ValueError, Exception):
                 if attempt < 2:
                     _time.sleep(1.5 * (attempt + 1))
