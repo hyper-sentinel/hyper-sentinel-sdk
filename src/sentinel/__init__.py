@@ -1,5 +1,5 @@
 """
-Hyper-Sentinel v0.5.0 — Thin Python SDK for the Sentinel AI Trading API
+Hyper-Sentinel v0.5.1 — Thin Python SDK for the Sentinel AI Trading API
 
 Soli Deo Gloria — To the Glory of God alone.
 Dedicated to the Glory of Jesus Christ, the Son of God.
@@ -31,7 +31,7 @@ from sentinel.api.errors import (
     AuthenticationError,
 )
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 
 class Sentinel(SentinelAPI):
