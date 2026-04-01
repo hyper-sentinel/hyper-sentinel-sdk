@@ -88,44 +88,23 @@ def auth(key: str, provider: Optional[str]):
         with console.status("[cyan]Exchanging key...[/cyan]", spinner="dots"):
             api_key, response = authenticate_with_ai_key(key)
 
-        is_new = response.get("status") == "created"
-        secret_key = response.get("secret_key")
-
         # Save secret key if returned (new user)
-        if secret_key:
-            save_secret_key(secret_key)
+        if response.get("secret_key"):
+            save_secret_key(response["secret_key"])
+            secret_notice = "\n[cyan]Secret key saved to ~/.sentinel/secret_key[/cyan]"
+        else:
+            secret_notice = ""
 
         # Display success
-        if is_new and secret_key:
-            msg = (
-                f"[bold #00e5ff]✓ Account Created[/]\n"
-                f"\n"
-                f"[white]Provider:[/white] {provider}\n"
-                f"[white]Tier:[/white] {response.get('tier', 'free')}\n"
-                f"\n"
-                f"[bold white]API Key[/bold white] [dim](for authenticating API calls)[/dim]\n"
-                f"[bold #00e5ff]{api_key}[/]\n"
-                f"\n"
-                f"[bold white]Secret Key[/bold white] [dim](for vault recovery — SAVE THIS!)[/dim]\n"
-                f"[bold #f0883e]{secret_key}[/]\n"
-                f"\n"
-                f"[dim]Saved to ~/.sentinel/api_key and ~/.sentinel/secret_key[/dim]"
-            )
-            console.print(Panel(msg, border_style="#00e5ff", padding=(1, 2), title="[bold]SENTINEL", subtitle="[dim]Save both keys"))
-            console.print()
-            console.print("[yellow]⚠️  The secret key will NOT be shown again.[/yellow]")
-        else:
-            msg = (
-                f"[bold #00e5ff]✓ Welcome Back[/]\n"
-                f"\n"
-                f"[white]Provider:[/white] {provider}\n"
-                f"[white]Tier:[/white] {response.get('tier', 'free')}\n"
-                f"[white]API Key:[/white] {api_key[:20]}...\n"
-                f"\n"
-                f"[dim]Saved to ~/.sentinel/api_key[/dim]"
-            )
-            console.print(Panel(msg, border_style="#00e5ff", padding=(1, 2)))
-
+        msg = (
+            f"[bold #00e5ff]Authentication Successful[/]\n"
+            f"\n"
+            f"[white]Provider:[/white] {provider}\n"
+            f"[white]API Key:[/white] {api_key[:20]}...\n"
+            f"\n"
+            f"[dim]Saved to ~/.sentinel/api_key[/dim]{secret_notice}"
+        )
+        console.print(Panel(msg, border_style="#00e5ff", padding=(1, 2)))
         console.print()
         console.print("[green]Ready to use![/green] Try:")
         console.print("  [cyan]sentinel status[/cyan]")
