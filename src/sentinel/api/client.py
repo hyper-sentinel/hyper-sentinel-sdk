@@ -103,7 +103,7 @@ class SentinelAPI:
 
         # Initialize resources
         self.market = MarketResource(self._http)
-        self.chat = ChatResource(self._http)
+        self._chat_resource = ChatResource(self._http)
         self.trade = TradeResource(self._http)
         self.billing = BillingResource(self._http)
         self.tools = ToolsResource(self._http)

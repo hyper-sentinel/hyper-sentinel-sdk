@@ -32,6 +32,7 @@ DEFAULT_BASE_URL = "https://api.hyper-sentinel.com"
 FALLBACK_BASE_URL = "https://sentinel-api-281199879392.us-central1.run.app"
 CONFIG_DIR = Path.home() / ".sentinel"
 CONFIG_FILE = CONFIG_DIR / "api_key"
+AI_KEY_FILE = CONFIG_DIR / "ai_key"
 DEFAULT_TIMEOUT = 30.0
 MAX_RETRIES = 3
 
@@ -52,6 +53,39 @@ def save_api_key(key: str) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(key)
     CONFIG_FILE.chmod(0o600)  # Owner read/write only
+
+
+def load_ai_key() -> Optional[str]:
+    """Load saved AI provider key from ~/.sentinel/ai_key or ~/.sentinel/config.
+
+    Checks two locations because different setup paths save the key differently:
+    - ~/.sentinel/ai_key (plaintext) — saved by save_ai_key()
+    - ~/.sentinel/config (JSON with "ai_key" field) — saved by chat.py first-run setup
+    """
+    # Check dedicated ai_key file first
+    if AI_KEY_FILE.exists():
+        key = AI_KEY_FILE.read_text().strip()
+        if key:
+            return key
+    # Fallback: check config JSON (chat.py stores ai_key here)
+    config_file = CONFIG_DIR / "config"
+    if config_file.exists():
+        try:
+            import json as _json
+            config = _json.loads(config_file.read_text())
+            key = config.get("ai_key", "").strip()
+            if key:
+                return key
+        except (ValueError, OSError):
+            pass
+    return None
+
+
+def save_ai_key(key: str) -> None:
+    """Save AI provider key to ~/.sentinel/ai_key."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    AI_KEY_FILE.write_text(key)
+    AI_KEY_FILE.chmod(0o600)
 
 
 # ── HTTP Client ───────────────────────────────────────────────

@@ -11,7 +11,7 @@ Handles first-launch API key generation:
 
 from typing import Optional, Tuple
 
-from sentinel.api._http import HTTPClient, save_api_key, CONFIG_DIR
+from sentinel.api._http import HTTPClient, save_api_key, save_ai_key, CONFIG_DIR
 
 # Use a separate unauthenticated client for auth flows
 import httpx
@@ -48,6 +48,9 @@ def authenticate_with_ai_key(
 
         # Save API key for future use
         save_api_key(sentinel_key)
+
+        # Save AI provider key for chat requests
+        save_ai_key(ai_key)
 
         # Save secret key if returned (new user)
         if "secret_key" in data:

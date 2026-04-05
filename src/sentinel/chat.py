@@ -44,7 +44,7 @@ SENTINEL_THEME = Theme({
 
 console = Console(theme=SENTINEL_THEME)
 
-GATEWAY_URL = "https://api.hyper-sentinel.com"
+GATEWAY_URL = "https://sentinel-api-4gqwf3cjxa-uc.a.run.app"
 
 SENTINEL_DIR = Path.home() / ".sentinel"
 CONFIG_FILE = SENTINEL_DIR / "config"
@@ -67,7 +67,7 @@ def _make_banner() -> str:
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]
-[dim]Quantitative AI Agent · {n_tools} Tools · Cloud-Powered · v{__version__}[/]
+[dim]Quantitative AI Agent · {n_tools} Tools · Local-First · v{__version__}[/]
 """
 
 
@@ -129,13 +129,8 @@ def _register_with_gateway(ai_key: str) -> dict:
 # System Prompt
 # ══════════════════════════════════════════════════════════════
 
-try:
-    from sentinel import __version__ as _ver
-except Exception:
-    _ver = "0.3.16"
-
-SYSTEM_PROMPT = f"""You are Sentinel, a production-grade AI trading agent built by Sentinel Labs LLC.
-Version: {_ver} | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
+SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
+Version: 0.3.13 | Build: March 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -1080,37 +1075,29 @@ def _fetch_and_format_top(n: int) -> str | None:
 # ══════════════════════════════════════════════════════════════
 
 def _execute_tool(api_key: str, tool_name: str, tool_args: dict) -> str:
-    """Execute a tool via the Sentinel API gateway, with local fallback.
+    """Execute a tool. Free tools run directly; others go through gateway."""
 
-    Routes through the gateway for metering/billing when possible.
-    Falls back to direct execution if gateway is unreachable or auth fails.
-    """
-    # Try gateway first (metered, billed)
-    if api_key:
-        try:
-            resp = httpx.post(
-                f"{GATEWAY_URL}/api/v1/tools/{tool_name}",
-                json=tool_args,
-                headers={
-                    "X-API-Key": api_key,
-                    "Content-Type": "application/json",
-                },
-                timeout=15.0,
-            )
-            if resp.status_code == 200:
-                return resp.text
-            # If auth fails, fall through to direct
-            if resp.status_code not in (401, 403):
-                return json.dumps({"error": f"HTTP {resp.status_code}", "detail": resp.text[:200]})
-        except Exception:
-            pass  # Gateway unreachable — fall through to direct
-
-    # Fallback: direct execution (unmetered — for offline/auth issues)
+    # ── Direct execution for free/public tools ────────────────
     direct = _execute_direct(tool_name, tool_args)
     if direct is not None:
         return direct
 
-    return json.dumps({"error": f"Tool '{tool_name}' requires gateway auth. Run 'sentinel-setup' to configure."})
+    # ── Gateway execution for everything else ─────────────────
+    try:
+        resp = httpx.post(
+            f"{GATEWAY_URL}/api/v1/tools/{tool_name}",
+            json=tool_args,
+            headers={
+                "X-API-Key": api_key,
+                "Content-Type": "application/json",
+            },
+            timeout=15.0,
+        )
+        if resp.status_code == 200:
+            return resp.text
+        return json.dumps({"error": f"HTTP {resp.status_code}", "detail": resp.text[:200]})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 def _execute_direct(tool_name: str, args: dict) -> str | None:
@@ -1852,6 +1839,9 @@ def _first_run_setup() -> dict:
         config["ai_key"] = key
         config["ai_provider"] = provider_id
         _save_config(config)
+        # Also save to dedicated file so ChatResource.load_ai_key() finds it
+        from sentinel.api._http import save_ai_key
+        save_ai_key(key)
         console.print(f"  [green]✓ {emoji} {full_label} detected — saved to ~/.sentinel/config[/]\n")
         break
 
@@ -1885,20 +1875,8 @@ def run_chat(config: dict):
     provider = config.get("ai_provider", "anthropic")
 
     if not ai_key:
-        console.print("  [s.error]✗ No AI key configured[/] — run [bold]sentinel-setup[/] first.\n")
+        console.print("  [s.error]✗ No AI key configured[/] — run [bold]sentinel[/] to set up.\n")
         return
-
-    # ── Auto-register with gateway if no API key ──────────────
-    if not api_key and ai_key:
-        try:
-            result = _register_with_gateway(ai_key)
-            if result.get("api_key"):
-                api_key = result["api_key"]
-                config["sentinel_api_key"] = api_key
-                config["tier"] = result.get("tier", "free")
-                _save_config(config)
-        except Exception:
-            pass  # Gateway offline — continue with direct execution
 
     # ── Animated Boot Sequence ─────────────────────────────────
     console.print(_make_banner())

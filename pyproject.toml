@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyper-sentinel"
-version = "0.5.1"
+version = "0.5.8"
 description = "Thin Python SDK for the Sentinel AI Trading API — 62+ tools via REST"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -48,7 +48,7 @@ Issues = "https://github.com/hyper-sentinel/hyper-sentinel-sdk/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["sentinel", "sentinel.api", "sentinel.api.resources", "hyper_sentinel"]
+include = ["sentinel", "sentinel.api", "sentinel.api.resources", "sentinel.scrapers", "hyper_sentinel"]
 
 [tool.pytest.ini_options]
 markers = [

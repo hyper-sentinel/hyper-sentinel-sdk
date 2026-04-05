@@ -1,69 +1,136 @@
 """
-Hyper-Sentinel v0.5.1 — Thin Python SDK for the Sentinel AI Trading API
+Hyper-Sentinel v0.5.3 — The AI Trading SDK
 
 Soli Deo Gloria — To the Glory of God alone.
-Dedicated to the Glory of Jesus Christ, the Son of God.
-
 © Sentinel Labs — https://hyper-sentinel.com
 
-62+ AI trading tools via clean REST API. Market data, technical analysis, trading,
-portfolio tracking, AI chat, vault encryption. Access via:
+Usage:
+    from hyper_sentinel import Sentinel
 
-Usage (option 1 — convenience wrapper):
-    from sentinel import Sentinel
+    client = Sentinel()  # auto-loads SENTINEL_API_KEY from env or ~/.sentinel/
 
-    client = Sentinel(api_key="sk-sentinel-xxx")
-    btc = client.call("get_crypto_price", coin_id="bitcoin")
-    response = client.chat("analyze BTC macro outlook")
+    # Chat with AI (metered)
+    print(client.chat("What's BTC at?"))
 
-Usage (option 2 — full API):
-    from sentinel import SentinelAPI
+    # Market data
+    btc = client.price("bitcoin")
+    top = client.top_coins(10)
 
-    client = SentinelAPI(api_key="sk-sentinel-xxx")
-    btc = client.market.price("bitcoin")
-    response = client.chat.send("analyze BTC macro outlook")
+    # Trading (⚠️ real money)
+    client.buy("BTC", 0.01)
+    client.sell("ETH", 0.5, price=2000)
+    positions = client.positions()
+
+    # Any tool
+    result = client.tool("get_fred_series", series_id="GDP")
 """
 
-from typing import Optional
+from typing import Optional, Union, Generator
 from sentinel.api.client import SentinelAPI
 from sentinel.api.errors import (
     SentinelAPIError,
     AuthenticationError,
 )
 
-__version__ = "0.5.1"
+__version__ = "0.5.8"
 
 
 class Sentinel(SentinelAPI):
-    """Convenience wrapper — the simplest way to use the Sentinel API.
+    """The Sentinel SDK — 62+ AI trading tools via one API key.
 
-    Provides simpler method names for common operations.
+    Usage:
+        client = Sentinel()
+        client = Sentinel(api_key="sk-sentinel-xxx")
+
+    Everything routes through api.hyper-sentinel.com.
+    Every call is metered and billed per your tier.
     """
 
-    def chat(self, message: str, **kwargs) -> str:
-        """Send a message to the AI and get a text response.
+    # ── AI Chat ───────────────────────────────────────────────
+
+    def chat(self, message: str, stream: bool = False, **kwargs) -> Union[str, Generator]:
+        """Talk to the AI agent. It has access to all 62+ tools.
 
         Args:
-            message: Your message or query
-            **kwargs: Additional parameters (stream, etc.)
+            message: Your question, command, or analysis request
+            stream: If True, yields text chunks for real-time output
 
         Returns:
-            Plain text response from the AI
+            str response (or generator if stream=True)
         """
-        response = self._chat.send(message, **kwargs)
+        response = self._chat_resource.send(message, stream=stream, **kwargs)
+        if stream:
+            return response
         return response.get("text", "")
 
-    def call(self, tool_name: str, **params) -> dict:
-        """Call any tool by name.
+    # ── Market Data ───────────────────────────────────────────
+
+    def price(self, coin: str = "bitcoin") -> dict:
+        """Get crypto price, market cap, 24h change."""
+        return self.market.price(coin)
+
+    def top_coins(self, n: int = 10) -> dict:
+        """Get top N cryptocurrencies by market cap."""
+        return self.market.top_crypto(n)
+
+    def stock(self, symbol: str) -> dict:
+        """Get stock/ETF price data."""
+        return self.market.stock(symbol)
+
+    def macro(self) -> dict:
+        """Get macro dashboard — GDP, CPI, rates, VIX."""
+        return self.market.dashboard()
+
+    def news(self, topic: str = "crypto") -> dict:
+        """Get news sentiment for a topic."""
+        return self.market.news(topic)
+
+    def trending(self) -> dict:
+        """Get trending tokens from social analysis."""
+        return self.market.trending_tokens()
+
+    def orderbook(self, coin: str) -> dict:
+        """Get Hyperliquid orderbook."""
+        return self.trade.hl_orderbook(coin)
+
+    # ── Trading ───────────────────────────────────────────────
+
+    def buy(self, coin: str, size: float, price: float = None, **kwargs) -> dict:
+        """Buy (market or limit). ⚠️ Real money.
 
         Args:
-            tool_name: The tool name (e.g. "get_crypto_price")
-            **params: Tool parameters
-
-        Returns:
-            Tool response as a dict
+            coin: "BTC", "ETH", "SOL", etc.
+            size: Amount in coin units
+            price: Limit price (omit for market order)
         """
-        return self.tools.call(tool_name, **params)
+        order_type = "limit" if price else "market"
+        return self.trade.hl_order(coin=coin, side="buy", size=size,
+                                   price=price, order_type=order_type, **kwargs)
+
+    def sell(self, coin: str, size: float, price: float = None, **kwargs) -> dict:
+        """Sell (market or limit). ⚠️ Real money."""
+        order_type = "limit" if price else "market"
+        return self.trade.hl_order(coin=coin, side="sell", size=size,
+                                   price=price, order_type=order_type, **kwargs)
+
+    def positions(self) -> dict:
+        """Get all open positions (Hyperliquid)."""
+        return self.trade.hl_positions()
+
+    def orders(self) -> dict:
+        """Get open orders (Hyperliquid)."""
+        return self.trade.hl_open_orders()
+
+    # ── Generic Tool Call ─────────────────────────────────────
+
+    def tool(self, name: str, **params) -> dict:
+        """Call any of the 62+ tools by name.
+
+        Args:
+            name: Tool name (e.g. "get_fred_series", "search_x")
+            **params: Tool parameters as keyword args
+        """
+        return self.tools.call(name, **params)
 
 
 __all__ = [
@@ -72,28 +139,3 @@ __all__ = [
     "SentinelAPIError",
     "AuthenticationError",
 ]
-
-# ── Post-install message ──────────────────────────────────────
-# Shows once on first import when no config exists yet.
-def _first_run_hint():
-    from pathlib import Path
-    config_file = Path.home() / ".sentinel" / "api_key"
-    if not config_file.exists():
-        try:
-            from rich.console import Console
-            from rich.panel import Panel
-            c = Console(stderr=True)
-            c.print()
-            msg = (
-                "[bold #00e5ff]S E N T I N E L   v0.5[/]\n"
-                "[dim]Thin REST SDK for the Sentinel AI Trading API[/]\n"
-                "\n"
-                "[bold white]→ Get started: [bold #00e5ff]sentinel auth --key sk-ant-xxx[/bold #00e5ff][/bold white]"
-            )
-            c.print(Panel(msg, border_style="#007a8a", padding=(1, 4)))
-            c.print()
-        except Exception:
-            print(f"\n  sentinel v{__version__} installed")
-            print("  Type 'sentinel auth --key sk-ant-xxx' to get started.\n")
-
-_first_run_hint()

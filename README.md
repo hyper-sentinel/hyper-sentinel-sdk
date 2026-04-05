@@ -23,50 +23,100 @@ Web4: AI agents + crypto infrastructure + zero-trust developer tooling
 [![License](https://img.shields.io/github/license/hyper-sentinel/hyper-sentinel-sdk?style=flat&color=8b5cf6)](LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/hyper-sentinel?style=flat&logo=pypi&logoColor=white&label=downloads&color=8b5cf6)](https://pypi.org/project/hyper-sentinel/)
 
-[Console](https://console.hyper-sentinel.com) · [API Docs](https://api.hyper-sentinel.com/docs) · [PyPI](https://pypi.org/project/hyper-sentinel/) · [Website](https://hyper-sentinel.com)
+[API Docs](https://api.hyper-sentinel.com/docs) · [PyPI](https://pypi.org/project/hyper-sentinel/) · [Website](https://hyper-sentinel.com) · [GitHub](https://github.com/hyper-sentinel/hyper-sentinel-sdk)
 
 </div>
 
 ---
 
-## Install
+## Quick Start
+
+### 1. Install
 
 ```bash
 pip install hyper-sentinel
 ```
 
-## Get Your API Key
+> **Requires Python 3.10+** — Run `python3 --version` to check.
 
-### Option 1: Developer Console (Web)
-
-1. Visit [console.hyper-sentinel.com](https://console.hyper-sentinel.com)
-2. Sign in with your AI provider key (Claude / GPT / Gemini / Grok)
-3. Go to **API Keys** → **Create API Key**
-4. Copy your `sk-sentinel-xxx` key
-
-### Option 2: Terminal (SDK)
+### 2. Launch
 
 ```bash
-sentinel auth --provider claude --key sk-ant-api03-...
+sentinel
 ```
 
-```
-✓ Authenticated with Claude
-✓ API Key:    sk-sentinel-abc123...
-✓ Secret Key: sdg-vault-xyz789... (SAVE THIS — cannot be recovered)
+That's it. On first run, Sentinel prompts you to paste an LLM API key from any supported provider:
 
-Add to .env:
-  SENTINEL_API_KEY=sk-sentinel-abc123...
+```
+Welcome to Sentinel!
+Let's get you set up. This only takes 10 seconds.
+
+Step 1 — AI Provider Key (required)
+
+  Paste any API key from a supported provider:
+    • Anthropic (Claude)  → console.anthropic.com
+    • OpenAI (GPT)        → platform.openai.com
+    • Google (Gemini)     → aistudio.google.com  (free tier available)
+    • xAI (Grok)          → console.x.ai
+
+  Paste your AI API key: █
+```
+
+Your LLM key is exchanged for a Sentinel API key + secret key. Both are saved locally to `~/.sentinel/`. You won't be asked again.
+
+### 3. Chat
+
+Once authenticated, the AI terminal launches automatically:
+
+```
+⚡ You → What's BTC at?
+🛡️  Sentinel
+  BTC $83,421 (+1.2%) · Vol $28.4B · MCap $1.65T
+
+⚡ You → Show my HL positions
+🛡️  Sentinel
+  | Coin | Size | Entry    | PnL      | Leverage |
+  |------|------|----------|----------|----------|
+  | BTC  | 0.05 | $82,100  | +$66.05  | 10x      |
+  | ETH  | 1.2  | $3,840   | -$12.40  | 5x       |
+```
+
+### Terminal Commands
+
+| Command | Description |
+|---------|-------------|
+| `/status` | Connection health + account info |
+| `/tools` | List all 62+ available tools |
+| `/help` | Show available commands |
+| `/quit` | Exit terminal |
+| **anything else** | Chat with the AI agent — it has all the tools |
+
+---
+
+## Alternative Install Methods
+
+### macOS (Homebrew + pipx)
+
+```bash
+brew install pipx && pipx install hyper-sentinel
+```
+
+### macOS / Linux (venv)
+
+```bash
+python3 -m venv ~/.sentinel && source ~/.sentinel/bin/activate && pip install hyper-sentinel
 ```
 
 ---
 
-## Quick Start
+## Python SDK
+
+Use Sentinel programmatically in your own code:
 
 ```python
 from hyper_sentinel import Sentinel
 
-# Initialize with your API key
+# Initialize with your API key (from ~/.sentinel/api_key after first run)
 client = Sentinel(api_key="sk-sentinel-xxx")
 
 # Chat with AI + 62 tools
@@ -144,14 +194,6 @@ for tool in tools:
     print(f"{tool['name']}: {tool.get('description', '')}")
 ```
 
-## Account & Billing
-
-```python
-# Check your usage
-status = client.billing_status()
-print(f"Tier: {status['tier']}, Calls: {status['monthly_api_calls']}")
-```
-
 ---
 
 ## How It Works
@@ -193,6 +235,19 @@ Your AI provider keys are forwarded securely and never stored on our servers.
 
 ---
 
+## LLM Providers
+
+| Provider | Prefix | Get a Key |
+|:---------|:-------|:----------|
+| Anthropic (Claude) | `sk-ant-` | [console.anthropic.com](https://console.anthropic.com) |
+| OpenAI (GPT) | `sk-` | [platform.openai.com](https://platform.openai.com) |
+| Google (Gemini) | `AIza` | [aistudio.google.com](https://aistudio.google.com) |
+| xAI (Grok) | `xai-` | [console.x.ai](https://console.x.ai) |
+
+> **Tip:** Google Gemini has a free tier — great for getting started.
+
+---
+
 ## Pricing
 
 No feature gating. Everyone gets full access. Subscriptions reduce your fees.
@@ -205,51 +260,32 @@ No feature gating. Everyone gets full access. Subscriptions reduce your fees.
 
 ---
 
-## LLM Providers
-
-| Provider | Prefix | Get a Key |
-|:---------|:-------|:----------|
-| Anthropic (Claude) | `sk-ant-` | [console.anthropic.com](https://console.anthropic.com) |
-| OpenAI (GPT) | `sk-` | [platform.openai.com](https://platform.openai.com) |
-| Google (Gemini) | `AIza` | [aistudio.google.com](https://aistudio.google.com) |
-| xAI (Grok) | `xai-` | [console.x.ai](https://console.x.ai) |
-
----
-
 ## Changelog
 
-### v0.5.0 — Web4 Thin Client 🚀
+### v0.5.8 — First-Run Fix
+
+- **FIX**: `sentinel` now prompts for LLM key on first run (was erroring with "run sentinel-setup")
+- **FIX**: Removed dead `sentinel-setup` references
+- **IMPROVED**: Simplified quickstart — just `pip install` and `sentinel`
+
+### v0.5.0 — Web4 Thin Client
 
 - **BREAKING**: SDK is now a thin REST client — all calls go through `api.hyper-sentinel.com`
 - **NEW**: `Sentinel(api_key="sk-sentinel-xxx")` — one-liner setup
-- **NEW**: `sentinel auth` CLI — generate API keys from terminal
 - **NEW**: `client.chat(message, stream=True)` — SSE streaming
 - **NEW**: `client.call(tool, **params)` — call any of 62+ tools
 - **NEW**: Secret recovery key for zero-trust config vault
 - **REMOVED**: All heavy local dependencies (anthropic, openai, etc.)
 - **DEPS**: `httpx`, `click`, `rich` — 3 total deps
 
-### v0.4.1 — Stability Release
-
-- SDK ↔ Gateway endpoint sync
-- Bug fixes and documentation updates
-
-### v0.3.16 — SaaS API Client
-
-- `SentinelAPI` client with typed resources
-- SSE streaming for LLM chat
-- RFC 7807 error mapping
-
 ---
 
 ## Links
 
-- **Console**: [console.hyper-sentinel.com](https://console.hyper-sentinel.com)
 - **API Docs**: [api.hyper-sentinel.com/docs](https://api.hyper-sentinel.com/docs)
 - **Website**: [hyper-sentinel.com](https://hyper-sentinel.com)
 - **PyPI**: [pypi.org/project/hyper-sentinel](https://pypi.org/project/hyper-sentinel/)
 - **GitHub**: [github.com/hyper-sentinel](https://github.com/hyper-sentinel)
-- **Postman**: [Collection](https://github.com/hyper-sentinel/hyper-sentinel-go/blob/main/Sentinel_API.postman_collection.json)
 
 ## License
 

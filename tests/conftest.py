@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from sentinel import SentinelClient
+from sentinel.api.client import SentinelAPI as SentinelClient
 
 PROD_URL = "https://sentinel-api-281199879392.us-south1.run.app"
 
