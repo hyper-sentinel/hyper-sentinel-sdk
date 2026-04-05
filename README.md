@@ -262,6 +262,11 @@ No feature gating. Everyone gets full access. Subscriptions reduce your fees.
 
 ## Changelog
 
+### v0.5.9 — Auth Header Fix
+
+- **FIX**: SDK now sends API key as `X-API-Key` header (was sending `Authorization: Bearer` which gateway rejected)
+- **FIX**: Resolves 401 "invalid x-api-key" errors on all tool calls and chat
+
 ### v0.5.8 — First-Run Fix
 
 - **FIX**: `sentinel` now prompts for LLM key on first run (was erroring with "run sentinel-setup")

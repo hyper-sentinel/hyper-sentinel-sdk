@@ -108,7 +108,7 @@ class HTTPClient:
             base_url=self.base_url,
             timeout=self.timeout,
             headers={
-                "Authorization": f"Bearer {self.api_key}",
+                "X-API-Key": self.api_key,
                 "Content-Type": "application/json",
                 "User-Agent": "sentinel-sdk/1.0.0",
             },
