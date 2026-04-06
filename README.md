@@ -12,9 +12,11 @@
 
 # Hyper-Sentinel
 
-**The AI Trading SDK — 62+ tools · 3 venues · 1 API key**
+**The terminal to command all markets.**
 
-Web4: AI agents + crypto infrastructure + zero-trust developer tooling
+You already use Hyperliquid. You already check CoinGecko. You already scroll X for alpha. You already pull FRED data. Sentinel puts them all in one window — and lets you act on it.
+
+One AI. Every exchange. Every signal. Execute.
 
 <br/>
 
@@ -23,234 +25,191 @@ Web4: AI agents + crypto infrastructure + zero-trust developer tooling
 [![License](https://img.shields.io/github/license/hyper-sentinel/hyper-sentinel-sdk?style=flat&color=8b5cf6)](LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/hyper-sentinel?style=flat&logo=pypi&logoColor=white&label=downloads&color=8b5cf6)](https://pypi.org/project/hyper-sentinel/)
 
-[API Docs](https://api.hyper-sentinel.com/docs) · [PyPI](https://pypi.org/project/hyper-sentinel/) · [Website](https://hyper-sentinel.com) · [GitHub](https://github.com/hyper-sentinel/hyper-sentinel-sdk)
+[Website](https://hyper-sentinel.com) · [API Docs](https://api.hyper-sentinel.com/docs) · [PyPI](https://pypi.org/project/hyper-sentinel/) · [GitHub](https://github.com/hyper-sentinel/hyper-sentinel-sdk)
 
 </div>
 
 ---
 
-## Quick Start
-
-### 1. Install
+## 1. Install
 
 ```bash
 pip install hyper-sentinel
 ```
 
-> **Requires Python 3.10+** — Run `python3 --version` to check.
+That's it. Three dependencies. Python 3.10+.
 
-### 2. Launch
+## 2. Launch
 
 ```bash
 sentinel
 ```
 
-That's it. On first run, Sentinel prompts you to paste an LLM API key from any supported provider:
+First run takes 10 seconds. Paste an API key from any supported AI provider:
 
-```
-Welcome to Sentinel!
-Let's get you set up. This only takes 10 seconds.
+| Provider | Get a Key |
+|:---------|:----------|
+| Anthropic (Claude) | [console.anthropic.com](https://console.anthropic.com) |
+| OpenAI (GPT) | [platform.openai.com](https://platform.openai.com) |
+| Google (Gemini) | [aistudio.google.com](https://aistudio.google.com) — free tier available |
+| xAI (Grok) | [console.x.ai](https://console.x.ai) |
 
-Step 1 — AI Provider Key (required)
+Your AI key is exchanged for a Sentinel API key. Both are saved locally to `~/.sentinel/`. You won't be asked again.
 
-  Paste any API key from a supported provider:
-    • Anthropic (Claude)  → console.anthropic.com
-    • OpenAI (GPT)        → platform.openai.com
-    • Google (Gemini)     → aistudio.google.com  (free tier available)
-    • xAI (Grok)          → console.x.ai
+## 3. Configure
 
-  Paste your AI API key: █
-```
+Sentinel boots with **live data already connected** — no setup required:
 
-Your LLM key is exchanged for a Sentinel API key + secret key. Both are saved locally to `~/.sentinel/`. You won't be asked again.
+| Source | What You Get | Setup |
+|--------|-------------|-------|
+| **CoinGecko** | 10,000+ crypto prices, market caps, charts | Automatic |
+| **Yahoo Finance** | Stocks, ETFs, options, earnings | Automatic |
+| **FRED** | GDP, CPI, unemployment, Fed rate, VIX, yield curve | Automatic |
 
-### 3. Chat
+These work out of the box. Ask for any price, any macro indicator, any stock — it's already there.
 
-Once authenticated, the AI terminal launches automatically:
+Then connect the services you already use:
+
+| Source | What It Unlocks | Key From |
+|--------|----------------|----------|
+| **Hyperliquid** | Trade perp futures, view positions, orderbooks | [app.hyperliquid.xyz](https://app.hyperliquid.xyz) |
+| **Aster DEX** | Trade futures, set leverage, manage positions | [aster.finance](https://aster.finance) |
+| **Polymarket** | Prediction markets, odds, positions | [polymarket.com](https://polymarket.com) |
+| **X / Twitter** | Scrape tweets, sentiment analysis, trending topics | [developer.x.com](https://developer.x.com) |
+| **Y2 Intelligence** | AI news recaps, sentiment scores, intel reports | [y2.finance](https://y2.finance) |
+| **Elfa AI** | Trending tokens, social mentions, smart money signals | [elfa.ai](https://elfa.ai) |
+
+The more you connect, the more powerful the agent becomes. But even with zero configuration, you have a macro + crypto + stock terminal that works right now.
+
+## 4. Chat
+
+This is the point. Type what you want. The AI agent has all your tools.
 
 ```
 ⚡ You → What's BTC at?
-🛡️  Sentinel
-  BTC $83,421 (+1.2%) · Vol $28.4B · MCap $1.65T
-
-⚡ You → Show my HL positions
-🛡️  Sentinel
-  | Coin | Size | Entry    | PnL      | Leverage |
-  |------|------|----------|----------|----------|
-  | BTC  | 0.05 | $82,100  | +$66.05  | 10x      |
-  | ETH  | 1.2  | $3,840   | -$12.40  | 5x       |
+🛡️ Sentinel
+  BTC $84,219 (+1.8%) · Vol $31.2B · MCap $1.67T
 ```
 
-### Terminal Commands
+```
+⚡ You → Pull GDP, unemployment, price of PLTR, and price of SOL
+🛡️ Sentinel
+  📊 Macro (FRED)
+  GDP: $28.27T (Q4 2025, +2.4%)
+  Unemployment: 4.1% (Feb 2026)
 
-| Command | Description |
-|---------|-------------|
-| `/status` | Connection health + account info |
-| `/tools` | List all 62+ available tools |
-| `/help` | Show available commands |
-| `/quit` | Exit terminal |
-| **anything else** | Chat with the AI agent — it has all the tools |
+  📈 Stocks
+  PLTR  $87.42  (+3.1%)  ·  Vol 48.2M
 
----
-
-## Alternative Install Methods
-
-### macOS (Homebrew + pipx)
-
-```bash
-brew install pipx && pipx install hyper-sentinel
+  🪙 Crypto
+  SOL  $187.50  (+5.2%)  ·  MCap $88.4B
 ```
 
-### macOS / Linux (venv)
+One prompt. Four data sources. One response.
 
-```bash
-python3 -m venv ~/.sentinel && source ~/.sentinel/bin/activate && pip install hyper-sentinel
 ```
+⚡ You → Scrape X for BTC sentiment and pull the latest intel reports
+🛡️ Sentinel
+  🐦 X/Twitter — "BTC" (24h)
+  Sentiment: Bullish (72%) · 12.4K mentions
+  Top signal: @whale_alert massive BTC transfer to Coinbase
+
+  📰 Intelligence (Y2)
+  • "Bitcoin breaks $85K resistance amid ETF inflow surge"
+  • "Fed holds rates — risk assets rally across the board"
+```
+
+```
+⚡ You → Show my Hyperliquid positions
+🛡️ Sentinel
+  | Coin | Size  | Entry    | PnL      | Leverage |
+  |------|-------|----------|----------|----------|
+  | BTC  | 0.05  | $82,100  | +$105.95 | 10x      |
+  | ETH  | 1.2   | $3,840   | -$12.40  | 5x       |
+  | SOL  | 15.0  | $175.20  | +$184.50 | 3x       |
+```
+
+```
+⚡ You → Buy 0.01 BTC on Hyperliquid at market
+🛡️ Sentinel
+  ⚠️ Confirm: BUY 0.01 BTC @ market on Hyperliquid?
+  Notional: ~$842  ·  Venue: Hyperliquid  ·  Type: Market
+
+⚡ You → Yes
+🛡️ Sentinel
+  ✅ Filled: 0.01 BTC @ $84,219  ·  Cost: $842.19
+```
+
+The AI handles the routing. You don't pick which tool to call — you just say what you want and it figures it out. Prices, macro data, sentiment, news, trades, positions — all from the same prompt.
 
 ---
 
 ## Python SDK
 
-Use Sentinel programmatically in your own code:
+Use Sentinel programmatically in scripts, bots, or your own applications:
 
 ```python
 from hyper_sentinel import Sentinel
 
-# Initialize with your API key (from ~/.sentinel/api_key after first run)
-client = Sentinel(api_key="sk-sentinel-xxx")
+client = Sentinel()  # auto-loads from ~/.sentinel/
 
-# Chat with AI + 62 tools
-response = client.chat("What's the price of BTC?")
-print(response)
+# Chat — the AI agent with all 62+ tools
+print(client.chat("What's the macro outlook?"))
 
-# Call any tool directly
-price = client.get_price("bitcoin")
-top = client.get_top_coins(10)
-macro = client.get_macro()
+# Market data
+client.price("bitcoin")          # CoinGecko
+client.stock("NVDA")             # Yahoo Finance
+client.macro()                   # FRED dashboard
 
-# Streaming responses
-for token in client.chat("Analyze ETH outlook", stream=True):
-    print(token, end="", flush=True)
+# Trading (⚠️ real money)
+client.buy("BTC", 0.01)                    # market order
+client.sell("ETH", 0.5, price=2000)        # limit order
+client.positions()                          # open positions
+
+# Any of the 62+ tools by name
+client.tool("get_fred_series", series_id="GDP")
+client.tool("search_x", query="BTC sentiment")
+client.tool("get_news_sentiment", query="crypto")
 ```
-
-## Trading
-
-```python
-# Hyperliquid
-positions = client.get_positions()
-client.place_order("BTC", "buy", 0.01)                     # market
-client.place_order("ETH", "sell", 0.5, price=2000.0)        # limit
-client.call("close_hl_position", coin="BTC")
-
-# Aster DEX
-client.call("aster_place_order", symbol="BTCUSDT", side="buy", size=0.01)
-client.call("aster_set_leverage", symbol="BTCUSDT", leverage=5)
-
-# Polymarket
-markets = client.search_markets("election")
-client.call("buy_polymarket", token_id="...", amount=10, price=0.65)
-```
-
-## Market Data
-
-```python
-# Crypto
-client.get_price("ethereum")
-client.get_top_coins(25)
-client.call("get_crypto_chart", coin_id="bitcoin", days=30)
-client.get_orderbook("BTC")
-
-# Stocks & ETFs
-client.call("get_stock_price", symbol="NVDA")
-
-# Macro Economics
-client.get_macro()                                    # GDP, CPI, Fed rate, VIX
-client.call("get_fred_series", series_id="GDP")
-```
-
-## Intelligence
-
-```python
-# News & Sentiment
-client.get_news()
-client.call("get_news_sentiment", query="bitcoin")
-client.call("get_intelligence_reports")
-
-# Social
-client.get_trending()
-client.call("search_x", query="BTC")
-client.call("get_top_mentions")
-```
-
-## Call Any Tool
-
-```python
-# Generic tool call — works with all 62+ tools
-result = client.call("tool_name", param1="value", param2=123)
-
-# List all available tools
-tools = client.list_tools()
-for tool in tools:
-    print(f"{tool['name']}: {tool.get('description', '')}")
-```
-
----
 
 ## How It Works
 
 ```
-pip install hyper-sentinel
+Your terminal / Your code
          │
          ▼
-  Your Code (Sentinel SDK)
-  api_key = sk-sentinel-xxx
+  Sentinel SDK (3 deps: httpx, click, rich)
          │
          ▼
-┌────────────────────────────┐
-│  Go API Gateway            │
-│  Auth · Billing · Metering │
-│  api.hyper-sentinel.com    │
-└────────────┬───────────────┘
-             │
-┌────────────▼───────────────┐
-│  Python Engine (FastAPI)   │
-│  62+ tools · 12 scrapers  │
-│  HL · Aster · PM · FRED   │
-└────────────────────────────┘
+┌────────────────────────────────┐
+│  Go API Gateway                │
+│  Auth · Billing · Rate Limits  │
+│  api.hyper-sentinel.com        │
+└──────────────┬─────────────────┘
+               │
+┌──────────────▼─────────────────┐
+│  Python Engine (Cloud Run)     │
+│  62+ tools · AI agent          │
+│  HL · Aster · Polymarket       │
+│  CoinGecko · FRED · X · Y2    │
+└────────────────────────────────┘
 ```
 
-Every call is authenticated, metered, and billed through the gateway.
-
----
+Every call is authenticated, metered, and routed through the gateway. The SDK is a thin REST client — all the heavy lifting happens server-side.
 
 ## Zero-Trust Architecture
 
 | Key | Purpose | Storage |
 |-----|---------|---------|
-| **API Key** (`sk-sentinel-xxx`) | Authenticates API calls | Server (hashed) |
-| **Secret Key** (`sdg-vault-xxx`) | Encrypts your config vault | Client only |
-| **AI Provider Key** | Forwarded to LLM provider | Never stored |
+| **API Key** (`sk-sentinel-xxx`) | Authenticates all API calls | Server (hashed) |
+| **Secret Key** (`sdg-vault-xxx`) | Encrypts your config vault | Client only — never sent |
+| **AI Provider Key** | Forwarded to LLM provider | Never stored on our servers |
 
-Your AI provider keys are forwarded securely and never stored on our servers.
-
----
-
-## LLM Providers
-
-| Provider | Prefix | Get a Key |
-|:---------|:-------|:----------|
-| Anthropic (Claude) | `sk-ant-` | [console.anthropic.com](https://console.anthropic.com) |
-| OpenAI (GPT) | `sk-` | [platform.openai.com](https://platform.openai.com) |
-| Google (Gemini) | `AIza` | [aistudio.google.com](https://aistudio.google.com) |
-| xAI (Grok) | `xai-` | [console.x.ai](https://console.x.ai) |
-
-> **Tip:** Google Gemini has a free tier — great for getting started.
-
----
+Your exchange keys are encrypted client-side with AES-256-GCM before they ever leave your machine. We can't read them. You hold the only decryption key.
 
 ## Pricing
 
-No feature gating. Everyone gets full access. Subscriptions reduce your fees.
+No feature gating. Everyone gets full access to all 62+ tools. Subscriptions reduce your fees.
 
 | Tier | Price | LLM Markup | Trade Fee | Rate Limit |
 |------|-------|-----------|-----------|-----------| 
@@ -260,35 +219,24 @@ No feature gating. Everyone gets full access. Subscriptions reduce your fees.
 
 ---
 
-## Changelog
+## Alternative Install Methods
 
-### v0.5.9 — Auth Header Fix
+**macOS (Homebrew + pipx)**
+```bash
+brew install pipx && pipx install hyper-sentinel
+```
 
-- **FIX**: SDK now sends API key as `X-API-Key` header (was sending `Authorization: Bearer` which gateway rejected)
-- **FIX**: Resolves 401 "invalid x-api-key" errors on all tool calls and chat
-
-### v0.5.8 — First-Run Fix
-
-- **FIX**: `sentinel` now prompts for LLM key on first run (was erroring with "run sentinel-setup")
-- **FIX**: Removed dead `sentinel-setup` references
-- **IMPROVED**: Simplified quickstart — just `pip install` and `sentinel`
-
-### v0.5.0 — Web4 Thin Client
-
-- **BREAKING**: SDK is now a thin REST client — all calls go through `api.hyper-sentinel.com`
-- **NEW**: `Sentinel(api_key="sk-sentinel-xxx")` — one-liner setup
-- **NEW**: `client.chat(message, stream=True)` — SSE streaming
-- **NEW**: `client.call(tool, **params)` — call any of 62+ tools
-- **NEW**: Secret recovery key for zero-trust config vault
-- **REMOVED**: All heavy local dependencies (anthropic, openai, etc.)
-- **DEPS**: `httpx`, `click`, `rich` — 3 total deps
+**macOS / Linux (venv)**
+```bash
+python3 -m venv ~/.sentinel-env && source ~/.sentinel-env/bin/activate && pip install hyper-sentinel
+```
 
 ---
 
 ## Links
 
-- **API Docs**: [api.hyper-sentinel.com/docs](https://api.hyper-sentinel.com/docs)
 - **Website**: [hyper-sentinel.com](https://hyper-sentinel.com)
+- **API Docs**: [api.hyper-sentinel.com/docs](https://api.hyper-sentinel.com/docs)
 - **PyPI**: [pypi.org/project/hyper-sentinel](https://pypi.org/project/hyper-sentinel/)
 - **GitHub**: [github.com/hyper-sentinel](https://github.com/hyper-sentinel)
 
