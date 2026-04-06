@@ -45,11 +45,15 @@ class ChatResource:
         """
         payload = {"message": message}
 
-        # Include AI provider key for LLM routing
+        # Include AI provider key for LLM routing (REQUIRED)
         from sentinel.api._http import load_ai_key
         ai_key = load_ai_key()
-        if ai_key:
-            payload["ai_key"] = ai_key
+        if not ai_key:
+            raise Exception(
+                "No AI provider key found. Run 'sentinel' to set up your LLM key.\n"
+                "  Expected file: ~/.sentinel/ai_key"
+            )
+        payload["ai_key"] = ai_key
 
         if model:
             payload["model"] = model

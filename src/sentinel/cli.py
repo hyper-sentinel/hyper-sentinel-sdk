@@ -186,6 +186,37 @@ def _run_repl():
                 console.print("  [dim]Check your key and try again.[/]")
                 continue
 
+    # ── Ensure AI key exists (returning users from older versions may not have it) ──
+    from sentinel.api._http import load_ai_key, save_ai_key
+    if not load_ai_key():
+        console.print()
+        console.print("  [yellow]⚠ Missing AI provider key.[/] Your Sentinel account exists but we need your LLM key for chat.")
+        console.print("  [dim]Paste the same AI key you used to sign up (Claude, GPT, Gemini, or Grok).[/]")
+        console.print()
+        while True:
+            try:
+                ai_key_input = console.input("  [bold cyan]Paste your AI API key:[/] ").strip()
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Cancelled.[/dim]")
+                return
+            if not ai_key_input:
+                continue
+            provider = detect_provider(ai_key_input)
+            if provider == "unknown":
+                console.print("  [yellow]⚠ Unrecognized key prefix. Try again.[/]")
+                continue
+            save_ai_key(ai_key_input)
+            PROVIDER_LABELS = {
+                "anthropic": ("🟣", "Anthropic (Claude)"),
+                "openai":    ("🟢", "OpenAI (GPT)"),
+                "google":    ("🔵", "Google (Gemini)"),
+                "xai":       ("⚡", "xAI (Grok)"),
+            }
+            emoji, label = PROVIDER_LABELS.get(provider, ("", provider))
+            console.print(f"  [green]✓ {emoji} {label} saved to ~/.sentinel/ai_key[/]")
+            console.print()
+            break
+
     # ── Create client ─────────────────────────────────────────
     try:
         client = SentinelAPI()
