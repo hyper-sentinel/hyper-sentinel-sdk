@@ -8,4 +8,18 @@ build/
 .env
 .venv/
 venv/
+
+# Internal dev — not user-facing
+.agents/
+.pytest_cache/
+hyper_sentinel-*/
+scripts/
+docs/
 uv.lock
+Makefile
+brief.html
+WHY_v050.md
+ARCHITECTURE.md
+CAPABILITIES.md
+SDK_MAP.md
+src/hyper_sentinel/
