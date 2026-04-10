@@ -55,17 +55,26 @@ def save_api_key(key: str) -> None:
     CONFIG_FILE.chmod(0o600)  # Owner read/write only
 
 
+def _is_valid_ai_key(key: str) -> bool:
+    """Quick sanity check that a key looks like a real AI provider key."""
+    if not key or len(key) > 200:  # Anthropic ~108, OpenAI ~51, Google ~39, xAI ~40
+        return False
+    return key.startswith(("sk-ant-", "sk-", "AIza", "xai-"))
+
+
 def load_ai_key() -> Optional[str]:
     """Load saved AI provider key from ~/.sentinel/ai_key or ~/.sentinel/config.
 
     Checks two locations because different setup paths save the key differently:
     - ~/.sentinel/ai_key (plaintext) — saved by save_ai_key()
     - ~/.sentinel/config (JSON with "ai_key" field) — saved by chat.py first-run setup
+
+    Keys are validated for length and prefix to catch corrupted files.
     """
     # Check dedicated ai_key file first
     if AI_KEY_FILE.exists():
         key = AI_KEY_FILE.read_text().strip()
-        if key:
+        if _is_valid_ai_key(key):
             return key
     # Fallback: check config JSON (chat.py stores ai_key here)
     config_file = CONFIG_DIR / "config"
@@ -74,7 +83,7 @@ def load_ai_key() -> Optional[str]:
             import json as _json
             config = _json.loads(config_file.read_text())
             key = config.get("ai_key", "").strip()
-            if key:
+            if _is_valid_ai_key(key):
                 return key
         except (ValueError, OSError):
             pass

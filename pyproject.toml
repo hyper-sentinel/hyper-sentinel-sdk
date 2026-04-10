@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyper-sentinel"
-version = "0.5.10"
-description = "Thin Python SDK for the Sentinel AI Trading API — 62+ tools via REST"
+version = "0.5.14"
+description = "AI trading terminal with 62+ tools — Hyperliquid, Aster DEX, Polymarket, CoinGecko, FRED"
 readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.10"
@@ -43,6 +43,7 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4", "build", "twine"]
 [project.urls]
 Homepage = "https://hyper-sentinel.com"
 Documentation = "https://hyper-sentinel.com/docs"
+"API Reference" = "https://api.hyper-sentinel.com/docs"
 Repository = "https://github.com/hyper-sentinel/hyper-sentinel-sdk"
 Issues = "https://github.com/hyper-sentinel/hyper-sentinel-sdk/issues"
 

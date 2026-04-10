@@ -1068,3 +1068,59 @@ class SentinelClient:
         """Get token price on Ethereum via Uniswap V2."""
         return self.call_tool("dex_price_eth", contract_address=contract_address)["data"]
 
+    # ══════════════════════════════════════════════════════════
+    # Strategy & Algo Trading
+    # ══════════════════════════════════════════════════════════
+
+    def strategy_status(self) -> dict:
+        """Get current strategy configuration and running state."""
+        resp = self._client.get("/api/v1/strategy/status")
+        if resp.status_code != 200:
+            self._raise_for_status(resp, "strategy_status")
+        return resp.json().get("data", resp.json())
+
+    def strategy_start(self) -> dict:
+        """Start the trading strategy."""
+        resp = self._client.post("/api/v1/strategy/start")
+        if resp.status_code != 200:
+            self._raise_for_status(resp, "strategy_start")
+        return resp.json()
+
+    def strategy_stop(self) -> dict:
+        """Stop the trading strategy."""
+        resp = self._client.post("/api/v1/strategy/stop")
+        if resp.status_code != 200:
+            self._raise_for_status(resp, "strategy_stop")
+        return resp.json()
+
+    def strategy_config(self, **kwargs) -> dict:
+        """Update strategy configuration. Keys: algo, symbol, venue, interval, trade_usd, leverage."""
+        resp = self._client.post("/api/v1/strategy/config", json=kwargs)
+        if resp.status_code != 200:
+            self._raise_for_status(resp, "strategy_config")
+        return resp.json()
+
+    def strategy_set_algo(self, algo: str, params: dict = None) -> dict:
+        """Set the active algorithm. Available: sma, bb, macd, ema_spread, rsi_ict, gain_ema."""
+        body = {"algo": algo}
+        if params:
+            body["params"] = params
+        resp = self._client.post("/api/v1/strategy/algo", json=body)
+        if resp.status_code != 200:
+            self._raise_for_status(resp, "strategy_set_algo")
+        return resp.json()
+
+    def list_algos(self) -> list:
+        """List all available trading algorithms with default parameters."""
+        resp = self._client.get("/api/v1/algos")
+        if resp.status_code != 200:
+            self._raise_for_status(resp, "list_algos")
+        return resp.json().get("data", [])
+
+    def algo_info(self, name: str) -> dict:
+        """Get details for a specific algorithm."""
+        resp = self._client.get(f"/api/v1/algos/{name}")
+        if resp.status_code != 200:
+            self._raise_for_status(resp, "algo_info")
+        return resp.json().get("data", resp.json())
+

@@ -43,7 +43,7 @@ class ChatResource:
             dict with 'text', 'usage' (tokens, cost), and 'meta'
             If stream=True, yields dicts with 'text' and 'done' keys
         """
-        payload = {"message": message}
+        messages = [{"role": "user", "content": message}]
 
         # Include AI provider key for LLM routing (REQUIRED)
         from sentinel.api._http import load_ai_key
@@ -53,7 +53,11 @@ class ChatResource:
                 "No AI provider key found. Run 'sentinel' to set up your LLM key.\n"
                 "  Expected file: ~/.sentinel/ai_key"
             )
-        payload["ai_key"] = ai_key
+
+        payload = {
+            "messages": messages,
+            "ai_key": ai_key,
+        }
 
         if model:
             payload["model"] = model

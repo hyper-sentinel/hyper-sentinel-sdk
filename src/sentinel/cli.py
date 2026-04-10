@@ -33,7 +33,306 @@ from sentinel.api.errors import AuthenticationError, SentinelAPIError
 
 console = Console()
 CONFIG_DIR = Path.home() / ".sentinel"
+CONFIG_FILE = CONFIG_DIR / "config"
 SECRET_FILE = CONFIG_DIR / "secret_key"
+
+
+# ══════════════════════════════════════════════════════════════
+# Config Helpers (restored from v0.3.16)
+# ══════════════════════════════════════════════════════════════
+
+def _load_config() -> dict:
+    """Load config from ~/.sentinel/config."""
+    try:
+        if CONFIG_FILE.exists():
+            return json.loads(CONFIG_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
+
+
+def _save_config(config: dict):
+    """Save config to ~/.sentinel/config with restrictive permissions."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_FILE.write_text(json.dumps(config, indent=2))
+    try:
+        CONFIG_FILE.chmod(0o600)
+    except OSError:
+        pass
+
+
+# ══════════════════════════════════════════════════════════════
+# Service Configuration (restored from v0.3.16)
+# ══════════════════════════════════════════════════════════════
+
+ADD_HANDLERS = {
+    "y2":          ("📰 Y2 Intelligence", "y2_api_key", "Y2 news sentiment + AI recaps + reports", "https://y2.finance"),
+    "x":           ("🐦 X (Twitter)", "x_bearer_token", "tweets, trends & sentiment", "https://developer.x.com"),
+    "twitter":     ("🐦 X (Twitter)", "x_bearer_token", "tweets, trends & sentiment", "https://developer.x.com"),
+    "fred":        ("🏛️  FRED", "fred_api_key", "GDP, CPI, interest rates, yield curve", "https://fred.stlouisfed.org/docs/api/api_key.html"),
+    "elfa":        ("🔮 Elfa AI", "elfa_api_key", "trending tokens + social mentions", "https://elfa.ai"),
+    "brave":       ("🔍 Brave Search", "brave_api_key", "web search for AI agents", "https://brave.com/search/api/"),
+    "discord":     ("💬 Discord", "discord_token", "Discord bot integration", "https://discord.com/developers"),
+    "tv":          ("📺 TradingView", "tradingview_secret", "webhook alerts for auto-trading", "https://tradingview.com"),
+    "tradingview": ("📺 TradingView", "tradingview_secret", "webhook alerts for auto-trading", "https://tradingview.com"),
+}
+
+
+def _step_hyperliquid(config: dict) -> dict:
+    """Hyperliquid wallet + key setup."""
+    from rich import box
+    from rich.text import Text
+
+    console.print()
+    step = Text()
+    step.append("Hyperliquid DEX ", style="bold white")
+    step.append("(wallet + optional trading key)", style="dim")
+    console.print(Panel(step, border_style="cyan", box=box.HORIZONTALS))
+
+    console.print("  [dim]For perp trading on Hyperliquid (ETH, BTC, SOL futures).[/]")
+    console.print("  [dim]Create a wallet at app.hyperliquid.xyz[/]\n")
+
+    # Show current if exists
+    current_wallet = config.get("hyperliquid_wallet", "")
+    if current_wallet:
+        mask = current_wallet[:6] + "..." + current_wallet[-4:]
+        console.print(f"  [green]✓[/] Current wallet: [dim]{mask}[/]")
+        try:
+            overwrite = console.input("  [dim]Overwrite? (y/N):[/] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n  [dim]Cancelled.[/]")
+            return config
+        if overwrite != "y":
+            console.print("  [dim]Kept existing config.[/]\n")
+            return config
+
+    try:
+        wallet = console.input("  [bold]Wallet address (0x...):[/] ").strip()
+    except (EOFError, KeyboardInterrupt):
+        wallet = ""
+
+    if wallet:
+        config["hyperliquid_wallet"] = wallet
+        console.print("  [green]✓ Wallet saved[/] — read-only mode enabled.")
+
+        try:
+            priv_key = console.input("\n  [bold]Private key for trading[/] [dim](Enter to skip)[/]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            priv_key = ""
+
+        if priv_key:
+            config["hyperliquid_key"] = priv_key
+            console.print("  [green]✓ Trading enabled[/]\n")
+        else:
+            console.print("  [dim]Read-only — use 'add hl' later to enable trading.[/]\n")
+    else:
+        console.print("  [dim]Skipped — use 'add hl' anytime.[/]\n")
+
+    return config
+
+
+def _step_polymarket(config: dict) -> dict:
+    """Polymarket key setup."""
+    from rich import box
+    from rich.text import Text
+
+    console.print()
+    step = Text()
+    step.append("Polymarket ", style="bold white")
+    step.append("(prediction market trading)", style="dim")
+    console.print(Panel(step, border_style="cyan", box=box.HORIZONTALS))
+
+    console.print("  [dim]For prediction market trading and positions.[/]\n")
+
+    current = config.get("polymarket_key", "")
+    if current:
+        mask = current[:4] + "..." + current[-4:] if len(current) > 8 else "****"
+        console.print(f"  [green]✓[/] Current: [dim]{mask}[/] (already set)")
+        try:
+            overwrite = console.input("  [dim]Overwrite? (y/N):[/] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n  [dim]Cancelled.[/]")
+            return config
+        if overwrite != "y":
+            console.print("  [dim]Kept existing key.[/]\n")
+            return config
+
+    try:
+        key = console.input("  [bold]Private key:[/] [dim](Enter to skip)[/] ").strip()
+    except (EOFError, KeyboardInterrupt):
+        key = ""
+
+    if key:
+        config["polymarket_key"] = key
+        console.print("  [green]✓ Polymarket trading enabled[/]\n")
+    else:
+        console.print("  [dim]Skipped — use 'add polymarket' anytime.[/]\n")
+
+    return config
+
+
+def _step_aster(config: dict) -> dict:
+    """Aster DEX key setup."""
+    from rich import box
+    from rich.text import Text
+
+    console.print()
+    step = Text()
+    step.append("Aster DEX ", style="bold white")
+    step.append("(futures trading)", style="dim")
+    console.print(Panel(step, border_style="cyan", box=box.HORIZONTALS))
+
+    console.print("  [dim]For futures trading on Aster DEX.[/]\n")
+
+    current = config.get("aster_api_key", "")
+    if current:
+        mask = current[:4] + "..." + current[-4:] if len(current) > 8 else "****"
+        console.print(f"  [green]✓[/] Current: [dim]{mask}[/] (already set)")
+        try:
+            overwrite = console.input("  [dim]Overwrite? (y/N):[/] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n  [dim]Cancelled.[/]")
+            return config
+        if overwrite != "y":
+            console.print("  [dim]Kept existing key.[/]\n")
+            return config
+
+    try:
+        api_key = console.input("  [bold]API key:[/] [dim](Enter to skip)[/] ").strip()
+    except (EOFError, KeyboardInterrupt):
+        api_key = ""
+
+    if api_key:
+        config["aster_api_key"] = api_key
+
+        try:
+            api_secret = console.input("  [bold]API secret:[/] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            api_secret = ""
+
+        if api_secret:
+            config["aster_api_secret"] = api_secret
+        console.print("  [green]✓ Aster DEX trading enabled[/]\n")
+    else:
+        console.print("  [dim]Skipped — use 'add aster' anytime.[/]\n")
+
+    return config
+
+
+def _step_telegram(config: dict) -> dict:
+    """Telegram Client — multi-field (API ID + API Hash)."""
+    from rich import box
+    from rich.text import Text
+
+    console.print()
+    step = Text()
+    step.append("Telegram Client ", style="bold white")
+    step.append("(API ID + Hash from my.telegram.org)", style="dim")
+    console.print(Panel(step, border_style="cyan", box=box.HORIZONTALS))
+    console.print("  [dim]Get credentials at: my.telegram.org[/]\n")
+    try:
+        api_id = console.input("  [bold]API ID:[/] ").strip()
+        if api_id:
+            config["telegram_api_id"] = api_id
+            api_hash = console.input("  [bold]API Hash:[/] ").strip()
+            if api_hash:
+                config["telegram_api_hash"] = api_hash
+                console.print("  [green]✓ Telegram configured[/]\n")
+            else:
+                console.print("  [dim]Partially configured.[/]\n")
+        else:
+            console.print("  [dim]Skipped.[/]\n")
+    except (EOFError, KeyboardInterrupt):
+        console.print("\n  [dim]Cancelled.[/]")
+    return config
+
+
+def _verify_after_save(config_key: str, label: str):
+    """Confirm service key was saved."""
+    console.print(f"  [dim]Key saved — {label} will be used on next query.[/]")
+
+
+def _show_add_list():
+    """Show all available integrations."""
+    console.print()
+    cmds = Table(show_header=False, box=None, padding=(0, 1))
+    cmds.add_column("Command", style="cyan bold", min_width=26)
+    cmds.add_column("Description", style="dim")
+    cmds.add_row("add y2", "Y2 news intelligence + AI recaps")
+    cmds.add_row("add x", "X (Twitter) tweets & sentiment")
+    cmds.add_row("add fred", "FRED economic data (GDP, CPI, rates)")
+    cmds.add_row("add elfa", "Elfa AI trending tokens + social")
+    cmds.add_row("add hl", "Hyperliquid DEX trading")
+    cmds.add_row("add aster", "Aster DEX futures trading")
+    cmds.add_row("add polymarket", "Prediction market trading")
+    cmds.add_row("add telegram", "Telegram Client (API ID + Hash)")
+    cmds.add_row("add discord", "Discord bot integration")
+    cmds.add_row("add tv", "TradingView webhook alerts")
+    cmds.add_row("add brave", "Brave web search for AI agents")
+    console.print(Panel(cmds, title="[bold cyan]Available Integrations[/]", border_style="cyan", padding=(1, 2)))
+    console.print()
+
+
+def _add_service(name: str):
+    """Add a single service key with overwrite protection + verification."""
+    config = _load_config()
+
+    # Multi-field services
+    if name == "hl":
+        config = _step_hyperliquid(config)
+        _save_config(config)
+        return
+    if name == "polymarket":
+        config = _step_polymarket(config)
+        _save_config(config)
+        return
+    if name == "aster":
+        config = _step_aster(config)
+        _save_config(config)
+        return
+    if name in ("telegram", "tg"):
+        config = _step_telegram(config)
+        _save_config(config)
+        return
+
+    handler = ADD_HANDLERS.get(name)
+    if not handler:
+        console.print(f"  [red]Unknown service: {name}[/]")
+        _show_add_list()
+        return
+
+    label, config_key, desc, url = handler
+    console.print(f"\n  [bold]{label}[/] — [dim]{desc}[/]")
+    console.print(f"  [dim]Get keys at: {url}[/]\n")
+
+    # Overwrite protection
+    current = config.get(config_key, "")
+    if current:
+        mask = current[:4] + "..." + current[-4:] if len(current) > 8 else "****"
+        console.print(f"  [green]✓[/] Current: [dim]{mask}[/] (already set)")
+        try:
+            overwrite = console.input("  [dim]Overwrite? (y/N):[/] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n  [dim]Cancelled.[/]")
+            return
+        if overwrite != "y":
+            console.print("  [dim]Kept existing key.[/]\n")
+            return
+
+    try:
+        key = console.input(f"  [bold cyan]{label} key:[/] ").strip()
+    except (EOFError, KeyboardInterrupt):
+        console.print("\n  [dim]Cancelled.[/]")
+        return
+
+    if key:
+        config[config_key] = key
+        _save_config(config)
+        console.print(f"  [green]✓ {label} configured[/]")
+        _verify_after_save(config_key, label)
+        console.print()
+    else:
+        console.print(f"  [dim]Skipped.[/]\n")
 
 
 def detect_provider(key: str) -> str:
@@ -57,7 +356,7 @@ def detect_provider(key: str) -> str:
         return "unknown"
 
 @click.group(invoke_without_command=True)
-@click.version_option(version=__version__, prog_name="sentinel")
+@click.version_option(__version__, "-v", "-V", "--version", prog_name="sentinel")
 @click.pass_context
 def cli(ctx):
     """Sentinel — AI trading terminal with 62+ tools."""
@@ -237,172 +536,14 @@ def _run_repl():
 [dim]Autonomous AI Trading Terminal · 62 Tools · 3 Venues[/]
 """.format(version=__version__)
 
-    console.print()
-    console.print(BANNER)
+    # ── Hand off to chat.py's full engine ────────────────────
+    # chat.py has the working REPL: 62 tool schemas, local tool execution,
+    # session memory, swarm mode, markdown formatting — everything.
+    # cli.py handles onboarding + auth. chat.py handles the actual chat.
+    from sentinel.chat import run_chat, _load_config as _load_chat_config
+    config = _load_chat_config()
+    run_chat(config)
 
-    # ── Boot Sequence ─────────────────────────────────────────
-    boot_steps = [
-        ("🔑", "API Key", f"[green]● Authenticated[/]", f"sk-sentinel-...{api_key[-6:]}"),
-        ("🌐", "Gateway", None, "api.hyper-sentinel.com"),  # None = will check live
-        ("🤖", "AI Agent", "[green]● Ready[/]", "Claude · GPT · Gemini · Grok"),
-    ]
-
-    infra = Table(
-        title="[bold cyan]📡 Infrastructure[/]", title_justify="left",
-        show_header=False, box=box.SIMPLE_HEAVY, border_style="cyan",
-        padding=(0, 2), expand=False,
-    )
-    infra.add_column("Component", style="bold white", min_width=18)
-    infra.add_column("Status", min_width=20)
-    infra.add_column("Details", style="dim")
-
-    # Auth
-    infra.add_row("🔑 API Key", "[green]● Authenticated[/]", f"sk-sentinel-...{api_key[-4:]}")
-
-    # Gateway health check
-    gateway_status = "[yellow]● Checking...[/]"
-    gateway_detail = "api.hyper-sentinel.com"
-    try:
-        result = client.health()
-        gateway_status = "[green]● Connected[/]"
-        tool_count = result.get("tools", result.get("tool_count", "62"))
-        gateway_detail = f"api.hyper-sentinel.com · {tool_count} tools"
-    except Exception:
-        try:
-            result = client.ping()
-            gateway_status = "[green]● Connected[/]"
-        except Exception:
-            gateway_status = "[yellow]● Offline[/]"
-            gateway_detail = "api.hyper-sentinel.com · will retry on query"
-    infra.add_row("🌐 Gateway", gateway_status, gateway_detail)
-
-    # AI Agent
-    infra.add_row("🤖 AI Agent", "[green]● Ready[/]", "Claude · GPT · Gemini · Grok")
-
-    console.print(infra)
-
-    # ── Data Sources ──────────────────────────────────────────
-    ds = Table(
-        title="[bold cyan]📊 Venues & Data[/]", title_justify="left",
-        show_header=False, box=box.SIMPLE_HEAVY, border_style="cyan",
-        padding=(0, 2), expand=False,
-    )
-    ds.add_column("Source", style="bold white", min_width=18)
-    ds.add_column("Status", min_width=20)
-    ds.add_column("Details", style="dim")
-
-    ds.add_row("⚡ Hyperliquid", "[green]● Available[/]", "perp futures · orders · positions")
-    ds.add_row("🌟 Aster DEX", "[green]● Available[/]", "futures · orderbook · leverage")
-    ds.add_row("🎲 Polymarket", "[green]● Available[/]", "prediction markets · positions")
-    ds.add_row("📈 CoinGecko", "[green]● Always on[/]", "10,000+ crypto prices · search")
-    ds.add_row("🏛️  FRED", "[green]● Always on[/]", "GDP, CPI, rates, VIX, yield curve")
-    ds.add_row("📰 Y2 Intel", "[green]● Available[/]", "news sentiment · AI recaps · reports")
-    ds.add_row("🔮 Elfa AI", "[green]● Available[/]", "trending tokens · social mentions")
-    ds.add_row("📱 Telegram", "[green]● Available[/]", "channel monitoring · search · send")
-    ds.add_row("💬 Discord", "[green]● Available[/]", "server monitoring · search · send")
-
-    console.print(ds)
-
-    # ── Commands ──────────────────────────────────────────────
-    cmds = Table(
-        title="[bold cyan]⌨️  Commands[/]", title_justify="left",
-        show_header=False, box=box.SIMPLE_HEAVY, border_style="cyan",
-        padding=(0, 2), expand=False,
-    )
-    cmds.add_column("Command", style="bold cyan", min_width=18)
-    cmds.add_column("Description", style="dim")
-
-    cmds.add_row("/status", "Connection health + account info")
-    cmds.add_row("/tools", "List all 62+ available tools")
-    cmds.add_row("/quit", "Exit terminal")
-    cmds.add_row("[bold]<anything else>[/]", "[bold white]Chat with the AI agent — it has all the tools[/]")
-
-    console.print(cmds)
-
-    console.print(f"  [dim]Type naturally. The agent handles the rest.[/]")
-    console.print(f"  [dim italic]Soli Deo Gloria[/]")
-    console.print()
-
-    # ── REPL loop ─────────────────────────────────────────────
-    while True:
-        try:
-            user_input = console.input("[bold #00e5ff]  ⚡ You →[/] ").strip()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Goodbye.[/dim]")
-            break
-
-        if not user_input:
-            continue
-
-        # Slash commands
-        if user_input.lower() in ("/quit", "/exit", "/q", "quit", "exit"):
-            console.print("[dim]Goodbye.[/dim]")
-            break
-        elif user_input.lower() in ("/status", "status"):
-            try:
-                result = client.ping()
-                console.print(Panel(
-                    json.dumps(result, indent=2),
-                    border_style="#00e5ff",
-                    title="[bold cyan]📡 Status[/]"
-                ))
-            except Exception as e:
-                console.print(f"[red]  ✗ Error:[/red] {e}")
-            continue
-        elif user_input.lower() in ("/tools", "tools"):
-            try:
-                result = client.tools.list()
-                tools_list = result.get("tools", [])
-                table = Table(
-                    title=f"[bold cyan]🛠️  Available Tools ({len(tools_list)})[/]",
-                    title_justify="left",
-                    show_header=True,
-                    header_style="bold #00e5ff",
-                    box=box.SIMPLE_HEAVY,
-                    border_style="cyan",
-                )
-                table.add_column("#", style="dim", width=4)
-                table.add_column("Tool", style="cyan")
-                table.add_column("Description", style="white")
-                for i, t in enumerate(tools_list, 1):
-                    desc = t.get("description", "")[:60]
-                    table.add_row(str(i), t.get("name", ""), desc)
-                console.print(table)
-            except Exception as e:
-                console.print(f"[red]  ✗ Error:[/red] {e}")
-            continue
-        elif user_input.lower() in ("/help", "help"):
-            console.print()
-            console.print("  [bold cyan]/status[/]   — Connection health + account")
-            console.print("  [bold cyan]/tools[/]    — List all 62+ tools")
-            console.print("  [bold cyan]/quit[/]     — Exit")
-            console.print("  [dim]Or just type any question — the AI handles it.[/dim]")
-            console.print()
-            continue
-        elif user_input.lower() == "clear":
-            console.clear()
-            console.print(BANNER)
-            continue
-
-        # Send to AI
-        try:
-            console.print()
-            with console.status("[bold #8b5cf6]  🛡️  Sentinel is thinking...[/]", spinner="dots"):
-                from sentinel import Sentinel as S
-                s = S(api_key=api_key)
-                response = s.chat(user_input)
-            console.print(f"  [bold #8b5cf6]🛡️  Sentinel[/]")
-            console.print()
-            # Format response with left padding
-            for line in str(response).split("\n"):
-                console.print(f"  {line}")
-            console.print()
-        except SentinelAPIError as e:
-            console.print(f"  [red]✗ API Error:[/red] {e}")
-            console.print()
-        except Exception as e:
-            console.print(f"  [red]✗ Error:[/red] {e}")
-            console.print()
 
 
 @cli.command()

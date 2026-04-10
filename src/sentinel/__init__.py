@@ -32,7 +32,7 @@ from sentinel.api.errors import (
     AuthenticationError,
 )
 
-__version__ = "0.5.10"
+__version__ = "0.5.14"
 
 
 class Sentinel(SentinelAPI):
@@ -61,7 +61,19 @@ class Sentinel(SentinelAPI):
         response = self._chat_resource.send(message, stream=stream, **kwargs)
         if stream:
             return response
-        return response.get("text", "")
+        # Extract text from multiple response formats
+        # Anthropic: {"content": [{"text": "...", "type": "text"}]}
+        content = response.get("content", "")
+        if isinstance(content, list) and content:
+            return content[0].get("text", "")
+        # Simple: {"text": "..."}
+        if response.get("text"):
+            return response["text"]
+        # OpenAI: {"choices": [{"message": {"content": "..."}}]}
+        choices = response.get("choices", [])
+        if choices:
+            return choices[0].get("message", {}).get("content", "")
+        return str(response)
 
     # ── Market Data ───────────────────────────────────────────
 

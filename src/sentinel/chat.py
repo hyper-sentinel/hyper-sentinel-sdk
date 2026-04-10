@@ -697,6 +697,40 @@ TOOL_SCHEMAS = [
             "required": ["contract_address", "amount_eth"],
         },
     },
+
+    # ── Strategy / Algo Trading ──────────────────────────────
+    {
+        "name": "strategy_status",
+        "description": "Get current algo trading strategy status — running, algo, position, P&L.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "strategy_start",
+        "description": "Start the algo trading strategy with current configuration.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "strategy_stop",
+        "description": "Stop the algo trading strategy.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "strategy_set_algo",
+        "description": "Set the active trading algorithm. Available: sma (SMA Crossover), bb (Bollinger Bands), macd (MACD Momentum), ema_spread (EMA Spread), rsi_ict (RSI + ICT Kill Zone).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "algo": {"type": "string", "description": "Algorithm name: sma, bb, macd, ema_spread, rsi_ict"},
+                "params": {"type": "object", "description": "Optional algo-specific parameters"},
+            },
+            "required": ["algo"],
+        },
+    },
+    {
+        "name": "list_algos",
+        "description": "List all available trading algorithms with descriptions and default parameters.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
