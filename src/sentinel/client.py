@@ -899,42 +899,6 @@ class SentinelClient:
         return self.call_tool("send_crypto", to_address=to_address, amount=amount, chain=chain)["data"]
 
     # ══════════════════════════════════════════════════════════
-    # Strategy & Algo (all tiers — enterprise gets lowest fees)
-    # ══════════════════════════════════════════════════════════
-
-    def get_strategy(self) -> dict:
-        """Get current algo strategy configuration."""
-        return self.call_tool("get_strategy")["data"]
-
-    def set_strategy(
-        self,
-        algo: str = "sma",
-        coin: str = "ETH",
-        interval: str = "5m",
-        trade_size: float = 20.0,
-        leverage: int = 3,
-        exchange: str = "hyperliquid",
-    ) -> dict:
-        """Set algo strategy parameters."""
-        return self.call_tool(
-            "set_strategy",
-            algo=algo, coin=coin, interval=interval,
-            trade_size=trade_size, leverage=leverage, exchange=exchange,
-        )["data"]
-
-    def list_algos(self) -> list:
-        """List all available algo strategies."""
-        return self.call_tool("list_algos")["data"]
-
-    def start_strategy(self) -> dict:
-        """Start the configured algo strategy."""
-        return self.call_tool("start_strategy")["data"]
-
-    def stop_strategy(self) -> dict:
-        """Stop the currently running strategy."""
-        return self.call_tool("stop_strategy")["data"]
-
-    # ══════════════════════════════════════════════════════════
     # Trade Journal — Logging & Tax
     # ══════════════════════════════════════════════════════════
 
