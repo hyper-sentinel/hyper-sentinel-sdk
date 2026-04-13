@@ -812,7 +812,7 @@ def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dic
                 "https://api.anthropic.com/v1/messages",
                 headers=headers,
                 json=payload,
-                timeout=httpx.Timeout(120.0, connect=10.0),
+                timeout=httpx.Timeout(30.0, connect=10.0),
             )
             if resp.status_code in (403, 429, 500, 502, 503, 529) and attempt < 2:
                 last_err = f"HTTP {resp.status_code}"
@@ -870,7 +870,7 @@ def _call_openai_compat(
                 endpoint,
                 headers=headers,
                 json=payload,
-                timeout=httpx.Timeout(120.0, connect=10.0),
+                timeout=httpx.Timeout(30.0, connect=10.0),
             )
             if resp.status_code in (403, 429, 500, 502, 503, 529) and attempt < 2:
                 _time.sleep(1.5 * (attempt + 1))
@@ -2403,7 +2403,11 @@ def run_chat(config: dict):
 
                 # Tool-use iteration loop
                 iteration = 0
+                failed_tools: dict = {}
                 while stop_reason == "tool_use" and iteration < 15:
+                    if time.time() - t0 > 60:
+                        response_text = "⚠ Response time limit reached. Try a simpler query."
+                        break
                     iteration += 1
                     tool_uses = [b for b in content if b.get("type") == "tool_use"]
                     thinking = [b["text"] for b in content if b.get("type") == "text" and b.get("text", "").strip()]
@@ -2414,7 +2418,13 @@ def run_chat(config: dict):
                     tool_results = []
                     for tu in tool_uses:
                         _on_tool(tu["name"], tu.get("input", {}))
-                        result = _execute_tool(api_key, tu["name"], tu.get("input", {}))
+                        tool_name = tu["name"]
+                        if failed_tools.get(tool_name, 0) >= 2:
+                            result = json.dumps({"error": f"{tool_name} is temporarily unavailable after repeated failures"})
+                        else:
+                            result = _execute_tool(api_key, tool_name, tu.get("input", {}))
+                            if isinstance(result, str) and "error" in result.lower():
+                                failed_tools[tool_name] = failed_tools.get(tool_name, 0) + 1
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": tu["id"],
@@ -2463,7 +2473,11 @@ def run_chat(config: dict):
 
                 # Tool-use iteration loop
                 iteration = 0
+                failed_tools: dict = {}
                 while finish_reason == "tool_calls" and message.get("tool_calls") and iteration < 15:
+                    if time.time() - t0 > 60:
+                        response_text = "⚠ Response time limit reached. Try a simpler query."
+                        break
                     iteration += 1
                     history.append({
                         "role": "assistant",
@@ -2478,7 +2492,12 @@ def run_chat(config: dict):
                         except json.JSONDecodeError:
                             args = {}
                         _on_tool(name, args)
-                        result = _execute_tool(api_key, name, args)
+                        if failed_tools.get(name, 0) >= 2:
+                            result = json.dumps({"error": f"{name} is temporarily unavailable after repeated failures"})
+                        else:
+                            result = _execute_tool(api_key, name, args)
+                            if isinstance(result, str) and "error" in result.lower():
+                                failed_tools[name] = failed_tools.get(name, 0) + 1
                         history.append({
                             "role": "tool",
                             "tool_call_id": tc["id"],
