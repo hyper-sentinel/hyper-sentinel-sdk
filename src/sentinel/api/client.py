@@ -29,6 +29,7 @@ from sentinel.api.resources.billing import BillingResource
 from sentinel.api.resources.tools import ToolsResource
 from sentinel.api.resources.keys import KeysResource
 from sentinel.api.resources.vault import VaultResource
+from sentinel.api.resources.strategy import StrategyResource
 
 
 class SentinelAPI:
@@ -109,6 +110,7 @@ class SentinelAPI:
         self.tools = ToolsResource(self._http)
         self.keys = KeysResource(self._http)
         self.vault = VaultResource(self._http)
+        self.strategy = StrategyResource(self._http)
 
     # ── Convenience shortcuts ─────────────────────────────────
 

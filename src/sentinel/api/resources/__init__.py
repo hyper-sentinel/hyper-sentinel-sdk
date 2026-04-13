@@ -7,6 +7,7 @@ from sentinel.api.resources.chat import ChatResource
 from sentinel.api.resources.trade import TradeResource
 from sentinel.api.resources.billing import BillingResource
 from sentinel.api.resources.tools import ToolsResource
+from sentinel.api.resources.strategy import StrategyResource
 
 __all__ = [
     "MarketResource",
@@ -14,4 +15,5 @@ __all__ = [
     "TradeResource",
     "BillingResource",
     "ToolsResource",
+    "StrategyResource",
 ]
