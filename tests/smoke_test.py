@@ -308,6 +308,83 @@ def test_gateway_chat():
 
 check("Chat actually works end-to-end", test_gateway_chat)
 
+# ── 8b. Chat Engine Tests (what users actually run) ──────
+print()
+print("  🧠 Chat Engine (sentinel chat)")
+
+def test_tool_schemas_exist():
+    """Verify TOOL_SCHEMAS is populated — empty = chat can't call any tools."""
+    from sentinel.chat import TOOL_SCHEMAS
+    if not TOOL_SCHEMAS:
+        return "TOOL_SCHEMAS is empty — chat has no tools"
+    if len(TOOL_SCHEMAS) < 30:
+        return f"Only {len(TOOL_SCHEMAS)} tools — expected 30+. Tools may be missing."
+    print(f"     → {len(TOOL_SCHEMAS)} tool schemas loaded")
+    return True
+
+check("Tool schemas loaded (30+)", test_tool_schemas_exist)
+
+def test_tool_execution_offline():
+    """Verify _execute_tool handles a known tool without crashing."""
+    from sentinel.chat import _execute_tool
+    # Call a tool that doesn't need credentials — should return an error string, not crash
+    result = _execute_tool("fake-api-key-for-test", "get_crypto_price", {"coin_id": "bitcoin"})
+    if result is None:
+        return "_execute_tool returned None — should return a string (even on error)"
+    if not isinstance(result, str):
+        return f"_execute_tool returned {type(result).__name__} — expected str"
+    print(f"     → Returned {len(result)} chars")
+    return True
+
+check("_execute_tool doesn't crash", test_tool_execution_offline)
+
+def test_circuit_breaker_exists():
+    """Verify the circuit breaker (failed_tools dict) exists in run_chat."""
+    import ast
+    with open("src/sentinel/chat.py") as f:
+        source = f.read()
+    if "failed_tools" not in source:
+        return "Circuit breaker (failed_tools) not found — tool loop can hang on broken tools"
+    return True
+
+check("Circuit breaker in tool loop", test_circuit_breaker_exists)
+
+def test_time_cap_exists():
+    """Verify the 60s time cap exists in run_chat."""
+    import ast
+    with open("src/sentinel/chat.py") as f:
+        source = f.read()
+    if "time.time() - t0 > 60" not in source:
+        return "60s time cap not found — tool loop can run indefinitely"
+    return True
+
+check("60s time cap in tool loop", test_time_cap_exists)
+
+def test_llm_timeout_not_120():
+    """Verify LLM timeout is not the old 120s default."""
+    with open("src/sentinel/chat.py") as f:
+        source = f.read()
+    if "Timeout(120" in source:
+        return "LLM timeout is still 120s — should be 30s. Slow calls will block the session."
+    return True
+
+check("LLM timeout reduced from 120s", test_llm_timeout_not_120)
+
+def test_anthropic_format_conversion():
+    """Verify _tools_for_anthropic converts tool schemas correctly."""
+    from sentinel.chat import _tools_for_anthropic, TOOL_SCHEMAS
+    converted = _tools_for_anthropic(TOOL_SCHEMAS[:3])
+    if not converted:
+        return "Conversion returned empty list"
+    for t in converted:
+        if "name" not in t:
+            return f"Missing 'name' in converted tool: {t}"
+        if "input_schema" not in t:
+            return f"Missing 'input_schema' in converted tool: {t}"
+    return True
+
+check("Anthropic tool format conversion", test_anthropic_format_conversion)
+
 # ── 9. CLI Chat Call ──────────────────────────────────────
 print()
 print("  🖥️  CLI Chat Call")
