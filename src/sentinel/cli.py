@@ -924,5 +924,297 @@ def vault_list():
         raise click.Abort()
 
 
+# ══════════════════════════════════════════════════════════════
+# Strategy Management
+# ══════════════════════════════════════════════════════════════
+
+
+@cli.group()
+def strategy():
+    """Manage algo trading strategies.
+
+    Configure, start, stop, and switch between 6 built-in algorithms.
+    Paper trading is the default — no real orders until you switch to live.
+
+    Examples:
+        sentinel strategy algos
+        sentinel strategy config --algo sma --symbol BTC --venue hl
+        sentinel strategy start
+        sentinel strategy status
+        sentinel strategy stop
+    """
+    pass
+
+
+@strategy.command(name="status")
+def strategy_status():
+    """Show current strategy status — mode, algo, symbol, venue, config."""
+    try:
+        client = SentinelAPI()
+
+        with console.status("[cyan]Fetching strategy status...[/cyan]", spinner="dots"):
+            result = client.strategy.status()
+
+        data = result.get("data", result)
+        algo = data.get("algo", "—")
+        symbol = data.get("symbol", "—")
+        venue = data.get("venue", "—")
+        mode = data.get("mode", "—")
+        running = data.get("running", False)
+        status_icon = "[green]● RUNNING[/]" if running else "[yellow]○ STOPPED[/]"
+
+        msg = (
+            f"[bold #00e5ff]Strategy Status[/]\n"
+            f"\n"
+            f"  {status_icon}\n"
+            f"  [white]Algo:[/]     {algo}\n"
+            f"  [white]Symbol:[/]   {symbol}\n"
+            f"  [white]Venue:[/]    {venue}\n"
+            f"  [white]Mode:[/]     {mode}\n"
+        )
+
+        # Show extra config if present
+        for key in ("interval", "trade_usd", "leverage"):
+            if key in data:
+                label = key.replace("_", " ").title()
+                msg += f"  [white]{label}:[/]  {data[key]}\n"
+
+        console.print(Panel(msg, border_style="#00e5ff", padding=(1, 2)))
+
+    except AuthenticationError:
+        console.print("[red]Not authenticated.[/red] Run [cyan]sentinel[/cyan] to set up.")
+        raise click.Abort()
+    except SentinelAPIError as e:
+        console.print(f"[red]API Error:[/red] {e}")
+        raise click.Abort()
+
+
+@strategy.command(name="start")
+def strategy_start():
+    """Start the trading strategy with the current configuration."""
+    try:
+        client = SentinelAPI()
+
+        with console.status("[cyan]Starting strategy...[/cyan]", spinner="dots"):
+            result = client.strategy.start()
+
+        console.print("[green]▶ Strategy started[/green]")
+        data = result.get("data", result)
+        if isinstance(data, dict):
+            for key in ("algo", "symbol", "venue", "mode"):
+                if key in data:
+                    console.print(f"  [white]{key}:[/] {data[key]}")
+
+    except AuthenticationError:
+        console.print("[red]Not authenticated.[/red] Run [cyan]sentinel[/cyan] to set up.")
+        raise click.Abort()
+    except SentinelAPIError as e:
+        console.print(f"[red]API Error:[/red] {e}")
+        raise click.Abort()
+
+
+@strategy.command(name="stop")
+def strategy_stop():
+    """Stop the running strategy."""
+    try:
+        client = SentinelAPI()
+
+        with console.status("[cyan]Stopping strategy...[/cyan]", spinner="dots"):
+            client.strategy.stop()
+
+        console.print("[yellow]■ Strategy stopped[/yellow]")
+
+    except AuthenticationError:
+        console.print("[red]Not authenticated.[/red] Run [cyan]sentinel[/cyan] to set up.")
+        raise click.Abort()
+    except SentinelAPIError as e:
+        console.print(f"[red]API Error:[/red] {e}")
+        raise click.Abort()
+
+
+@strategy.command(name="config")
+@click.option("--algo", help="Algorithm: sma, bb, macd, ema_spread, rsi_ict, gain_ema")
+@click.option("--symbol", help="Trading symbol (BTC, ETH, SOL)")
+@click.option("--venue", help="Venue (hl, aster)")
+@click.option("--interval", help="Candle interval (1m, 5m, 15m, 1h)")
+@click.option("--trade-usd", type=float, help="Trade size in USD")
+@click.option("--leverage", type=int, help="Leverage multiplier")
+def strategy_config(algo, symbol, venue, interval, trade_usd, leverage):
+    """Update strategy configuration.
+
+    Pass only the options you want to change — others stay as they are.
+
+    Examples:
+        sentinel strategy config --algo sma --symbol BTC --venue hl
+        sentinel strategy config --leverage 5 --trade-usd 100
+    """
+    # Build kwargs from non-None values
+    kwargs = {}
+    if algo:
+        kwargs["algo"] = algo
+    if symbol:
+        kwargs["symbol"] = symbol
+    if venue:
+        kwargs["venue"] = venue
+    if interval:
+        kwargs["interval"] = interval
+    if trade_usd is not None:
+        kwargs["trade_usd"] = trade_usd
+    if leverage is not None:
+        kwargs["leverage"] = leverage
+
+    if not kwargs:
+        console.print("[yellow]No options given.[/yellow] Use --algo, --symbol, --venue, etc.")
+        raise click.Abort()
+
+    try:
+        client = SentinelAPI()
+
+        with console.status("[cyan]Updating config...[/cyan]", spinner="dots"):
+            result = client.strategy.config(**kwargs)
+
+        data = result.get("data", result)
+        msg = "[bold #00e5ff]Strategy Config Updated[/]\n\n"
+        if isinstance(data, dict):
+            for key, val in data.items():
+                label = key.replace("_", " ").title()
+                msg += f"  [white]{label}:[/] {val}\n"
+        else:
+            msg += f"  {data}\n"
+
+        console.print(Panel(msg, border_style="#00e5ff", padding=(1, 2)))
+
+    except AuthenticationError:
+        console.print("[red]Not authenticated.[/red] Run [cyan]sentinel[/cyan] to set up.")
+        raise click.Abort()
+    except SentinelAPIError as e:
+        console.print(f"[red]API Error:[/red] {e}")
+        raise click.Abort()
+
+
+@strategy.command(name="set-algo")
+@click.argument("name")
+@click.option("--param", multiple=True, help="Algo param as key=value (repeatable)")
+def strategy_set_algo(name, param):
+    """Switch the active algorithm.
+
+    Examples:
+        sentinel strategy set-algo bb
+        sentinel strategy set-algo rsi_ict --param oversold=30 --param overbought=70
+    """
+    # Parse --param pairs
+    params = {}
+    for p in param:
+        if "=" not in p:
+            console.print(f"[red]Invalid param:[/red] {p} (expected key=value)")
+            raise click.Abort()
+        key, value = p.split("=", 1)
+        try:
+            params[key] = json.loads(value)
+        except (json.JSONDecodeError, ValueError):
+            params[key] = value
+
+    try:
+        client = SentinelAPI()
+
+        with console.status(f"[cyan]Switching to {name}...[/cyan]", spinner="dots"):
+            result = client.strategy.set_algo(name, params=params if params else None)
+
+        console.print(f"[green]✓ Algorithm switched to [bold]{name}[/bold][/green]")
+        data = result.get("data", result)
+        if isinstance(data, dict) and "params" in data:
+            console.print(f"  [dim]Params: {json.dumps(data['params'])}[/dim]")
+
+    except AuthenticationError:
+        console.print("[red]Not authenticated.[/red] Run [cyan]sentinel[/cyan] to set up.")
+        raise click.Abort()
+    except SentinelAPIError as e:
+        console.print(f"[red]API Error:[/red] {e}")
+        raise click.Abort()
+
+
+@strategy.command(name="algos")
+def strategy_algos():
+    """List all available trading algorithms."""
+    try:
+        client = SentinelAPI()
+
+        with console.status("[cyan]Fetching algorithms...[/cyan]", spinner="dots"):
+            result = client.strategy.list_algos()
+
+        data = result.get("data", result)
+
+        if isinstance(data, dict) and "algos" in data:
+            algos = data["algos"]
+        elif isinstance(data, list):
+            algos = data
+        else:
+            algos = [data]
+
+        table = Table(
+            title=f"Available Algorithms ({len(algos)})",
+            show_header=True,
+            header_style="bold #00e5ff",
+        )
+        table.add_column("Name", style="cyan", min_width=12)
+        table.add_column("Description", style="white")
+        table.add_column("Default Params", style="dim")
+
+        for algo in algos:
+            if isinstance(algo, dict):
+                name = algo.get("name", algo.get("key", "?"))
+                desc = algo.get("description", algo.get("desc", ""))
+                params = algo.get("default_params", algo.get("params", {}))
+                params_str = ", ".join(f"{k}={v}" for k, v in params.items()) if isinstance(params, dict) else str(params)
+                table.add_row(name, desc, params_str)
+            else:
+                table.add_row(str(algo), "", "")
+
+        console.print()
+        console.print(table)
+        console.print()
+
+    except AuthenticationError:
+        console.print("[red]Not authenticated.[/red] Run [cyan]sentinel[/cyan] to set up.")
+        raise click.Abort()
+    except SentinelAPIError as e:
+        console.print(f"[red]API Error:[/red] {e}")
+        raise click.Abort()
+
+
+@strategy.command(name="algo-info")
+@click.argument("name")
+def strategy_algo_info(name):
+    """Get detailed info about a specific algorithm.
+
+    Example:
+        sentinel strategy algo-info rsi_ict
+    """
+    try:
+        client = SentinelAPI()
+
+        with console.status(f"[cyan]Fetching {name}...[/cyan]", spinner="dots"):
+            result = client.strategy.algo_info(name)
+
+        data = result.get("data", result)
+        syntax = Syntax(
+            json.dumps(data, indent=2),
+            "json",
+            theme="monokai",
+            line_numbers=False,
+        )
+        console.print()
+        console.print(f"[bold #00e5ff]{name}[/]")
+        console.print(syntax)
+        console.print()
+
+    except AuthenticationError:
+        console.print("[red]Not authenticated.[/red] Run [cyan]sentinel[/cyan] to set up.")
+        raise click.Abort()
+    except SentinelAPIError as e:
+        console.print(f"[red]API Error:[/red] {e}")
+        raise click.Abort()
+
+
 if __name__ == "__main__":
     cli()

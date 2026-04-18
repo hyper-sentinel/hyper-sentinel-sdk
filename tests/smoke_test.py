@@ -439,20 +439,25 @@ def test_no_self_import():
 
 check("No circular self-import in cli.py", test_no_self_import)
 
-# ── 12. Algo Commands Deferred ───────────────────────────
+# ── 12. Strategy CLI Commands ────────────────────────────
 print()
-print("  🚫 Algo Commands (should be deferred)")
+print("  🎯 Strategy CLI (v0.6.0)")
 
-def test_no_strategy_calls():
+def test_strategy_uses_resource():
+    """Strategy CLI should use client.strategy.* (StrategyResource), not raw tool calls."""
     with open("src/sentinel/cli.py") as f:
         source = f.read()
-    dangerous = ["strategy_set_algo", "strategy_start", "strategy_stop", "strategy_status"]
+    # Must NOT use raw tool proxy for strategy (that would 404)
+    dangerous = ['tools.call("strategy_', 'tools.call("set_algo']
     found = [d for d in dangerous if d in source]
     if found:
-        return f"cli.py still has gateway calls: {found} — these endpoints don't exist"
+        return f"cli.py uses raw tool proxy for strategy: {found} — should use client.strategy.*"
+    # Must have the strategy group registered
+    if "def strategy():" not in source:
+        return "cli.py missing strategy() group — expected @cli.group() def strategy()"
     return True
 
-check("No strategy_* gateway calls in cli.py", test_no_strategy_calls)
+check("Strategy CLI uses StrategyResource (not raw tool proxy)", test_strategy_uses_resource)
 
 
 # ── RESULTS ───────────────────────────────────────────────

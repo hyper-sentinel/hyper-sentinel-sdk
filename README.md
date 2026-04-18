@@ -121,6 +121,61 @@ Type `add x`, `add y2`, `add elfa`, or `add eodhd` inside the terminal to connec
 
 ---
 
+## Algo Trading (v0.6.0)
+
+6 built-in strategies with paper trading, take-profit/stop-loss, and a SQLite trade journal.
+
+### Python SDK
+
+```python
+from sentinel import Sentinel
+
+s = Sentinel()
+
+# List available algorithms
+s.strategy.list_algos()
+# → sma, bb, macd, ema_spread, rsi_ict, gain_ema
+
+# Configure and start paper trading
+s.strategy.config(algo="rsi_ict", symbol="BTC", venue="hl", leverage=5, trade_usd=100)
+s.strategy.start()
+
+# Check status
+s.strategy.status()
+
+# Switch algorithm at runtime
+s.strategy.set_algo("macd", params={"macd_fast": 8, "macd_slow": 21})
+
+# Stop
+s.strategy.stop()
+```
+
+### CLI
+
+```bash
+sentinel strategy algos                      # List all algorithms
+sentinel strategy algo-info rsi_ict          # Algo details + default params
+sentinel strategy config --algo sma --symbol BTC --venue hl --leverage 5
+sentinel strategy start                      # Start strategy
+sentinel strategy status                     # Check running state
+sentinel strategy stop                       # Stop strategy
+```
+
+### Algorithms
+
+| Algo | Strategy | Best For |
+|------|----------|----------|
+| `sma` | SMA Crossover | Trending markets |
+| `bb` | Bollinger Band Reversion | Ranging / mean reversion |
+| `macd` | MACD Momentum | Strong trends |
+| `ema_spread` | EMA Spread Reversion | Mean reversion |
+| `rsi_ict` | RSI + ICT Kill Zones | Time-filtered entries |
+| `gain_ema` | Gain-Weighted EMA | Trend or reversion mode |
+
+Paper trading is the default — no real orders until you switch to live mode.
+
+---
+
 ## Security
 
 | Key | Purpose | Storage |
