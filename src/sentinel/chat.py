@@ -781,8 +781,13 @@ def _track_llm_usage(resp_data: dict, provider: str, model: str):
             u = resp_data.get("usage", {})
             inp, out = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
         elif provider == "google":
-            u = resp_data.get("usageMetadata", {})
-            inp, out = u.get("promptTokenCount", 0), u.get("candidatesTokenCount", 0)
+            # Try OpenAI-compat format first (used via /v1beta/openai/ endpoint)
+            u = resp_data.get("usage", {})
+            inp, out = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
+            # Fallback to native Gemini format
+            if not inp and not out:
+                u = resp_data.get("usageMetadata", {})
+                inp, out = u.get("promptTokenCount", 0), u.get("candidatesTokenCount", 0)
         if inp or out:
             usage.log_usage(provider, model, inp, out)
     except Exception:
@@ -850,10 +855,17 @@ def _call_openai_compat(
     endpoint: str,
 ) -> dict:
     """Call OpenAI-compatible API (OpenAI, xAI, Google) with tool support."""
-    headers = {
-        "Authorization": f"Bearer {ai_key}",
-        "Content-Type": "application/json",
-    }
+    # Google Gemini uses x-goog-api-key header, not Bearer token
+    if "googleapis.com" in endpoint:
+        headers = {
+            "x-goog-api-key": ai_key,
+            "Content-Type": "application/json",
+        }
+    else:
+        headers = {
+            "Authorization": f"Bearer {ai_key}",
+            "Content-Type": "application/json",
+        }
     all_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
     payload: dict[str, Any] = {
         "model": model,
@@ -1907,6 +1919,22 @@ def run_chat(config: dict):
     ai_key = config.get("ai_key", "")
     api_key = config.get("sentinel_api_key", "")
     provider = config.get("ai_provider", "anthropic")
+
+    # Fallback: check ~/.sentinel/ai_key flat file (cli.py saves here)
+    if not ai_key:
+        try:
+            from sentinel.api._http import load_ai_key
+            ai_key = load_ai_key() or ""
+            if ai_key:
+                # Sync back to JSON config so this fallback isn't needed next time
+                config["ai_key"] = ai_key
+                detected = _detect_provider(ai_key)
+                if detected:
+                    provider = detected[0]
+                    config["ai_provider"] = provider
+                _save_config(config)
+        except Exception:
+            pass
 
     if not ai_key:
         console.print("  [s.error]✗ No AI key configured[/] — run [bold]sentinel[/] to set up.\n")

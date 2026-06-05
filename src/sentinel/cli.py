@@ -457,6 +457,15 @@ def _run_repl():
                 from sentinel.api._http import save_ai_key
                 save_ai_key(ai_key)
 
+                # Also sync to JSON config so run_chat() finds it
+                json_config = _load_config()
+                json_config["ai_key"] = ai_key
+                json_config["ai_provider"] = provider
+                if api_key:
+                    json_config["sentinel_api_key"] = api_key
+                json_config["tier"] = tier
+                _save_config(json_config)
+
                 if is_new and secret_key:
                     console.print(f"  [green]✓ Account created![/] Tier: [bold]{tier}[/]")
                     console.print()
