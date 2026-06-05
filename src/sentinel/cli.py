@@ -359,7 +359,7 @@ def detect_provider(key: str) -> str:
 @click.version_option(__version__, "-v", "-V", "--version", prog_name="sentinel")
 @click.pass_context
 def cli(ctx):
-    """Sentinel — AI trading terminal with 50 tools."""
+    """Sentinel — AI trading terminal with 54 tools."""
     if ctx.invoked_subcommand is None:
         # No subcommand → launch the interactive terminal with first-run onboarding
         _run_repl()

@@ -531,7 +531,60 @@ TOOL_SCHEMAS = [
         },
     },
 
+    # ── Quantitative Analysis ────────────────────────────────
+    {
+        "name": "get_risk_metrics",
+        "description": "Get risk metrics for any asset — Sharpe ratio, Sortino ratio, Calmar ratio, VaR (Value at Risk, 3 methods), CVaR, max drawdown. Tells you if the return is worth the risk. Use for any risk assessment question.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Asset symbol — BTC, ETH, GOLD, TSLA, AAPL"},
+                "interval": {"type": "string", "description": "Candle interval — 1d recommended. Default: 1d"},
+                "venue": {"type": "string", "description": "Data source — hl, aster, tradfi. Default: hl"}
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_timeseries_forecast",
+        "description": "Get time series forecast — ARIMA price prediction, GARCH volatility forecast, stationarity test. Tells you if price is trending or mean-reverting, and forecasts next 5 periods.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Asset symbol — BTC, ETH, GOLD, TSLA, AAPL"},
+                "interval": {"type": "string", "description": "Candle interval — 1d recommended. Default: 1d"},
+                "venue": {"type": "string", "description": "Data source — hl, aster, tradfi. Default: hl"}
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_ml_signals",
+        "description": "Get ML-based trading signals — linear regression trend, K-Means regime detection (trending up/sideways/down), Random Forest feature importance, logistic regression up/down prediction with confidence score.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Asset symbol — BTC, ETH, GOLD, TSLA, AAPL"},
+                "interval": {"type": "string", "description": "Candle interval — 1d recommended. Default: 1d"},
+                "venue": {"type": "string", "description": "Data source — hl, aster, tradfi. Default: hl"}
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_options_analysis",
+        "description": "Get options analysis for a stock or ETF — put/call ratio, implied volatility, ATM options, most active contracts, and sentiment (bullish/bearish/neutral). Only works for stocks and ETFs, not crypto.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Stock/ETF ticker — AAPL, TSLA, SPY, QQQ, MSFT"}
+            },
+            "required": ["symbol"],
+        },
+    },
+
     # ── Portfolio ─────────────────────────────────────────────
+
     {
         "name": "get_portfolio_summary",
         "description": "Get a unified portfolio summary across all connected trading venues (Hyperliquid, Aster). Shows total equity, per-venue breakdowns, all open positions, and unrealized PnL.",
@@ -1587,6 +1640,39 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
             except Exception as e:
                 return json.dumps({"error": str(e), "tool": tool_name})
 
+        # ── Quantitative Analysis (local, uses klines from ta.py) ──
+        if tool_name in ("get_risk_metrics", "get_timeseries_forecast", "get_ml_signals", "get_options_analysis"):
+            try:
+                if tool_name == "get_risk_metrics":
+                    from sentinel.scrapers.risk import get_risk_metrics
+                    result = get_risk_metrics(
+                        args.get("symbol", "BTC"),
+                        interval=args.get("interval", "1d"),
+                        venue=args.get("venue", "hl"),
+                    )
+                elif tool_name == "get_timeseries_forecast":
+                    from sentinel.scrapers.timeseries import get_timeseries_forecast
+                    result = get_timeseries_forecast(
+                        args.get("symbol", "BTC"),
+                        interval=args.get("interval", "1d"),
+                        venue=args.get("venue", "hl"),
+                    )
+                elif tool_name == "get_ml_signals":
+                    from sentinel.scrapers.ml_signals import get_ml_signals
+                    result = get_ml_signals(
+                        args.get("symbol", "BTC"),
+                        interval=args.get("interval", "1d"),
+                        venue=args.get("venue", "hl"),
+                    )
+                elif tool_name == "get_options_analysis":
+                    from sentinel.scrapers.options import get_options_analysis
+                    result = get_options_analysis(args.get("symbol", "AAPL"))
+                return json.dumps(result)
+            except ImportError as e:
+                return json.dumps({"error": f"Quant dependencies missing: {e}. Run: pip install statsmodels arch scikit-learn"})
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
         # ── Portfolio Tracker ──────────────────────────────────────
         if tool_name in ("get_portfolio_summary", "get_portfolio_risk"):
             try:
@@ -2388,6 +2474,8 @@ def run_chat(config: dict):
                 "approve_hl_builder_fee", "get_hl_tradfi_assets", "get_hl_tradfi_price",
                 # Technical Analysis
                 "get_ta_indicators", "get_ta_signal", "get_klines",
+                # Quantitative Analysis
+                "get_risk_metrics", "get_timeseries_forecast", "get_ml_signals", "get_options_analysis",
                 # Portfolio
                 "get_portfolio_summary", "get_portfolio_risk",
                 # FRED

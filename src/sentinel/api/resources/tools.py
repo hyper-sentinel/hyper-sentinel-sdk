@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 
 
 class ToolsResource:
-    """Generic tool access — list, inspect, and call any of the 50 tools."""
+    """Generic tool access — list, inspect, and call any of the 54 tools."""
 
     def __init__(self, http):
         self._http = http

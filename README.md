@@ -12,7 +12,7 @@
 
 # Hyper-Sentinel
 
-**AI trading terminal with 50 tools.**
+**AI trading terminal with 54 tools.**
 
 One command. Every exchange. Every signal.
 
@@ -86,6 +86,22 @@ BTC $84,219 (+1.8%) | Vol $31.2B | MCap $1.67T
 
 > Search X for Mario Nawfal on Israel
 [calls search_x — returns latest tweets]
+
+> What's the Sharpe ratio on BTC?
+Sharpe: 1.42 | Sortino: 1.87 | Max Drawdown: -18%
+→ Good risk-adjusted returns. Sharpe > 1 suggests solid performance.
+
+> Is ETH trending or random right now?
+ARIMA forecasts up | Volatility compressing | Non-stationary (trending)
+→ Price is trending, not mean-reverting. GARCH vol is compressing.
+
+> What do the ML models say about SOL?
+Trend: up (R²=0.72) | Regime: trending_up | Top signal: RSI
+→ ML models lean bullish. Next candle prediction: up (64% confidence)
+
+> What's the put/call ratio on AAPL?
+P/C Ratio: 0.73 | IV: 28% | Sentiment: mildly bullish
+→ Put/call below 1 suggests bullish positioning. IV is moderate.
 ```
 
 ## Data Sources (Always Available)
@@ -93,9 +109,18 @@ BTC $84,219 (+1.8%) | Vol $31.2B | MCap $1.67T
 | Source | What |
 |--------|------|
 | CoinGecko | 10,000+ crypto prices, market caps, search |
-| Yahoo Finance | Stocks, ETFs, analyst recs, full quant analysis |
+| Yahoo Finance | Stocks, ETFs, analyst recs, options chains |
 | FRED | GDP, CPI, unemployment, Fed rate, VIX, yield curve |
 | DexScreener | DEX pairs, trending tokens, on-chain analytics |
+
+## Quantitative Analysis (Built-In)
+
+| Module | What |
+|--------|------|
+| Risk Metrics | Sharpe, Sortino, Calmar, VaR (3 methods), CVaR, max drawdown |
+| Time Series | ARIMA forecast, GARCH volatility, ADF stationarity test |
+| ML Signals | Linear regression trend, K-Means regime, Random Forest importance, logistic prediction |
+| Options | Put/call ratio, implied volatility, ATM options, sentiment (stocks/ETFs only) |
 
 ## Trading Venues (Connect Your Keys)
 
@@ -123,7 +148,7 @@ Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
 | Command | What |
 |---------|------|
 | `status` | Connection health + account info |
-| `tools` | List all 50 available tools |
+| `tools` | List all 54 available tools |
 | `add` | Configure exchanges & data sources |
 | `add ai` | Swap your LLM provider |
 | `help` | Show all commands |
