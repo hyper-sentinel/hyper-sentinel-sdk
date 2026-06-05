@@ -360,15 +360,17 @@ def test_time_cap_exists():
 
 check("60s time cap in tool loop", test_time_cap_exists)
 
-def test_llm_timeout_not_120():
-    """Verify LLM timeout is not the old 120s default."""
+def test_llm_timeout_and_retry():
+    """Verify LLM timeout is 120s with retry-on-timeout logic."""
     with open("src/sentinel/chat.py") as f:
         source = f.read()
-    if "Timeout(120" in source:
-        return "LLM timeout is still 120s — should be 30s. Slow calls will block the session."
+    if "Timeout(120" not in source:
+        return "LLM timeout should be 120s — check _call_anthropic_single and _call_openai_compat_single."
+    if "retrying..." not in source:
+        return "Missing retry-on-timeout logic — timeouts should retry, not die instantly."
     return True
 
-check("LLM timeout reduced from 120s", test_llm_timeout_not_120)
+check("LLM timeout 120s with retry", test_llm_timeout_and_retry)
 
 def test_anthropic_format_conversion():
     """Verify _tools_for_anthropic converts tool schemas correctly."""

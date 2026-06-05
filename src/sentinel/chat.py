@@ -870,7 +870,7 @@ def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list)
                 "https://api.anthropic.com/v1/messages",
                 headers=headers,
                 json=payload,
-                timeout=httpx.Timeout(90.0, connect=15.0),
+                timeout=httpx.Timeout(120.0, connect=15.0),
             )
             if resp.status_code in (403, 429, 500, 502, 503, 529) and attempt < 2:
                 last_err = f"HTTP {resp.status_code}"
@@ -980,7 +980,7 @@ def _call_openai_compat_single(
                 endpoint,
                 headers=headers,
                 json=payload,
-                timeout=httpx.Timeout(90.0, connect=15.0),
+                timeout=httpx.Timeout(120.0, connect=15.0),
             )
             if resp.status_code in (403, 429, 500, 502, 503, 529) and attempt < 2:
                 _time.sleep(1.5 * (attempt + 1))
