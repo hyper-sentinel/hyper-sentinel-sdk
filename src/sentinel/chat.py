@@ -870,7 +870,7 @@ def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list)
                 "https://api.anthropic.com/v1/messages",
                 headers=headers,
                 json=payload,
-                timeout=httpx.Timeout(30.0, connect=10.0),
+                timeout=httpx.Timeout(90.0, connect=15.0),
             )
             if resp.status_code in (403, 429, 500, 502, 503, 529) and attempt < 2:
                 last_err = f"HTTP {resp.status_code}"
@@ -893,9 +893,16 @@ def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list)
                     continue
                 return {"error": {"message": f"Anthropic returned empty response after 3 retries."}}
         except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+            if attempt < 2:
+                _time.sleep(2 * (attempt + 1))
+                continue
             return {"error": {"message": f"Cannot reach Anthropic API: {e}. Check your internet connection."}}
         except httpx.TimeoutException as e:
-            return {"error": {"message": f"Anthropic API timed out: {e}"}}
+            if attempt < 2:
+                console.print(f"  [yellow]⚠ Anthropic timeout (attempt {attempt + 1}/3) — retrying...[/]")
+                _time.sleep(2 * (attempt + 1))
+                continue
+            return {"error": {"message": f"Anthropic API timed out after 3 attempts. Try a simpler query or check your connection."}}
         except Exception as e:
             return {"error": {"message": f"LLM call failed: {e}"}}
 
@@ -973,7 +980,7 @@ def _call_openai_compat_single(
                 endpoint,
                 headers=headers,
                 json=payload,
-                timeout=httpx.Timeout(30.0, connect=10.0),
+                timeout=httpx.Timeout(90.0, connect=15.0),
             )
             if resp.status_code in (403, 429, 500, 502, 503, 529) and attempt < 2:
                 _time.sleep(1.5 * (attempt + 1))
@@ -994,9 +1001,16 @@ def _call_openai_compat_single(
                     continue
                 return {"error": {"message": f"LLM API returned HTTP {resp.status_code} with invalid response after 3 retries."}}
         except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+            if attempt < 2:
+                _time.sleep(2 * (attempt + 1))
+                continue
             return {"error": {"message": f"Cannot reach LLM API: {e}. Check your internet connection."}}
         except httpx.TimeoutException as e:
-            return {"error": {"message": f"LLM API timed out: {e}"}}
+            if attempt < 2:
+                console.print(f"  [yellow]⚠ LLM timeout (attempt {attempt + 1}/3) — retrying...[/]")
+                _time.sleep(2 * (attempt + 1))
+                continue
+            return {"error": {"message": f"LLM API timed out after 3 attempts. Try a simpler query or check your connection."}}
         except Exception as e:
             return {"error": {"message": f"LLM call failed: {e}"}}
 
