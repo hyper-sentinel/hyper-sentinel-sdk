@@ -1,5 +1,5 @@
 """
-Hyper-Sentinel v0.6.9 — The AI Trading SDK
+Hyper-Sentinel v0.7.0 — The AI Trading SDK
 
 Soli Deo Gloria — To the Glory of God alone.
 © Sentinel Labs — https://hyper-sentinel.com
@@ -32,11 +32,11 @@ from sentinel.api.errors import (
     AuthenticationError,
 )
 
-__version__ = "0.6.9"
+__version__ = "0.7.0"
 
 
 class Sentinel(SentinelAPI):
-    """The Sentinel SDK — 57 AI trading tools via one API key.
+    """The Sentinel SDK — 50 AI trading tools via one API key.
 
     Usage:
         client = Sentinel()
@@ -49,7 +49,7 @@ class Sentinel(SentinelAPI):
     # ── AI Chat ───────────────────────────────────────────────
 
     def chat(self, message: str, stream: bool = False, **kwargs) -> Union[str, Generator]:
-        """Talk to the AI agent. It has access to all 57 tools.
+        """Talk to the AI agent. It has access to all 50 tools.
 
         Args:
             message: Your question, command, or analysis request
@@ -136,7 +136,7 @@ class Sentinel(SentinelAPI):
     # ── Generic Tool Call ─────────────────────────────────────
 
     def tool(self, name: str, **params) -> dict:
-        """Call any of the 57 tools by name.
+        """Call any of the 50 tools by name.
 
         Args:
             name: Tool name (e.g. "get_fred_series", "search_x")

@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyper-sentinel"
-version = "0.6.9"
-description = "AI trading terminal with 57 tools — Hyperliquid, Aster DEX, Polymarket, CoinGecko, FRED, algo strategies"
+version = "0.7.0"
+description = "AI trading terminal with 50 tools — Hyperliquid, Aster DEX, CoinGecko, Yahoo Finance, FRED"
 readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.10"
 authors = [
     {name = "Sentinel Labs", email = "dev@hyper-sentinel.com"},
 ]
-keywords = ["crypto", "trading", "ai", "defi", "hyperliquid", "aster", "polymarket", "sentinel", "agent"]
+keywords = ["crypto", "trading", "ai", "defi", "hyperliquid", "aster", "sentinel", "agent"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

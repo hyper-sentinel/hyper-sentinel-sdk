@@ -33,7 +33,7 @@ from sentinel.api.resources.strategy import StrategyResource
 
 
 class SentinelAPI:
-    """Sentinel Labs API Client — your gateway to 57 tools, AI, and trading.
+    """Sentinel Labs API Client — your gateway to 50 tools, AI, and trading.
 
     All calls are routed through api.hyper-sentinel.com and metered
     against your account. Get your API key at hyper-sentinel.com.

@@ -12,7 +12,7 @@
 
 # Hyper-Sentinel
 
-**AI trading terminal with 57 tools.**
+**AI trading terminal with 50 tools.**
 
 One command. Every exchange. Every signal.
 
@@ -31,15 +31,26 @@ One command. Every exchange. Every signal.
 
 ## Install
 
+**macOS / Linux**
 ```bash
+pip3 install hyper-sentinel
+```
+
+**Windows (PowerShell)**
+```powershell
 pip install hyper-sentinel
 ```
+
+> If `pip` isn't recognized on Windows, try `py -m pip install hyper-sentinel`
 
 ## Launch
 
 ```bash
 sentinel
 ```
+
+> **Windows**: Same command — `sentinel` — works after pip install.
+> If it's not found, try `py -m sentinel.cli` or add your Python Scripts folder to PATH.
 
 Paste an API key from any supported provider:
 
@@ -50,7 +61,9 @@ Paste an API key from any supported provider:
 | Google (Gemini) | [aistudio.google.com](https://aistudio.google.com) — free tier available |
 | xAI (Grok) | [console.x.ai](https://console.x.ai) |
 
-Your AI key is exchanged for a Sentinel API key. Both saved locally to `~/.sentinel/`.
+Your AI key is exchanged for a Sentinel API key. Both saved locally:
+- **macOS / Linux**: `~/.sentinel/`
+- **Windows**: `C:\Users\<you>\.sentinel\`
 
 ---
 
@@ -90,9 +103,8 @@ BTC $84,219 (+1.8%) | Vol $31.2B | MCap $1.67T
 |-------|------|
 | Hyperliquid | Perp futures — crypto + TradFi (GOLD, TSLA, SP500) |
 | Aster DEX | Perp futures with leverage |
-| Polymarket | Prediction markets |
 
-Type `add hl`, `add aster`, or `add polymarket` inside the terminal to connect.
+Type `add hl` or `add aster` inside the terminal to connect.
 
 ## Intelligence Feeds (Connect Your Keys)
 
@@ -101,9 +113,8 @@ Type `add hl`, `add aster`, or `add polymarket` inside the terminal to connect.
 | X / Twitter | Tweet search, sentiment |
 | Y2 Intelligence | AI news recaps, sentiment scores |
 | Elfa AI | Trending tokens, social mentions |
-| EODHD | Historical market data |
 
-Type `add x`, `add y2`, `add elfa`, or `add eodhd` inside the terminal to connect.
+Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
 
 ---
 
@@ -112,7 +123,7 @@ Type `add x`, `add y2`, `add elfa`, or `add eodhd` inside the terminal to connec
 | Command | What |
 |---------|------|
 | `status` | Connection health + account info |
-| `tools` | List all 57 available tools |
+| `tools` | List all 50 available tools |
 | `add` | Configure exchanges & data sources |
 | `add ai` | Swap your LLM provider |
 | `help` | Show all commands |

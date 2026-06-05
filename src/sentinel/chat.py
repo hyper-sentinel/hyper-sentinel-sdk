@@ -138,7 +138,7 @@ CAPABILITIES:
 - Economic data (FRED — GDP, CPI, unemployment, interest rates)
 - DEX data (DexScreener — pairs, trending tokens, on-chain analytics)
 - Social intelligence (X/Twitter search, Elfa AI trending, Y2 news)
-- DEX trading (Hyperliquid perps, Aster futures, Polymarket predictions)
+- DEX trading (Hyperliquid perps, Aster futures)
 - On-chain swaps (Jupiter SOL, Uniswap ETH)
 - Wallet management (generate, import, balance, send)
 
@@ -534,7 +534,7 @@ TOOL_SCHEMAS = [
     # ── Portfolio ─────────────────────────────────────────────
     {
         "name": "get_portfolio_summary",
-        "description": "Get a unified portfolio summary across all connected trading venues (Hyperliquid, Aster, Polymarket). Shows total equity, per-venue breakdowns, all open positions, and unrealized PnL.",
+        "description": "Get a unified portfolio summary across all connected trading venues (Hyperliquid, Aster). Shows total equity, per-venue breakdowns, all open positions, and unrealized PnL.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
@@ -556,74 +556,15 @@ TOOL_SCHEMAS = [
         },
     },
 
-    # ── Polymarket ────────────────────────────────────────────
-    {
-        "name": "search_polymarket",
-        "description": "Search Polymarket prediction markets by topic.",
-        "parameters": {
-            "type": "object",
-            "properties": {"query": {"type": "string", "description": "Search topic (e.g. 'Trump', 'Fed rate', 'Bitcoin 100k')"}},
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "get_polymarket_markets",
-        "description": "Get active Polymarket prediction markets with current odds.",
-        "parameters": {
-            "type": "object",
-            "properties": {"limit": {"type": "integer", "description": "Number of markets", "default": 10}},
-            "required": [],
-        },
-    },
-
-    {
-        "name": "get_polymarket_positions",
-        "description": "Get your current Polymarket positions and portfolio.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "buy_polymarket",
-        "description": "Buy shares on a Polymarket prediction market.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "token_id": {"type": "string", "description": "The token ID for the outcome to buy"},
-                "amount": {"type": "number", "description": "Amount in USDC to spend"},
-                "order_type": {"type": "string", "description": "Order type: 'market' or 'limit'", "default": "market"},
-            },
-            "required": ["token_id", "amount"],
-        },
-    },
-    {
-        "name": "sell_polymarket",
-        "description": "Sell shares on a Polymarket prediction market.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "token_id": {"type": "string", "description": "The token ID for the outcome to sell"},
-                "amount": {"type": "number", "description": "Number of shares to sell"},
-            },
-            "required": ["token_id", "amount"],
-        },
-    },
-    {
-        "name": "get_polymarket_price",
-        "description": "Get the current price/odds for a specific Polymarket token.",
-        "parameters": {
-            "type": "object",
-            "properties": {"token_id": {"type": "string", "description": "Token ID to get price for"}},
-            "required": ["token_id"],
-        },
-    },
-    {
-        "name": "get_polymarket_orderbook",
-        "description": "Get the order book for a Polymarket token.",
-        "parameters": {
-            "type": "object",
-            "properties": {"token_id": {"type": "string", "description": "Token ID to get orderbook for"}},
-            "required": ["token_id"],
-        },
-    },
+    # ── Polymarket (HIDDEN — not production-tested yet) ──────
+    # Uncomment to re-enable. Scraper code lives in scrapers/polymarket.py
+    # {
+    #     "name": "search_polymarket",
+    #     ...
+    # },
+    # ... (7 tools hidden: search_polymarket, get_polymarket_markets,
+    #      get_polymarket_positions, buy_polymarket, sell_polymarket,
+    #      get_polymarket_price, get_polymarket_orderbook)
 
     # ── Aster DEX ─────────────────────────────────────────────
     {

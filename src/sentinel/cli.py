@@ -359,7 +359,7 @@ def detect_provider(key: str) -> str:
 @click.version_option(__version__, "-v", "-V", "--version", prog_name="sentinel")
 @click.pass_context
 def cli(ctx):
-    """Sentinel — AI trading terminal with 57 tools."""
+    """Sentinel — AI trading terminal with 50 tools."""
     if ctx.invoked_subcommand is None:
         # No subcommand → launch the interactive terminal with first-run onboarding
         _run_repl()
@@ -387,7 +387,7 @@ def _run_repl():
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]  [dim]v{version}[/]
-[dim]Autonomous AI Trading Terminal · 57 Tools · 3 Venues[/]
+[dim]Autonomous AI Trading Terminal · 50 Tools · 2 Venues[/]
 """.format(version=__version__)
         console.print(welcome_banner)
 
@@ -542,7 +542,7 @@ def _run_repl():
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]  [dim]v{version}[/]
-[dim]Autonomous AI Trading Terminal · 57 Tools · 3 Venues[/]
+[dim]Autonomous AI Trading Terminal · 50 Tools · 2 Venues[/]
 """.format(version=__version__)
 
     # ── Hand off to chat.py's full engine ────────────────────
