@@ -1927,10 +1927,11 @@ def _print_dashboard(config: dict, gateway_ok: bool):
                "[green]● Ready[/]" if aster_ok else "[yellow]○ Needs config[/]",
                "futures + orderbook + klines + leverage" + ("" if aster_ok else " · [dim]add aster[/]"))
 
-    pm_ok = config.get("polymarket_key") or os.environ.get("POLYMARKET_PRIVATE_KEY", "")
-    ds.add_row("🎲 Polymarket",
-               "[green]● Ready[/]" if pm_ok else "[yellow]○ Needs config[/]",
-               "browse + bet + positions + orders" + ("" if pm_ok else " · [dim]add polymarket[/]"))
+    # Polymarket: archived — re-enable when production-tested
+    # pm_ok = config.get("polymarket_key") or os.environ.get("POLYMARKET_PRIVATE_KEY", "")
+    # ds.add_row("🎲 Polymarket",
+    #            "[green]● Ready[/]" if pm_ok else "[yellow]○ Needs config[/]",
+    #            "browse + bet + positions + orders" + ("" if pm_ok else " · [dim]add polymarket[/]"))
 
     # Telegram + Discord: archived — re-enable when tested
     # tg_ok = config.get("tg_api_id") or os.environ.get("TELEGRAM_API_ID", "")
@@ -2115,7 +2116,7 @@ def run_chat(config: dict):
     exchanges = []
     if config.get("hyperliquid_wallet"): exchanges.append("Hyperliquid")
     if config.get("aster_api_key"): exchanges.append("Aster")
-    if config.get("polymarket_key"): exchanges.append("Polymarket")
+    # if config.get("polymarket_key"): exchanges.append("Polymarket")  # archived
     if exchanges:
         boot_stages.append(("⚡", "Connecting exchanges", " · ".join(exchanges), 0.25))
 
@@ -2297,7 +2298,7 @@ def run_chat(config: dict):
                 console.print()
                 console.print("  [bold cyan]Trading & Prediction Markets[/]")
                 console.print("  [s.cyan]add hl[/]            [s.dim]Hyperliquid perp futures[/]")
-                console.print("  [s.cyan]add polymarket[/]    [s.dim]Prediction markets[/]")
+                # console.print("  [s.cyan]add polymarket[/]    [s.dim]Prediction markets[/]")  # archived
                 console.print("  [s.cyan]add aster[/]         [s.dim]Aster DEX futures[/]")
                 console.print()
                 console.print("  [bold cyan]Data Sources[/]")
@@ -2489,11 +2490,11 @@ def run_chat(config: dict):
                 "aster_ticker", "aster_orderbook", "aster_klines", "aster_funding_rate",
                 "aster_exchange_info", "aster_balance", "aster_positions",
                 "aster_config", "aster_diagnose", "aster_ping",
-                # Polymarket
-                "get_polymarket_markets", "search_polymarket", "get_polymarket_orderbook",
-                "get_polymarket_price", "get_polymarket_positions", "buy_polymarket",
-                "sell_polymarket", "place_polymarket_limit", "cancel_polymarket_order",
-                "cancel_all_polymarket_orders",
+                # Polymarket — archived
+                # "get_polymarket_markets", "search_polymarket", "get_polymarket_orderbook",
+                # "get_polymarket_price", "get_polymarket_positions", "buy_polymarket",
+                # "sell_polymarket", "place_polymarket_limit", "cancel_polymarket_order",
+                # "cancel_all_polymarket_orders",
                 # Usage / Revenue
                 "get_usage_summary",
                 # Telegram

@@ -264,7 +264,7 @@ def _show_add_list():
     cmds.add_row("add elfa", "Elfa AI trending tokens + social")
     cmds.add_row("add hl", "Hyperliquid DEX trading")
     cmds.add_row("add aster", "Aster DEX futures trading")
-    cmds.add_row("add polymarket", "Prediction market trading")
+    # cmds.add_row("add polymarket", "Prediction market trading")  # archived
     cmds.add_row("add telegram", "Telegram Client (API ID + Hash)")
     cmds.add_row("add discord", "Discord bot integration")
     cmds.add_row("add tv", "TradingView webhook alerts")
