@@ -1927,12 +1927,10 @@ def _print_dashboard(config: dict, gateway_ok: bool):
                "[green]● Ready[/]" if aster_ok else "[yellow]○ Needs config[/]",
                "futures + orderbook + klines + leverage" + ("" if aster_ok else " · [dim]add aster[/]"))
 
-    # Polymarket: archived — re-enable when production-tested
-    # pm_ok = config.get("polymarket_key") or os.environ.get("POLYMARKET_PRIVATE_KEY", "")
-    # ds.add_row("🎲 Polymarket",
-    #            "[green]● Ready[/]" if pm_ok else "[yellow]○ Needs config[/]",
-    #            "browse + bet + positions + orders" + ("" if pm_ok else " · [dim]add polymarket[/]"))
-
+    pm_ok = config.get("polymarket_key") or os.environ.get("POLYMARKET_PRIVATE_KEY", "")
+    ds.add_row("🎲 Polymarket",
+               "[green]● Ready[/]" if pm_ok else "[yellow]○ Needs config[/]",
+               "browse + bet + positions + orders" + ("" if pm_ok else " · [dim]add polymarket[/]"))
     # Telegram + Discord: archived — re-enable when tested
     # tg_ok = config.get("tg_api_id") or os.environ.get("TELEGRAM_API_ID", "")
     # dc_ok = config.get("discord_token") or os.environ.get("DISCORD_BOT_TOKEN", "")
