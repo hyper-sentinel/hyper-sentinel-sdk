@@ -188,6 +188,33 @@ PROVIDER_ENDPOINTS = {
     "google": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
 }
 
+# ── Model Fallback Chains ─────────────────────────────────────
+# If the primary model is deprecated or unavailable, try the next one.
+# Order: best → cheaper → cheapest (always land somewhere)
+MODEL_FALLBACKS = {
+    "anthropic": [
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022",
+    ],
+    "openai": [
+        "gpt-4o",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4o-mini",
+    ],
+    "google": [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+    ],
+    "xai": [
+        "grok-2",
+        "grok-3",
+    ],
+}
+
 
 # ══════════════════════════════════════════════════════════════
 # Tool Schema Definitions (curated from SentinelClient methods)
@@ -794,7 +821,33 @@ def _track_llm_usage(resp_data: dict, provider: str, model: str):
         pass  # Usage tracking is best-effort — never block the user
 
 def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dict:
-    """Call Anthropic Messages API with tool support."""
+    """Call Anthropic Messages API with tool support and model fallback."""
+    fallbacks = MODEL_FALLBACKS.get("anthropic", [])
+    # Build model list: requested model first, then fallbacks (deduped)
+    models_to_try = [model] + [m for m in fallbacks if m != model]
+
+    for model_attempt in models_to_try:
+        result = _call_anthropic_single(ai_key, model_attempt, messages, tools)
+        # Check for model-specific errors that warrant a fallback
+        if "error" in result:
+            err_msg = str(result.get("error", ""))
+            if isinstance(result.get("error"), dict):
+                err_msg = result["error"].get("message", "") + " " + result["error"].get("type", "")
+            err_lower = err_msg.lower()
+            # Model deprecated, not found, or invalid — try next
+            if any(k in err_lower for k in ("not_found", "model_not_found", "deprecated",
+                                             "invalid_model", "does not exist", "not available",
+                                             "model not found", "retired")):
+                if model_attempt != models_to_try[-1]:
+                    next_model = models_to_try[models_to_try.index(model_attempt) + 1]
+                    console.print(f"  [yellow]⚠ Model '{model_attempt}' unavailable — falling back to '{next_model}'[/]")
+                    continue
+        return result
+    return result  # Return last error if all fallbacks exhausted
+
+
+def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list) -> dict:
+    """Call Anthropic Messages API — single model attempt."""
     headers = {
         "x-api-key": ai_key,
         "anthropic-version": "2023-06-01",
@@ -854,7 +907,45 @@ def _call_openai_compat(
     tools: list,
     endpoint: str,
 ) -> dict:
-    """Call OpenAI-compatible API (OpenAI, xAI, Google) with tool support."""
+    """Call OpenAI-compatible API with tool support and model fallback."""
+    # Detect provider for fallback chain
+    if "x.ai" in endpoint:
+        _prov = "xai"
+    elif "googleapis" in endpoint:
+        _prov = "google"
+    else:
+        _prov = "openai"
+
+    fallbacks = MODEL_FALLBACKS.get(_prov, [])
+    models_to_try = [model] + [m for m in fallbacks if m != model]
+
+    for model_attempt in models_to_try:
+        result = _call_openai_compat_single(ai_key, model_attempt, messages, tools, endpoint)
+        # Check for model-specific errors that warrant a fallback
+        if "error" in result:
+            err_msg = str(result.get("error", ""))
+            if isinstance(result.get("error"), dict):
+                err_msg = result["error"].get("message", "") + " " + result["error"].get("type", "") + " " + result["error"].get("code", "")
+            err_lower = err_msg.lower()
+            if any(k in err_lower for k in ("model_not_found", "not_found", "deprecated",
+                                             "invalid_model", "does not exist", "not available",
+                                             "model not found", "retired", "decommissioned")):
+                if model_attempt != models_to_try[-1]:
+                    next_model = models_to_try[models_to_try.index(model_attempt) + 1]
+                    console.print(f"  [yellow]⚠ Model '{model_attempt}' unavailable — falling back to '{next_model}'[/]")
+                    continue
+        return result
+    return result
+
+
+def _call_openai_compat_single(
+    ai_key: str,
+    model: str,
+    messages: list,
+    tools: list,
+    endpoint: str,
+) -> dict:
+    """Call OpenAI-compatible API — single model attempt."""
     # Google Gemini uses x-goog-api-key header, not Bearer token
     if "googleapis.com" in endpoint:
         headers = {
