@@ -24,28 +24,38 @@ from typing import Optional
 
 logger = logging.getLogger("sentinel.usage")
 
-# ── Cost per million tokens (as of March 2026) ──────────────────
+# ── Cost per million tokens (updated June 2026) ─────────────────
 # Format: {model_prefix: (input_cost_per_mtok, output_cost_per_mtok)}
 MODEL_COSTS = {
-    # Anthropic
-    "claude-sonnet-4-5":   (3.00, 15.00),
-    "claude-3-5-sonnet":   (3.00, 15.00),
-    "claude-3-5-haiku":    (0.80, 4.00),
-    "claude-3-haiku":      (0.25, 1.25),
-    "claude-3-opus":       (15.00, 75.00),
-    # OpenAI
-    "gpt-4o":              (5.00, 15.00),
+    # ── Anthropic ──────────────────────────────────────────────
+    "claude-opus-4":       (15.00, 75.00),   # claude-opus-4-20250514
+    "claude-sonnet-4-5":   (3.00, 15.00),    # claude-sonnet-4-5-20250514 (thinking)
+    "claude-sonnet-4":     (3.00, 15.00),    # claude-sonnet-4-20250514
+    "claude-3-5-sonnet":   (3.00, 15.00),    # claude-3-5-sonnet-20241022 (legacy)
+    "claude-3-5-haiku":    (0.80, 4.00),     # claude-3-5-haiku-20241022
+    "claude-3-opus":       (15.00, 75.00),   # claude-3-opus-20240229 (legacy)
+    "claude-3-haiku":      (0.25, 1.25),     # claude-3-haiku-20240307 (legacy)
+    # ── OpenAI ────────────────────────────────────────────────
+    "gpt-4.1":             (2.00, 8.00),     # flagship production model
+    "gpt-4.1-mini":        (0.40, 1.60),     # cost-efficient
+    "gpt-4.1-nano":        (0.10, 0.40),     # cheapest capable
+    "gpt-4o":              (2.50, 10.00),    # gpt-4o (updated pricing)
     "gpt-4o-mini":         (0.15, 0.60),
-    "gpt-4-turbo":         (10.00, 30.00),
-    "gpt-3.5-turbo":       (0.50, 1.50),
-    # Google
+    "gpt-4-turbo":         (10.00, 30.00),   # legacy
+    "o3":                  (2.00, 8.00),     # flagship reasoning
+    "o4-mini":             (1.10, 4.40),     # fast reasoning (math/code)
+    "o1":                  (15.00, 60.00),   # legacy reasoning
+    "o1-mini":             (1.10, 4.40),     # legacy reasoning mini
+    # ── Google Gemini ─────────────────────────────────────────
+    "gemini-2.5-pro":      (1.25, 10.00),   # latest pro (≤200K context)
+    "gemini-2.5-flash":    (0.30, 2.50),    # latest flash
     "gemini-2.0-flash":    (0.10, 0.40),
-    "gemini-1.5-pro":      (1.25, 5.00),
-    "gemini-1.5-flash":    (0.075, 0.30),
-    # xAI
+    "gemini-1.5-pro":      (1.25, 5.00),    # legacy
+    "gemini-1.5-flash":    (0.075, 0.30),   # legacy
+    # ── xAI ───────────────────────────────────────────────────
     "grok-2":              (2.00, 10.00),
-    "grok-beta":           (5.00, 15.00),
-    # Ollama (free / self-hosted)
+    "grok-3":              (3.00, 15.00),
+    # ── Self-hosted ───────────────────────────────────────────
     "ollama":              (0.00, 0.00),
 }
 
