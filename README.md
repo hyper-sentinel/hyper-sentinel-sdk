@@ -12,7 +12,7 @@
 
 # Hyper-Sentinel
 
-**AI trading terminal with 62+ tools.**
+**AI trading terminal with 57 tools.**
 
 One command. Every exchange. Every signal.
 
@@ -112,7 +112,7 @@ Type `add x`, `add y2`, `add elfa`, or `add eodhd` inside the terminal to connec
 | Command | What |
 |---------|------|
 | `status` | Connection health + account info |
-| `tools` | List all 62+ available tools |
+| `tools` | List all 57 available tools |
 | `add` | Configure exchanges & data sources |
 | `add ai` | Swap your LLM provider |
 | `help` | Show all commands |
