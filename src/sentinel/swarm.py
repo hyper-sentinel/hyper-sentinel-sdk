@@ -421,7 +421,7 @@ def _detect_model() -> str:
         key = os.getenv("ANTHROPIC_API_KEY", "") or os.getenv("LLM_API_KEY", "")
         if key:
             os.environ["ANTHROPIC_API_KEY"] = key
-        model = os.getenv("LLM_MODEL", "claude-sonnet-4-20250514")
+        model = os.getenv("LLM_MODEL", "claude-sonnet-4-6")
         return f"anthropic/{model}"
     elif provider in ("OPENAI", "GPT"):
         key = os.getenv("OPENAI_API_KEY", "") or os.getenv("LLM_API_KEY", "")
@@ -441,7 +441,7 @@ def _detect_model() -> str:
             os.environ["XAI_API_KEY"] = key
         model = os.getenv("LLM_MODEL", "grok-2")
         return f"xai/{model}"
-    return "anthropic/claude-sonnet-4-20250514"
+    return "anthropic/claude-sonnet-4-6"
 
 
 def _build_memory():

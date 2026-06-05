@@ -417,7 +417,7 @@ class SentinelClient:
         Args:
             message: Your message to the AI
             ai_key: Your AI provider API key (sk-ant-xxx, sk-xxx, AIza-xxx, xai-xxx)
-            model: Model name (e.g., 'claude-sonnet-4-20250514', 'gpt-4o')
+            model: Model name (e.g., 'claude-sonnet-4-6', 'gpt-4o')
             provider: Override auto-detection ('anthropic', 'openai', 'google', 'xai')
             system: Optional system prompt
             max_tokens: Max response tokens (0 = gateway default of 4096)

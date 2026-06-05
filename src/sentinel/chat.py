@@ -175,7 +175,7 @@ For quant analysis, ALWAYS use the run_stock_analysis tool to get comprehensive 
 # ══════════════════════════════════════════════════════════════
 
 DEFAULT_MODELS = {
-    "anthropic": "claude-sonnet-4-20250514",
+    "anthropic": "claude-sonnet-4-6",
     "openai": "gpt-4o",
     "xai": "grok-2",
     "google": "gemini-2.0-flash",
@@ -1714,7 +1714,7 @@ def _print_dashboard(config: dict, gateway_ok: bool):
     provider = config.get("ai_provider", "anthropic")
     ai_key = config.get("ai_key", "")
     detected = _detect_provider(ai_key) if ai_key else None
-    model = DEFAULT_MODELS.get(provider, "claude-sonnet-4-20250514")
+    model = DEFAULT_MODELS.get(provider, "claude-sonnet-4-6")
 
     # ── LLM confirmation line (matches Python folder) ─────────
     if detected:
@@ -1972,7 +1972,7 @@ def run_chat(config: dict):
     provider_label = detected[1] if detected else "UNKNOWN"
 
     boot_stages = [
-        ("🤖", "Authenticating LLM", f"{provider_label} → {DEFAULT_MODELS.get(provider, 'claude-sonnet-4-20250514')}", 0.3),
+        ("🤖", "Authenticating LLM", f"{provider_label} → {DEFAULT_MODELS.get(provider, 'claude-sonnet-4-6')}", 0.3),
         ("🔑", "Loading credentials", f"~/.sentinel/config", 0.2),
         ("🔧", "Initializing tool registry", f"{len(TOOL_SCHEMAS)} tools", 0.25),
         ("📡", "Bridging environment", f"{sum(1 for k in _CONFIG_TO_ENV if config.get(k))} services", 0.15),
@@ -2043,7 +2043,7 @@ def run_chat(config: dict):
     # ── Session state ─────────────────────────────────
     history: list[dict] = []
     tools = TOOL_SCHEMAS  # always provide schemas — lazy-register on first call
-    model_name = DEFAULT_MODELS.get(provider, "claude-sonnet-4-20250514")
+    model_name = DEFAULT_MODELS.get(provider, "claude-sonnet-4-6")
     tool_calls_total = 0
     start_session = time.time()
     gateway_registered = gateway_ok  # track if we've registered
@@ -2587,7 +2587,7 @@ def run_ask(config: dict, question: str):
     ai_key = config.get("ai_key", "")
     api_key = config.get("sentinel_api_key", "")
     provider = config.get("ai_provider", "anthropic")
-    model = DEFAULT_MODELS.get(provider, "claude-sonnet-4-20250514")
+    model = DEFAULT_MODELS.get(provider, "claude-sonnet-4-6")
 
     if not ai_key:
         console.print("  [s.error]✗ No AI key[/] — run [bold]sentinel-setup[/] first.\n")

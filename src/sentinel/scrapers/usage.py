@@ -30,7 +30,7 @@ MODEL_COSTS = {
     # ── Anthropic ──────────────────────────────────────────────
     "claude-opus-4":       (15.00, 75.00),   # claude-opus-4-20250514
     "claude-sonnet-4-5":   (3.00, 15.00),    # claude-sonnet-4-5-20250514 (thinking)
-    "claude-sonnet-4":     (3.00, 15.00),    # claude-sonnet-4-20250514
+    "claude-sonnet-4":     (3.00, 15.00),    # claude-sonnet-4-6 (current)
     "claude-3-5-sonnet":   (3.00, 15.00),    # claude-3-5-sonnet-20241022 (legacy)
     "claude-3-5-haiku":    (0.80, 4.00),     # claude-3-5-haiku-20241022
     "claude-3-opus":       (15.00, 75.00),   # claude-3-opus-20240229 (legacy)
