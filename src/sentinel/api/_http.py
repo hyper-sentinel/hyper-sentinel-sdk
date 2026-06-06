@@ -52,7 +52,10 @@ def save_api_key(key: str) -> None:
     """Save API key to ~/.sentinel/api_key."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(key)
-    CONFIG_FILE.chmod(0o600)  # Owner read/write only
+    try:
+        CONFIG_FILE.chmod(0o600)  # Owner read/write only
+    except OSError:
+        pass
 
 
 def _is_valid_ai_key(key: str) -> bool:
@@ -94,7 +97,10 @@ def save_ai_key(key: str) -> None:
     """Save AI provider key to ~/.sentinel/ai_key."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     AI_KEY_FILE.write_text(key)
-    AI_KEY_FILE.chmod(0o600)
+    try:
+        AI_KEY_FILE.chmod(0o600)
+    except OSError:
+        pass
 
 
 # ── HTTP Client ───────────────────────────────────────────────

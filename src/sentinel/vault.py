@@ -51,7 +51,10 @@ def save_secret_key(key: str) -> None:
     """
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     SECRET_FILE.write_text(key)
-    SECRET_FILE.chmod(0o600)
+    try:
+        SECRET_FILE.chmod(0o600)
+    except OSError:
+        pass
 
 
 class LocalVault:
@@ -135,7 +138,10 @@ class LocalVault:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         encrypted = self._encrypt(self._local_data)
         VAULT_FILE.write_text(encrypted)
-        VAULT_FILE.chmod(0o600)
+        try:
+            VAULT_FILE.chmod(0o600)
+        except OSError:
+            pass
 
     def _encrypt(self, data: Dict[str, str]) -> str:
         """Encrypt data using Fernet if available, else fallback.
