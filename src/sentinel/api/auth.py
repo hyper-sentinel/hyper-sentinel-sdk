@@ -58,7 +58,10 @@ def authenticate_with_ai_key(
             secret_file = CONFIG_DIR / "secret_key"
             CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             secret_file.write_text(secret_key)
-            secret_file.chmod(0o600)
+            try:
+                secret_file.chmod(0o600)
+            except OSError:
+                pass
 
         return sentinel_key, data
 

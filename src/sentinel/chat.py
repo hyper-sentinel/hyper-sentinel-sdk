@@ -1759,28 +1759,28 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
             except Exception as e:
                 return json.dumps({"error": str(e), "tool": tool_name})
 
-        # ── Polymarket (needs private key) ────────────────────────
-        if tool_name.startswith("polymarket_") or tool_name.startswith("get_polymarket_") or \
-           tool_name in ("buy_polymarket", "sell_polymarket", "search_polymarket",
-                         "place_polymarket_limit", "cancel_polymarket_order", "cancel_all_polymarket_orders"):
-            try:
-                from sentinel.scrapers import polymarket as pm
-                dispatch = {
-                    "get_polymarket_markets": lambda: pm.get_polymarket_markets(**args),
-                    "search_polymarket": lambda: pm.search_polymarket(**args),
-                    "get_polymarket_orderbook": lambda: pm.get_polymarket_orderbook(**args),
-                    "get_polymarket_price": lambda: pm.get_polymarket_price(**args),
-                    "get_polymarket_positions": lambda: pm.get_polymarket_positions(),
-                    "buy_polymarket": lambda: pm.buy_polymarket(**args),
-                    "sell_polymarket": lambda: pm.sell_polymarket(**args),
-                    "place_polymarket_limit": lambda: pm.place_polymarket_limit(**args),
-                    "cancel_polymarket_order": lambda: pm.cancel_polymarket_order(**args),
-                    "cancel_all_polymarket_orders": lambda: pm.cancel_all_polymarket_orders(),
-                }
-                if tool_name in dispatch:
-                    return json.dumps(dispatch[tool_name]())
-            except Exception as e:
-                return json.dumps({"error": str(e), "tool": tool_name})
+        # ── Polymarket — shelved until v0.7.7 (tools tested in sentinel-sdk-test) ──
+        # if tool_name.startswith("polymarket_") or tool_name.startswith("get_polymarket_") or \
+        #    tool_name in ("buy_polymarket", "sell_polymarket", "search_polymarket",
+        #                  "place_polymarket_limit", "cancel_polymarket_order", "cancel_all_polymarket_orders"):
+        #     try:
+        #         from sentinel.scrapers import polymarket as pm
+        #         dispatch = {
+        #             "get_polymarket_markets": lambda: pm.get_polymarket_markets(**args),
+        #             "search_polymarket": lambda: pm.search_polymarket(**args),
+        #             "get_polymarket_orderbook": lambda: pm.get_polymarket_orderbook(**args),
+        #             "get_polymarket_price": lambda: pm.get_polymarket_price(**args),
+        #             "get_polymarket_positions": lambda: pm.get_polymarket_positions(),
+        #             "buy_polymarket": lambda: pm.buy_polymarket(**args),
+        #             "sell_polymarket": lambda: pm.sell_polymarket(**args),
+        #             "place_polymarket_limit": lambda: pm.place_polymarket_limit(**args),
+        #             "cancel_polymarket_order": lambda: pm.cancel_polymarket_order(**args),
+        #             "cancel_all_polymarket_orders": lambda: pm.cancel_all_polymarket_orders(),
+        #         }
+        #         if tool_name in dispatch:
+        #             return json.dumps(dispatch[tool_name]())
+        #     except Exception as e:
+        #         return json.dumps({"error": str(e), "tool": tool_name})
 
         # ── Telegram (needs session) ──────────────────────────────
         if tool_name.startswith("tg_"):
@@ -1927,10 +1927,11 @@ def _print_dashboard(config: dict, gateway_ok: bool):
                "[green]● Ready[/]" if aster_ok else "[yellow]○ Needs config[/]",
                "futures + orderbook + klines + leverage" + ("" if aster_ok else " · [dim]add aster[/]"))
 
-    pm_ok = config.get("polymarket_key") or os.environ.get("POLYMARKET_PRIVATE_KEY", "")
-    ds.add_row("🎲 Polymarket",
-               "[green]● Ready[/]" if pm_ok else "[yellow]○ Needs config[/]",
-               "browse + bet + positions + orders" + ("" if pm_ok else " · [dim]add polymarket[/]"))
+    # Polymarket — shelved, coming in v0.7.7
+    # pm_ok = config.get("polymarket_key") or os.environ.get("POLYMARKET_PRIVATE_KEY", "")
+    # ds.add_row("🎲 Polymarket",
+    #            "[green]● Ready[/]" if pm_ok else "[yellow]○ Needs config[/]",
+    #            "browse + bet + positions + orders" + ("" if pm_ok else " · [dim]add polymarket[/]"))
     # Telegram + Discord: archived — re-enable when tested
     # tg_ok = config.get("tg_api_id") or os.environ.get("TELEGRAM_API_ID", "")
     # dc_ok = config.get("discord_token") or os.environ.get("DISCORD_BOT_TOKEN", "")
@@ -1968,7 +1969,7 @@ def _print_dashboard(config: dict, gateway_ok: bool):
             connected += 1
     if hl_ok: connected += 1
     if aster_ok: connected += 1
-    if pm_ok: connected += 1
+    # if pm_ok: connected += 1  # Polymarket shelved
     # tg/dc archived — uncomment when re-enabled
     # if tg_ok: connected += 1
     # if dc_ok: connected += 1

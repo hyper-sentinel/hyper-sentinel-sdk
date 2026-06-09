@@ -412,7 +412,7 @@ def _run_repl():
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]  [dim]v{version}[/]
-[dim]Autonomous AI Trading Terminal · 50 Tools · 2 Venues[/]
+[dim]Quantitative AI Agent · 54 Tools · Local-First[/]
 """.format(version=__version__)
         console.print(welcome_banner)
 
@@ -476,7 +476,10 @@ def _run_repl():
                 if secret_key:
                     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
                     SECRET_FILE.write_text(secret_key)
-                    SECRET_FILE.chmod(0o600)
+                    try:
+                        SECRET_FILE.chmod(0o600)
+                    except OSError:
+                        pass
 
                 # Save AI provider key for ChatResource.load_ai_key()
                 from sentinel.api._http import save_ai_key
@@ -567,7 +570,7 @@ def _run_repl():
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]  [dim]v{version}[/]
-[dim]Autonomous AI Trading Terminal · 50 Tools · 2 Venues[/]
+[dim]Quantitative AI Agent · 54 Tools · Local-First[/]
 """.format(version=__version__)
 
     # ── Hand off to chat.py's full engine ────────────────────
@@ -839,7 +842,10 @@ def save_secret_key(key: str):
     """Save secret key to ~/.sentinel/secret_key."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     SECRET_FILE.write_text(key)
-    SECRET_FILE.chmod(0o600)
+    try:
+        SECRET_FILE.chmod(0o600)
+    except OSError:
+        pass
 
 
 @vault.command(name="init")
