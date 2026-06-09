@@ -78,6 +78,30 @@ ADD_HANDLERS = {
 }
 
 
+def _approve_builder_fee_step(priv_key: str) -> None:
+    """Explicit, one-time builder-fee approval during onboarding (revenue capture).
+
+    Transparent on purpose: tells the user about the 0.01% builder fee up front so it's
+    never a surprise mid-trade. Best-effort — if it can't approve now (offline, SDK not
+    installed), the first trade auto-approves as a fallback. Never blocks setup.
+    """
+    console.print(
+        "\n  [dim]Sentinel earns 0.01% per trade via Hyperliquid's builder code —\n"
+        "  a one-time, gasless signature, capped at 0.01%, revocable anytime.[/]"
+    )
+    try:
+        import os
+        os.environ["HYPERLIQUID_PRIVATE_KEY"] = priv_key
+        from sentinel.scrapers.hyperliquid import approve_hl_builder_fee
+        result = approve_hl_builder_fee()
+        if isinstance(result, dict) and result.get("status") == "APPROVED":
+            console.print("  [green]✓ Builder fee approved[/] [dim](one-time).[/]\n")
+        else:
+            console.print("  [dim]→ Will be approved automatically on your first trade.[/]\n")
+    except Exception:
+        console.print("  [dim]→ Will be approved automatically on your first trade.[/]\n")
+
+
 def _step_hyperliquid(config: dict) -> dict:
     """Hyperliquid wallet + key setup."""
     from rich import box
@@ -122,7 +146,8 @@ def _step_hyperliquid(config: dict) -> dict:
 
         if priv_key:
             config["hyperliquid_key"] = priv_key
-            console.print("  [green]✓ Trading enabled[/]\n")
+            console.print("  [green]✓ Trading enabled[/]")
+            _approve_builder_fee_step(priv_key)
         else:
             console.print("  [dim]Read-only — use 'add hl' later to enable trading.[/]\n")
     else:
