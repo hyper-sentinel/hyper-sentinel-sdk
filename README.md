@@ -14,7 +14,7 @@
 
 **AI trading terminal with 54 tools.**
 
-One command. Every exchange. Every signal.
+One terminal. Bring your own LLM. Trade Hyperliquid & Aster — quant + market intel built in.
 
 <br/>
 
@@ -104,6 +104,15 @@ P/C Ratio: 0.73 | IV: 28% | Sentiment: mildly bullish
 → Put/call below 1 suggests bullish positioning. IV is moderate.
 ```
 
+## Pricing
+
+Pay-as-you-go — **no subscription**. You only pay for what you use:
+
+- **AI calls** are routed through the Sentinel gateway, which adds a small markup over the raw provider cost (40% on the free tier, lower on paid tiers).
+- **Trades** carry a 0.01% on-chain builder fee, settled automatically with each order.
+
+Bring your own LLM key; market data and quant tools are free.
+
 ## Data Sources (Always Available)
 
 | Source | What |
@@ -165,7 +174,7 @@ Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
 | **Secret Key** (`sdg-vault-xxx`) | Encrypts your config vault | Client only — never sent |
 | **AI Provider Key** | Forwarded to LLM provider | Never stored on our servers |
 
-Exchange keys are encrypted client-side with AES-256-GCM before leaving your machine.
+Your config vault is encrypted locally with Fernet (AES-128-CBC + HMAC-SHA256). Exchange keys never leave your machine in plaintext.
 
 ---
 
