@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyper-sentinel"
-version = "0.8.2"
+version = "0.8.3"
 description = "AI trading terminal — Hyperliquid, Aster DEX, CoinGecko, Yahoo Finance, FRED, quant analysis"
 readme = "README.md"
 license = "AGPL-3.0-only"

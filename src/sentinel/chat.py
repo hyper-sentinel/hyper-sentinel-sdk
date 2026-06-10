@@ -175,10 +175,10 @@ For quant analysis, ALWAYS use the run_stock_analysis tool to get comprehensive 
 # ══════════════════════════════════════════════════════════════
 
 DEFAULT_MODELS = {
-    "anthropic": "claude-sonnet-4-6",
-    "openai": "gpt-4o",
-    "xai": "grok-2",
-    "google": "gemini-2.0-flash",
+    "anthropic": "claude-sonnet-4-6",   # current; Opus 4.8 / Fable 5 available via fallbacks
+    "openai": "gpt-5.5",
+    "xai": "grok-4.3",
+    "google": "gemini-3.5-flash",
 }
 
 PROVIDER_ENDPOINTS = {
@@ -188,32 +188,44 @@ PROVIDER_ENDPOINTS = {
     "google": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
 }
 
-# ── Model Fallback Chains ─────────────────────────────────────
-# If the primary model is deprecated or unavailable, try the next one.
-# Order: best → cheaper → cheapest (always land somewhere)
-MODEL_FALLBACKS = {
+# ── Model Catalog ─────────────────────────────────────────────
+# Single source of truth: drives the `model` picker (per provider, in display
+# order) and the fallback chains (derived below). label + desc show in the picker.
+MODEL_CATALOG = {
     "anthropic": [
-        "claude-sonnet-4-6",
-        "claude-sonnet-4-5",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022",
+        {"id": "claude-sonnet-4-6", "label": "Sonnet 4.6", "desc": "balanced · $3/$15"},
+        {"id": "claude-opus-4-8",   "label": "Opus 4.8",   "desc": "most capable · $5/$25"},
+        {"id": "claude-fable-5",    "label": "Fable 5",    "desc": "most powerful · $10/$50"},
+        {"id": "claude-haiku-4-5",  "label": "Haiku 4.5",  "desc": "fastest · $1/$5"},
     ],
     "openai": [
-        "gpt-4o",
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4o-mini",
+        {"id": "gpt-5.5",      "label": "GPT-5.5",      "desc": "flagship"},
+        {"id": "gpt-5.4",      "label": "GPT-5.4",      "desc": "previous flagship"},
+        {"id": "gpt-5.4-mini", "label": "GPT-5.4 mini", "desc": "fast / cheap"},
     ],
     "google": [
-        "gemini-2.0-flash",
-        "gemini-2.5-flash",
-        "gemini-1.5-flash",
+        {"id": "gemini-3.5-flash",      "label": "Gemini 3.5 Flash",      "desc": "most intelligent, efficient"},
+        {"id": "gemini-3.1-pro",        "label": "Gemini 3.1 Pro",        "desc": "flagship reasoning"},
+        {"id": "gemini-3.1-flash-lite", "label": "Gemini 3.1 Flash-Lite", "desc": "budget, high-volume"},
     ],
     "xai": [
-        "grok-2",
-        "grok-3",
+        {"id": "grok-4.3",      "label": "Grok 4.3",      "desc": "flagship · $1.25/$2.50"},
+        {"id": "grok-4.1-fast", "label": "Grok 4.1 Fast", "desc": "fast / cheap"},
     ],
 }
+
+# Fallback chains, derived from the catalog so the two never drift. The caller tries
+# the chosen model first, then these in order — always lands on a valid model.
+MODEL_FALLBACKS = {p: [m["id"] for m in models] for p, models in MODEL_CATALOG.items()}
+
+
+def _resolve_model(config: dict, provider: str) -> str:
+    """Model to use: a saved per-user override (`config["model"]`) if it's valid for
+    this provider, otherwise the provider's default."""
+    saved = config.get("model")
+    if saved and any(m["id"] == saved for m in MODEL_CATALOG.get(provider, [])):
+        return saved
+    return DEFAULT_MODELS.get(provider, "claude-sonnet-4-6")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -913,19 +925,29 @@ def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list)
             return {"error": {"message": f"LLM call failed: {e}"}}
 
 
-def _call_anthropic_streamed(ai_key: str, model: str, messages: list, tools: list, on_token) -> dict:
-    """Stream an Anthropic call through the gateway (SSE), printing text tokens via
-    on_token(text) as they arrive. Reconstructs the same {content, stop_reason} dict
-    the agent loop expects (text blocks + tool_use blocks), so tool-calling still works.
+def _call_anthropic_streamed(ai_key: str, model: str, messages: list, tools: list) -> dict:
+    """Stream an Anthropic call through the gateway (SSE), showing a transient live
+    preview of the text as it generates (a rolling tail that auto-clears on exit).
+    The agent loop then renders the final answer in the themed Panel — so we get the
+    streaming feel AND the cohesive box.
 
-    Falls back to the non-streaming path on any failure, so streaming can never break
-    chat. The returned dict carries "_streamed": True so the loop skips its own panel.
+    Reconstructs the same {content, stop_reason} dict the loop expects (text + tool_use
+    blocks), so tool-calling still works. Falls back to non-streaming on any failure.
     """
+    from rich.live import Live
+    from rich.text import Text
+
     url, headers, body = _gateway_llm_request("anthropic", ai_key, model, messages, tools)
     text_parts: list[str] = []
     tool_blocks: list[dict] = []
     stop_reason = "end_turn"
     streamed_any = False
+
+    def _preview() -> Text:
+        # Show only the last ~12 lines so a long response never overflows the screen.
+        tail = "\n".join("".join(text_parts).splitlines()[-12:])
+        return Text("  " + tail.replace("\n", "\n  "), style="#6b8e8e")
+
     try:
         with httpx.stream(
             "POST", url + "?stream=true", headers=headers, json=body,
@@ -934,30 +956,31 @@ def _call_anthropic_streamed(ai_key: str, model: str, messages: list, tools: lis
             if resp.status_code != 200:
                 resp.read()
                 return _call_anthropic(ai_key, model, messages, tools)
-            for line in resp.iter_lines():
-                if not line or not line.startswith("data: "):
-                    continue
-                try:
-                    ev = json.loads(line[6:])
-                except (ValueError, Exception):
-                    continue
-                if ev.get("type") == "tool_use":
-                    tool_blocks.append({
-                        "type": "tool_use",
-                        "id": ev.get("id"),
-                        "name": ev.get("name"),
-                        "input": ev.get("input", {}),
-                    })
-                elif ev.get("done"):
-                    stop_reason = ev.get("stop_reason", "end_turn")
-                    _track_llm_usage({"usage": ev.get("usage", {})}, "anthropic", model)
-                    break
-                else:
-                    t = ev.get("text", "")
-                    if t:
-                        text_parts.append(t)
-                        streamed_any = True
-                        on_token(t)
+            with Live(console=console, refresh_per_second=12, transient=True) as live:
+                for line in resp.iter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    try:
+                        ev = json.loads(line[6:])
+                    except (ValueError, Exception):
+                        continue
+                    if ev.get("type") == "tool_use":
+                        tool_blocks.append({
+                            "type": "tool_use",
+                            "id": ev.get("id"),
+                            "name": ev.get("name"),
+                            "input": ev.get("input", {}),
+                        })
+                    elif ev.get("done"):
+                        stop_reason = ev.get("stop_reason", "end_turn")
+                        _track_llm_usage({"usage": ev.get("usage", {})}, "anthropic", model)
+                        break
+                    else:
+                        t = ev.get("text", "")
+                        if t:
+                            text_parts.append(t)
+                            streamed_any = True
+                            live.update(_preview())
     except Exception:
         # If nothing streamed yet, fall back cleanly to non-streaming.
         if not streamed_any and not tool_blocks:
@@ -1906,7 +1929,7 @@ def _print_dashboard(config: dict, gateway_ok: bool):
     provider = config.get("ai_provider", "anthropic")
     ai_key = config.get("ai_key", "")
     detected = _detect_provider(ai_key) if ai_key else None
-    model = DEFAULT_MODELS.get(provider, "claude-sonnet-4-6")
+    model = _resolve_model(config, provider)
 
     # ── LLM confirmation line (matches Python folder) ─────────
     if detected:
@@ -2038,7 +2061,7 @@ def _print_dashboard(config: dict, gateway_ok: bool):
     else:
         console.print(f"  [dim]{connected} data sources · Mode: [bold]SOLO (MarketAgent)[/] · Swarm: [yellow]pip install 'hyper-sentinel\\[swarm]'[/][/]")
     console.print()
-    console.print("  Type a question, or [bold]'help'[/] for commands.")
+    console.print("  Type a question · [bold]model[/] to switch AI model · [bold]'help'[/] for commands.")
     console.print()
 
 
@@ -2164,7 +2187,7 @@ def run_chat(config: dict):
     provider_label = detected[1] if detected else "UNKNOWN"
 
     boot_stages = [
-        ("🤖", "Authenticating LLM", f"{provider_label} → {DEFAULT_MODELS.get(provider, 'claude-sonnet-4-6')}", 0.3),
+        ("🤖", "Authenticating LLM", f"{provider_label} → {_resolve_model(config, provider)}", 0.3),
         ("🔑", "Loading credentials", f"~/.sentinel/config", 0.2),
         ("🔧", "Initializing tool registry", f"{len(TOOL_SCHEMAS)} tools", 0.25),
         ("📡", "Bridging environment", f"{sum(1 for k in _CONFIG_TO_ENV if config.get(k))} services", 0.15),
@@ -2235,7 +2258,7 @@ def run_chat(config: dict):
     # ── Session state ─────────────────────────────────
     history: list[dict] = []
     tools = TOOL_SCHEMAS  # always provide schemas — lazy-register on first call
-    model_name = DEFAULT_MODELS.get(provider, "claude-sonnet-4-6")
+    model_name = _resolve_model(config, provider)
     tool_calls_total = 0
     start_session = time.time()
     gateway_registered = gateway_ok  # track if we've registered
@@ -2305,6 +2328,52 @@ def run_chat(config: dict):
             _print_dashboard(config, gateway_ok)
             continue
 
+        if cmd == "model" or cmd.startswith("model "):
+            catalog = MODEL_CATALOG.get(provider, [])
+            parts = user_input.split(None, 1)
+            # Direct shortcut: `model <name>`
+            if len(parts) > 1 and parts[1].strip():
+                model_name = parts[1].strip()
+                config["model"] = model_name
+                _save_config(config)
+                console.print(f"\n  [green]✓ Model set to[/] [bold]{model_name}[/] [s.dim](saved as default)[/]\n")
+                continue
+            if not catalog:
+                console.print(f"\n  [s.dim]No model list for {provider}.[/]\n")
+                continue
+            # Interactive picker
+            console.print()
+            console.print(f"  [bold cyan]🤖 Select model[/] [s.dim]— {provider.upper()} (current: {model_name})[/]")
+            for i, m in enumerate(catalog, 1):
+                mark = "[green]✓[/]" if m["id"] == model_name else " "
+                console.print(f"  [s.cyan]{i}.[/] [bold]{m['label']:<16}[/] {mark} [s.dim]{m['desc']}[/]")
+            console.print('  [s.dim]Number → set as default · "N s" → this session only · Enter → cancel[/]')
+            console.print("[s.cyan.bold]  model →[/] ", end="")
+            try:
+                sel = input().strip()
+            except (EOFError, KeyboardInterrupt):
+                sel = ""
+            if not sel:
+                console.print("  [s.dim]Cancelled.[/]\n")
+                continue
+            session_only = sel.lower().endswith(" s")
+            num = sel[:-1].strip() if session_only else sel
+            try:
+                idx = int(num)
+                if not (1 <= idx <= len(catalog)):
+                    raise ValueError
+            except ValueError:
+                console.print("  [s.error]✗ Invalid selection[/]\n")
+                continue
+            model_name = catalog[idx - 1]["id"]
+            if session_only:
+                console.print(f"  [green]✓[/] Using [bold]{model_name}[/] [s.dim]for this session only[/]\n")
+            else:
+                config["model"] = model_name
+                _save_config(config)
+                console.print(f"  [green]✓[/] Default set to [bold]{model_name}[/] [s.dim](saved)[/]\n")
+            continue
+
         if cmd.startswith("add"):
             parts = cmd.split(None, 1)
             if len(parts) > 1:
@@ -2327,10 +2396,12 @@ def run_chat(config: dict):
                     if new_key:
                         detected = _detect_provider(new_key)
                         if detected:
-                            new_provider, new_model_default, provider_label = detected
+                            new_provider, provider_label = detected[0], detected[2]
                             ai_key = new_key
                             provider = new_provider
-                            model_name = DEFAULT_MODELS.get(new_provider, new_model_default)
+                            # New provider → drop any saved model override, use its default
+                            config.pop("model", None)
+                            model_name = DEFAULT_MODELS.get(new_provider, "claude-sonnet-4-6")
                             config["ai_key"] = ai_key
                             config["ai_provider"] = provider
                             # Reset gateway key so it re-registers with new AI key
@@ -2375,6 +2446,8 @@ def run_chat(config: dict):
             console.print("  [s.dim]Just type a question — the AI agent will call tools and respond.[/]")
             console.print()
             console.print("  [bold cyan]Configure[/]")
+            console.print("  [s.cyan]model[/]        [s.dim]Pick the AI model (e.g. Fable, Opus, Sonnet)[/]")
+            console.print("  [s.cyan]add ai[/]       [s.dim]Switch LLM provider / change your AI key[/]")
             console.print("  [s.cyan]add[/]          [s.dim]List available data sources & trading platforms[/]")
             console.print("  [s.cyan]add hl[/]       [s.dim]Configure Hyperliquid trading[/]")
             console.print("  [s.cyan]add fred[/]     [s.dim]Configure FRED economic data[/]")
@@ -2591,22 +2664,12 @@ def run_chat(config: dict):
                 session_titled = True
 
             response_text = None
-            streamed_final = False
 
             # First LLM call
             console.print("  [s.cyan]⏳ Sentinel thinking...[/]")
-            # Per-turn streaming printer: header once, then raw tokens live.
-            _stream_state = {"started": False}
-            def _emit(t):
-                if not _stream_state["started"]:
-                    console.print("  [bold #2a6e6e]🛡️ Sentinel[/]")
-                    console.file.write("  ")
-                    _stream_state["started"] = True
-                console.file.write(t)
-                console.file.flush()
             try:
                 if provider == "anthropic":
-                    llm_resp = _call_anthropic_streamed(ai_key, model_name, history, tools, _emit)
+                    llm_resp = _call_anthropic_streamed(ai_key, model_name, history, tools)
                 else:
                     endpoint = PROVIDER_ENDPOINTS.get(provider, PROVIDER_ENDPOINTS["openai"])
                     llm_resp = _call_openai_compat(ai_key, model_name, history, tools, endpoint)
@@ -2643,7 +2706,7 @@ def run_chat(config: dict):
                     iteration += 1
                     tool_uses = [b for b in content if b.get("type") == "tool_use"]
                     thinking = [b["text"] for b in content if b.get("type") == "text" and b.get("text", "").strip()]
-                    if thinking and not llm_resp.get("_streamed"):
+                    if thinking:
                         console.print(f"  [s.dim]{' '.join(thinking)}[/]")
 
                     # Execute tools
@@ -2667,7 +2730,7 @@ def run_chat(config: dict):
 
                     # Next LLM call
                     console.print("  [s.cyan]⏳ Sentinel analyzing...[/]")
-                    llm_resp = _call_anthropic_streamed(ai_key, model_name, history, tools, _emit)
+                    llm_resp = _call_anthropic_streamed(ai_key, model_name, history, tools)
 
                     if "error" in llm_resp:
                         err = llm_resp["error"]
@@ -2682,7 +2745,6 @@ def run_chat(config: dict):
 
                 # Extract final text
                 if response_text is None:
-                    streamed_final = llm_resp.get("_streamed", False)
                     response_text = "\n".join(
                         b["text"] for b in content if b.get("type") == "text"
                     ) or "(no response)"
@@ -2761,25 +2823,20 @@ def run_chat(config: dict):
             n_tools = len(tool_calls_this_turn)
             footer = f"[s.dim]{n_tools} tool{'s' if n_tools != 1 else ''} · {elapsed:.1f}s[/]"
 
-            if streamed_final:
-                # Already streamed live token-by-token — close with a newline + footer.
-                console.file.write("\n")
-                console.file.flush()
-                console.print(f"  {footer}")
-                console.print()
-            else:
-                console.print(Panel(
-                    _md_to_rich(response_text),
-                    title="[bold cyan]🛡️ Sentinel[/]",
-                    subtitle=footer,
-                    title_align="right",
-                    subtitle_align="right",
-                    border_style="#2a6e6e",
-                    box=box.ROUNDED,
-                    padding=(1, 3),
-                    expand=True,
-                ))
-                console.print()
+            # Same themed box for every provider (Claude streams a live preview first,
+            # which clears; gpt/grok/gemini render straight into the box).
+            console.print(Panel(
+                _md_to_rich(response_text),
+                title="[bold cyan]🛡️ Sentinel[/]",
+                subtitle=footer,
+                title_align="right",
+                subtitle_align="right",
+                border_style="#2a6e6e",
+                box=box.ROUNDED,
+                padding=(1, 3),
+                expand=True,
+            ))
+            console.print()
 
         except Exception as e:
             console.print(Panel(
@@ -2797,7 +2854,7 @@ def run_ask(config: dict, question: str):
     ai_key = config.get("ai_key", "")
     api_key = config.get("sentinel_api_key", "")
     provider = config.get("ai_provider", "anthropic")
-    model = DEFAULT_MODELS.get(provider, "claude-sonnet-4-6")
+    model = _resolve_model(config, provider)
 
     if not ai_key:
         console.print("  [s.error]✗ No AI key[/] — run [bold]sentinel-setup[/] first.\n")

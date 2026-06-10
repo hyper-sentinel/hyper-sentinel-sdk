@@ -14,7 +14,7 @@
 
 **AI trading terminal with 54 tools.**
 
-One terminal. Bring your own LLM. Trade Hyperliquid & Aster — quant + market intel built in.
+One terminal. Multi-LLM. Trade Hyperliquid & Aster — quant + market intel built in.
 
 <br/>
 
@@ -158,8 +158,9 @@ Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
 |---------|------|
 | `status` | Connection health + account info |
 | `tools` | List all 54 available tools |
+| `model` | Pick your AI model (Fable, Opus, Sonnet, GPT, Gemini, Grok…) |
 | `add` | Configure exchanges & data sources |
-| `add ai` | Swap your LLM provider |
+| `add ai` | Switch LLM provider / change your AI key |
 | `help` | Show all commands |
 | `quit` | Exit |
 | Anything else | Chat with the AI — it has all the tools |
