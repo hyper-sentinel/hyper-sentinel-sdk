@@ -37,6 +37,15 @@ CONFIG_FILE = CONFIG_DIR / "config"
 SECRET_FILE = CONFIG_DIR / "secret_key"
 
 
+def _tool_count() -> int:
+    """Live count of the SDK's tool schemas (single source of truth for the banner)."""
+    try:
+        from sentinel.chat import TOOL_SCHEMAS
+        return len(TOOL_SCHEMAS)
+    except Exception:
+        return 0
+
+
 # ══════════════════════════════════════════════════════════════
 # Config Helpers (restored from v0.3.16)
 # ══════════════════════════════════════════════════════════════
@@ -76,6 +85,30 @@ ADD_HANDLERS = {
     "tv":          ("📺 TradingView", "tradingview_secret", "webhook alerts for auto-trading", "https://tradingview.com"),
     "tradingview": ("📺 TradingView", "tradingview_secret", "webhook alerts for auto-trading", "https://tradingview.com"),
 }
+
+
+def _approve_builder_fee_step(priv_key: str) -> None:
+    """Explicit, one-time builder-fee approval during onboarding (revenue capture).
+
+    Transparent on purpose: tells the user about the 0.01% builder fee up front so it's
+    never a surprise mid-trade. Best-effort — if it can't approve now (offline, SDK not
+    installed), the first trade auto-approves as a fallback. Never blocks setup.
+    """
+    console.print(
+        "\n  [dim]Sentinel earns 0.01% per trade via Hyperliquid's builder code —\n"
+        "  a one-time, gasless signature, capped at 0.01%, revocable anytime.[/]"
+    )
+    try:
+        import os
+        os.environ["HYPERLIQUID_PRIVATE_KEY"] = priv_key
+        from sentinel.scrapers.hyperliquid import approve_hl_builder_fee
+        result = approve_hl_builder_fee()
+        if isinstance(result, dict) and result.get("status") == "APPROVED":
+            console.print("  [green]✓ Builder fee approved[/] [dim](one-time).[/]\n")
+        else:
+            console.print("  [dim]→ Will be approved automatically on your first trade.[/]\n")
+    except Exception:
+        console.print("  [dim]→ Will be approved automatically on your first trade.[/]\n")
 
 
 def _step_hyperliquid(config: dict) -> dict:
@@ -122,7 +155,8 @@ def _step_hyperliquid(config: dict) -> dict:
 
         if priv_key:
             config["hyperliquid_key"] = priv_key
-            console.print("  [green]✓ Trading enabled[/]\n")
+            console.print("  [green]✓ Trading enabled[/]")
+            _approve_builder_fee_step(priv_key)
         else:
             console.print("  [dim]Read-only — use 'add hl' later to enable trading.[/]\n")
     else:
@@ -359,7 +393,7 @@ def detect_provider(key: str) -> str:
 @click.version_option(__version__, "-v", "-V", "--version", prog_name="sentinel")
 @click.pass_context
 def cli(ctx):
-    """Sentinel — AI trading terminal with 54 tools."""
+    """Sentinel — AI trading terminal with quant + market tools."""
     if ctx.invoked_subcommand is None:
         # No subcommand → launch the interactive terminal with first-run onboarding
         _run_repl()
@@ -387,8 +421,8 @@ def _run_repl():
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]  [dim]v{version}[/]
-[dim]Quantitative AI Agent · 54 Tools · Local-First[/]
-""".format(version=__version__)
+[dim]Quantitative AI Agent · {n_tools} Tools · Local-First[/]
+""".format(version=__version__, n_tools=_tool_count())
         console.print(welcome_banner)
 
         welcome = Text()
@@ -545,8 +579,8 @@ def _run_repl():
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]  [dim]v{version}[/]
-[dim]Quantitative AI Agent · 54 Tools · Local-First[/]
-""".format(version=__version__)
+[dim]Quantitative AI Agent · {n_tools} Tools · Local-First[/]
+""".format(version=__version__, n_tools=_tool_count())
 
     # ── Hand off to chat.py's full engine ────────────────────
     # chat.py has the working REPL: 62 tool schemas, local tool execution,

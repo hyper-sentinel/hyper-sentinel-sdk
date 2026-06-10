@@ -44,7 +44,7 @@ SENTINEL_THEME = Theme({
 
 console = Console(theme=SENTINEL_THEME)
 
-GATEWAY_URL = "https://sentinel-api-4gqwf3cjxa-uc.a.run.app"
+GATEWAY_URL = "https://api.hyper-sentinel.com"
 
 SENTINEL_DIR = Path.home() / ".sentinel"
 CONFIG_FILE = SENTINEL_DIR / "config"
@@ -840,28 +840,40 @@ def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dic
     return result  # Return last error if all fallbacks exhausted
 
 
-def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list) -> dict:
-    """Call Anthropic Messages API — single model attempt."""
-    headers = {
-        "x-api-key": ai_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-    }
-    payload: dict[str, Any] = {
+def _gateway_llm_request(provider: str, ai_key: str, model: str, messages: list, tools: list):
+    """Build (url, headers, body) for a gateway-routed LLM call.
+
+    Routes through the Sentinel gateway (POST /api/v1/llm/chat) instead of hitting the
+    provider directly — so every call is metered + marked up (the 20% revenue rail). The
+    gateway proxies to the real provider with the user's BYOK key, extracts the
+    role:"system" message itself, and forwards `tools` (provider-native shape) unchanged.
+    """
+    from sentinel.api._http import load_api_key
+    sentinel_key = load_api_key() or ""
+    body: dict[str, Any] = {
         "model": model,
-        "max_tokens": 4096,
-        "messages": messages,
-        "system": SYSTEM_PROMPT,
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+        "ai_key": ai_key,
+        "provider": provider,
     }
     if tools:
-        payload["tools"] = _tools_for_anthropic(tools)
+        body["tools"] = _tools_for_anthropic(tools) if provider == "anthropic" else _tools_for_openai(tools)
+    headers = {"Content-Type": "application/json"}
+    if sentinel_key:
+        headers["X-API-Key"] = sentinel_key
+    return f"{GATEWAY_URL}/api/v1/llm/chat", headers, body
+
+
+def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list) -> dict:
+    """Call Anthropic via the Sentinel gateway — single model attempt."""
+    url, headers, payload = _gateway_llm_request("anthropic", ai_key, model, messages, tools)
 
     import time as _time
     last_err = ""
     for attempt in range(3):
         try:
             resp = httpx.post(
-                "https://api.anthropic.com/v1/messages",
+                url,
                 headers=headers,
                 json=payload,
                 timeout=httpx.Timeout(120.0, connect=15.0),
@@ -899,6 +911,65 @@ def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list)
             return {"error": {"message": f"Anthropic API timed out after 3 attempts. Try a simpler query or check your connection."}}
         except Exception as e:
             return {"error": {"message": f"LLM call failed: {e}"}}
+
+
+def _call_anthropic_streamed(ai_key: str, model: str, messages: list, tools: list, on_token) -> dict:
+    """Stream an Anthropic call through the gateway (SSE), printing text tokens via
+    on_token(text) as they arrive. Reconstructs the same {content, stop_reason} dict
+    the agent loop expects (text blocks + tool_use blocks), so tool-calling still works.
+
+    Falls back to the non-streaming path on any failure, so streaming can never break
+    chat. The returned dict carries "_streamed": True so the loop skips its own panel.
+    """
+    url, headers, body = _gateway_llm_request("anthropic", ai_key, model, messages, tools)
+    text_parts: list[str] = []
+    tool_blocks: list[dict] = []
+    stop_reason = "end_turn"
+    streamed_any = False
+    try:
+        with httpx.stream(
+            "POST", url + "?stream=true", headers=headers, json=body,
+            timeout=httpx.Timeout(180.0, connect=15.0),
+        ) as resp:
+            if resp.status_code != 200:
+                resp.read()
+                return _call_anthropic(ai_key, model, messages, tools)
+            for line in resp.iter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                try:
+                    ev = json.loads(line[6:])
+                except (ValueError, Exception):
+                    continue
+                if ev.get("type") == "tool_use":
+                    tool_blocks.append({
+                        "type": "tool_use",
+                        "id": ev.get("id"),
+                        "name": ev.get("name"),
+                        "input": ev.get("input", {}),
+                    })
+                elif ev.get("done"):
+                    stop_reason = ev.get("stop_reason", "end_turn")
+                    _track_llm_usage({"usage": ev.get("usage", {})}, "anthropic", model)
+                    break
+                else:
+                    t = ev.get("text", "")
+                    if t:
+                        text_parts.append(t)
+                        streamed_any = True
+                        on_token(t)
+    except Exception:
+        # If nothing streamed yet, fall back cleanly to non-streaming.
+        if not streamed_any and not tool_blocks:
+            return _call_anthropic(ai_key, model, messages, tools)
+        # Otherwise keep whatever streamed so far.
+
+    content: list[dict] = []
+    text = "".join(text_parts)
+    if text:
+        content.append({"type": "text", "text": text})
+    content.extend(tool_blocks)
+    return {"content": content, "stop_reason": stop_reason, "_streamed": True}
 
 
 def _call_openai_compat(
@@ -947,31 +1018,20 @@ def _call_openai_compat_single(
     endpoint: str,
 ) -> dict:
     """Call OpenAI-compatible API — single model attempt."""
-    # Google Gemini uses x-goog-api-key header, not Bearer token
-    if "googleapis.com" in endpoint:
-        headers = {
-            "x-goog-api-key": ai_key,
-            "Content-Type": "application/json",
-        }
+    # Derive provider from the (now legacy) endpoint hint, then route via the gateway.
+    if "x.ai" in endpoint:
+        _prov = "xai"
+    elif "googleapis" in endpoint:
+        _prov = "google"
     else:
-        headers = {
-            "Authorization": f"Bearer {ai_key}",
-            "Content-Type": "application/json",
-        }
-    all_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
-    payload: dict[str, Any] = {
-        "model": model,
-        "max_tokens": 4096,
-        "messages": all_messages,
-    }
-    if tools:
-        payload["tools"] = _tools_for_openai(tools)
+        _prov = "openai"
+    url, headers, payload = _gateway_llm_request(_prov, ai_key, model, messages, tools)
 
     import time as _time
     for attempt in range(3):
         try:
             resp = httpx.post(
-                endpoint,
+                url,
                 headers=headers,
                 json=payload,
                 timeout=httpx.Timeout(120.0, connect=15.0),
@@ -2531,12 +2591,22 @@ def run_chat(config: dict):
                 session_titled = True
 
             response_text = None
+            streamed_final = False
 
             # First LLM call
             console.print("  [s.cyan]⏳ Sentinel thinking...[/]")
+            # Per-turn streaming printer: header once, then raw tokens live.
+            _stream_state = {"started": False}
+            def _emit(t):
+                if not _stream_state["started"]:
+                    console.print("  [bold #2a6e6e]🛡️ Sentinel[/]")
+                    console.file.write("  ")
+                    _stream_state["started"] = True
+                console.file.write(t)
+                console.file.flush()
             try:
                 if provider == "anthropic":
-                    llm_resp = _call_anthropic(ai_key, model_name, history, tools)
+                    llm_resp = _call_anthropic_streamed(ai_key, model_name, history, tools, _emit)
                 else:
                     endpoint = PROVIDER_ENDPOINTS.get(provider, PROVIDER_ENDPOINTS["openai"])
                     llm_resp = _call_openai_compat(ai_key, model_name, history, tools, endpoint)
@@ -2573,7 +2643,7 @@ def run_chat(config: dict):
                     iteration += 1
                     tool_uses = [b for b in content if b.get("type") == "tool_use"]
                     thinking = [b["text"] for b in content if b.get("type") == "text" and b.get("text", "").strip()]
-                    if thinking:
+                    if thinking and not llm_resp.get("_streamed"):
                         console.print(f"  [s.dim]{' '.join(thinking)}[/]")
 
                     # Execute tools
@@ -2597,7 +2667,7 @@ def run_chat(config: dict):
 
                     # Next LLM call
                     console.print("  [s.cyan]⏳ Sentinel analyzing...[/]")
-                    llm_resp = _call_anthropic(ai_key, model_name, history, tools)
+                    llm_resp = _call_anthropic_streamed(ai_key, model_name, history, tools, _emit)
 
                     if "error" in llm_resp:
                         err = llm_resp["error"]
@@ -2612,6 +2682,7 @@ def run_chat(config: dict):
 
                 # Extract final text
                 if response_text is None:
+                    streamed_final = llm_resp.get("_streamed", False)
                     response_text = "\n".join(
                         b["text"] for b in content if b.get("type") == "text"
                     ) or "(no response)"
@@ -2685,25 +2756,30 @@ def run_chat(config: dict):
                     response_text = message.get("content", "(no response)")
                     history.append({"role": "assistant", "content": response_text})
 
-            # ── Display Response Panel ────────────────
+            # ── Display Response ──────────────────────
             elapsed = time.time() - t0
-            rich_text = _md_to_rich(response_text)
-
             n_tools = len(tool_calls_this_turn)
             footer = f"[s.dim]{n_tools} tool{'s' if n_tools != 1 else ''} · {elapsed:.1f}s[/]"
 
-            console.print(Panel(
-                rich_text,
-                title="[bold cyan]🛡️ Sentinel[/]",
-                subtitle=footer,
-                title_align="right",
-                subtitle_align="right",
-                border_style="#2a6e6e",
-                box=box.ROUNDED,
-                padding=(1, 3),
-                expand=True,
-            ))
-            console.print()
+            if streamed_final:
+                # Already streamed live token-by-token — close with a newline + footer.
+                console.file.write("\n")
+                console.file.flush()
+                console.print(f"  {footer}")
+                console.print()
+            else:
+                console.print(Panel(
+                    _md_to_rich(response_text),
+                    title="[bold cyan]🛡️ Sentinel[/]",
+                    subtitle=footer,
+                    title_align="right",
+                    subtitle_align="right",
+                    border_style="#2a6e6e",
+                    box=box.ROUNDED,
+                    padding=(1, 3),
+                    expand=True,
+                ))
+                console.print()
 
         except Exception as e:
             console.print(Panel(

@@ -30,6 +30,7 @@ from sentinel.api.resources.tools import ToolsResource
 from sentinel.api.resources.keys import KeysResource
 from sentinel.api.resources.vault import VaultResource
 from sentinel.api.resources.strategy import StrategyResource
+from sentinel.api.resources.memory import MemoryResource
 
 
 class SentinelAPI:
@@ -111,6 +112,7 @@ class SentinelAPI:
         self.keys = KeysResource(self._http)
         self.vault = VaultResource(self._http)
         self.strategy = StrategyResource(self._http)
+        self.memory = MemoryResource(self._http)
 
     # ── Convenience shortcuts ─────────────────────────────────
 
