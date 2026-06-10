@@ -37,6 +37,15 @@ CONFIG_FILE = CONFIG_DIR / "config"
 SECRET_FILE = CONFIG_DIR / "secret_key"
 
 
+def _tool_count() -> int:
+    """Live count of the SDK's tool schemas (single source of truth for the banner)."""
+    try:
+        from sentinel.chat import TOOL_SCHEMAS
+        return len(TOOL_SCHEMAS)
+    except Exception:
+        return 0
+
+
 # ══════════════════════════════════════════════════════════════
 # Config Helpers (restored from v0.3.16)
 # ══════════════════════════════════════════════════════════════
@@ -384,7 +393,7 @@ def detect_provider(key: str) -> str:
 @click.version_option(__version__, "-v", "-V", "--version", prog_name="sentinel")
 @click.pass_context
 def cli(ctx):
-    """Sentinel — AI trading terminal with 54 tools."""
+    """Sentinel — AI trading terminal with quant + market tools."""
     if ctx.invoked_subcommand is None:
         # No subcommand → launch the interactive terminal with first-run onboarding
         _run_repl()
@@ -412,8 +421,8 @@ def _run_repl():
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]  [dim]v{version}[/]
-[dim]Quantitative AI Agent · 54 Tools · Local-First[/]
-""".format(version=__version__)
+[dim]Quantitative AI Agent · {n_tools} Tools · Local-First[/]
+""".format(version=__version__, n_tools=_tool_count())
         console.print(welcome_banner)
 
         welcome = Text()
@@ -570,8 +579,8 @@ def _run_repl():
 [bold cyan]╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝[/]
 
 [bold white]S E N T I N E L[/]  [dim]v{version}[/]
-[dim]Quantitative AI Agent · 54 Tools · Local-First[/]
-""".format(version=__version__)
+[dim]Quantitative AI Agent · {n_tools} Tools · Local-First[/]
+""".format(version=__version__, n_tools=_tool_count())
 
     # ── Hand off to chat.py's full engine ────────────────────
     # chat.py has the working REPL: 62 tool schemas, local tool execution,

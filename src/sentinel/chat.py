@@ -44,7 +44,7 @@ SENTINEL_THEME = Theme({
 
 console = Console(theme=SENTINEL_THEME)
 
-GATEWAY_URL = "https://sentinel-api-4gqwf3cjxa-uc.a.run.app"
+GATEWAY_URL = "https://api.hyper-sentinel.com"
 
 SENTINEL_DIR = Path.home() / ".sentinel"
 CONFIG_FILE = SENTINEL_DIR / "config"
@@ -840,28 +840,40 @@ def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dic
     return result  # Return last error if all fallbacks exhausted
 
 
-def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list) -> dict:
-    """Call Anthropic Messages API — single model attempt."""
-    headers = {
-        "x-api-key": ai_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-    }
-    payload: dict[str, Any] = {
+def _gateway_llm_request(provider: str, ai_key: str, model: str, messages: list, tools: list):
+    """Build (url, headers, body) for a gateway-routed LLM call.
+
+    Routes through the Sentinel gateway (POST /api/v1/llm/chat) instead of hitting the
+    provider directly — so every call is metered + marked up (the 20% revenue rail). The
+    gateway proxies to the real provider with the user's BYOK key, extracts the
+    role:"system" message itself, and forwards `tools` (provider-native shape) unchanged.
+    """
+    from sentinel.api._http import load_api_key
+    sentinel_key = load_api_key() or ""
+    body: dict[str, Any] = {
         "model": model,
-        "max_tokens": 4096,
-        "messages": messages,
-        "system": SYSTEM_PROMPT,
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+        "ai_key": ai_key,
+        "provider": provider,
     }
     if tools:
-        payload["tools"] = _tools_for_anthropic(tools)
+        body["tools"] = _tools_for_anthropic(tools) if provider == "anthropic" else _tools_for_openai(tools)
+    headers = {"Content-Type": "application/json"}
+    if sentinel_key:
+        headers["X-API-Key"] = sentinel_key
+    return f"{GATEWAY_URL}/api/v1/llm/chat", headers, body
+
+
+def _call_anthropic_single(ai_key: str, model: str, messages: list, tools: list) -> dict:
+    """Call Anthropic via the Sentinel gateway — single model attempt."""
+    url, headers, payload = _gateway_llm_request("anthropic", ai_key, model, messages, tools)
 
     import time as _time
     last_err = ""
     for attempt in range(3):
         try:
             resp = httpx.post(
-                "https://api.anthropic.com/v1/messages",
+                url,
                 headers=headers,
                 json=payload,
                 timeout=httpx.Timeout(120.0, connect=15.0),
@@ -947,31 +959,20 @@ def _call_openai_compat_single(
     endpoint: str,
 ) -> dict:
     """Call OpenAI-compatible API — single model attempt."""
-    # Google Gemini uses x-goog-api-key header, not Bearer token
-    if "googleapis.com" in endpoint:
-        headers = {
-            "x-goog-api-key": ai_key,
-            "Content-Type": "application/json",
-        }
+    # Derive provider from the (now legacy) endpoint hint, then route via the gateway.
+    if "x.ai" in endpoint:
+        _prov = "xai"
+    elif "googleapis" in endpoint:
+        _prov = "google"
     else:
-        headers = {
-            "Authorization": f"Bearer {ai_key}",
-            "Content-Type": "application/json",
-        }
-    all_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
-    payload: dict[str, Any] = {
-        "model": model,
-        "max_tokens": 4096,
-        "messages": all_messages,
-    }
-    if tools:
-        payload["tools"] = _tools_for_openai(tools)
+        _prov = "openai"
+    url, headers, payload = _gateway_llm_request(_prov, ai_key, model, messages, tools)
 
     import time as _time
     for attempt in range(3):
         try:
             resp = httpx.post(
-                endpoint,
+                url,
                 headers=headers,
                 json=payload,
                 timeout=httpx.Timeout(120.0, connect=15.0),

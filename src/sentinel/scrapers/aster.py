@@ -56,6 +56,9 @@ _exchange_info_cache: dict = {}
 _exchange_info_ts: float = 0.0
 _CACHE_TTL = 300  # 5 minutes
 
+# Warn only once if sandbox guardrails are absent (standalone pip install)
+_GUARDRAILS_WARNED = False
+
 
 # ═══════════════════════════════════════════════════════════════
 # CORE UTILITIES
@@ -634,7 +637,19 @@ def aster_place_order(
                     "hint": "Trade rejected by sentinel guardrails",
                 }
     except ImportError:
-        pass  # Not running in sentinel mode — no guardrails
+        # Standalone (pip) install — sandbox guardrails aren't present. Warn ONCE
+        # so trades aren't silently unguarded, but don't spam on every order.
+        global _GUARDRAILS_WARNED
+        if not _GUARDRAILS_WARNED:
+            import warnings
+            warnings.warn(
+                "Aster guardrails not active in standalone mode — orders execute "
+                "without sentinel position/risk checks. Use the full Sentinel runtime "
+                "for guardrail enforcement.",
+                category=RuntimeWarning,
+                stacklevel=2,
+            )
+            _GUARDRAILS_WARNED = True
 
     s = _norm_symbol(symbol)
 

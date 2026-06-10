@@ -65,18 +65,55 @@ def _is_valid_ai_key(key: str) -> bool:
     return key.startswith(("sk-ant-", "sk-", "AIza", "xai-"))
 
 
+# AI keys are encrypted at rest with a Fernet key derived from the local
+# secret key (same scheme as LocalVault). Stored files are tagged with this
+# marker; anything without it is treated as legacy plaintext for back-compat.
+_AI_KEY_ENC_MARKER = "senc1:"
+
+
+def _ai_key_fernet():
+    """Build a Fernet from the local secret key, or None if unavailable.
+
+    Returns None when cryptography isn't installed or no secret key exists yet —
+    callers fall back to plaintext so a user is never locked out of their own key.
+    """
+    try:
+        import base64 as _b64
+        import hashlib as _hl
+        from cryptography.fernet import Fernet
+        from sentinel.vault import load_secret_key
+    except ImportError:
+        return None
+    secret = load_secret_key()
+    if not secret:
+        return None
+    derived = _hl.pbkdf2_hmac("sha256", secret.encode(), b"sentinel-vault", 100000)
+    return Fernet(_b64.urlsafe_b64encode(derived[:32]))
+
+
 def load_ai_key() -> Optional[str]:
     """Load saved AI provider key from ~/.sentinel/ai_key or ~/.sentinel/config.
 
     Checks two locations because different setup paths save the key differently:
-    - ~/.sentinel/ai_key (plaintext) — saved by save_ai_key()
+    - ~/.sentinel/ai_key (encrypted at rest, or legacy plaintext) — saved by save_ai_key()
     - ~/.sentinel/config (JSON with "ai_key" field) — saved by chat.py first-run setup
 
     Keys are validated for length and prefix to catch corrupted files.
     """
     # Check dedicated ai_key file first
     if AI_KEY_FILE.exists():
-        key = AI_KEY_FILE.read_text().strip()
+        raw = AI_KEY_FILE.read_text().strip()
+        key = raw
+        if raw.startswith(_AI_KEY_ENC_MARKER):
+            # Encrypted at rest — decrypt; on any failure fall through (never lock out)
+            f = _ai_key_fernet()
+            if f is not None:
+                try:
+                    key = f.decrypt(raw[len(_AI_KEY_ENC_MARKER):].encode()).decode().strip()
+                except Exception:
+                    key = ""
+            else:
+                key = ""
         if _is_valid_ai_key(key):
             return key
     # Fallback: check config JSON (chat.py stores ai_key here)
@@ -94,9 +131,19 @@ def load_ai_key() -> Optional[str]:
 
 
 def save_ai_key(key: str) -> None:
-    """Save AI provider key to ~/.sentinel/ai_key."""
+    """Save AI provider key to ~/.sentinel/ai_key, encrypted at rest when possible.
+
+    If a local secret key + cryptography are available, the key is Fernet-encrypted
+    and tagged with a marker. Otherwise it falls back to plaintext (0600) so onboarding
+    still works before the secret key exists. File perms are 0600 either way.
+    """
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    AI_KEY_FILE.write_text(key)
+    f = _ai_key_fernet()
+    if f is not None:
+        payload = _AI_KEY_ENC_MARKER + f.encrypt(key.encode()).decode()
+    else:
+        payload = key  # legacy plaintext fallback (no secret key yet)
+    AI_KEY_FILE.write_text(payload)
     try:
         AI_KEY_FILE.chmod(0o600)
     except OSError:
