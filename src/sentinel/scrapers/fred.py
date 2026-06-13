@@ -20,11 +20,16 @@ def _get_api_key() -> str:
     return key
 
 
-def get_fred_series(series_id: str, period: str = "1y") -> dict:
+def get_fred_series(series_id: str, period: str = "1y", limit: int = 10) -> dict:
     """
     Get a FRED data series by ID (e.g., 'GDP', 'CPIAUCSL', 'UNRATE', 'DFF').
 
     Returns the most recent observations and metadata.
+
+    Args:
+        series_id: FRED series ID (e.g. GDP, CPIAUCSL, UNRATE, FEDFUNDS)
+        period: Lookback period — 3m, 6m, 1y, 2y, 5y, 10y. Default: 1y
+        limit: Number of recent observations to return. Default: 10
     """
     api_key = _get_api_key()
 
@@ -66,7 +71,7 @@ def get_fred_series(series_id: str, period: str = "1y") -> dict:
         "latest_value": valid_obs[0]["value"] if valid_obs else None,
         "latest_date": valid_obs[0]["date"] if valid_obs else None,
         "observation_count": len(valid_obs),
-        "observations": valid_obs[:20],  # Most recent 20
+        "observations": valid_obs[:limit],
     }
 
 
@@ -117,31 +122,51 @@ ECONOMIC_INDICATORS = {
 }
 
 
+# Series where YoY% change is meaningful
+_YOY_SERIES = {"CPIAUCSL", "CPILFESL", "GDP", "GDPC1", "M2SL", "PAYEMS"}
+
+
 def get_economic_dashboard() -> list[dict]:
     """
     Get a snapshot of key US economic indicators.
 
     Returns the latest value for GDP, CPI, unemployment, fed funds rate,
-    Treasury yields, VIX, and more.
+    Treasury yields, VIX, and more. Includes YoY% change for CPI, GDP,
+    M2, and payrolls.
     """
     api_key = _get_api_key()
     results = []
 
     for series_id, description in ECONOMIC_INDICATORS.items():
         try:
+            # For YoY series, fetch enough history to compute % change
+            fetch_limit = 15 if series_id in _YOY_SERIES else 1
             resp = requests.get(f"{FRED_BASE_URL}/series/observations", params={
                 "api_key": api_key, "series_id": series_id, "file_type": "json",
-                "sort_order": "desc", "limit": 1,
+                "sort_order": "desc", "limit": fetch_limit,
             }, timeout=5)
             data = resp.json()
             obs = data.get("observations", [])
-            if obs and obs[0].get("value") and obs[0]["value"] != ".":
-                results.append({
+            valid = [o for o in obs if o.get("value") and o["value"] != "."]
+
+            if valid:
+                entry = {
                     "indicator": description,
                     "series_id": series_id,
-                    "value": float(obs[0]["value"]),
-                    "date": obs[0]["date"],
-                })
+                    "value": float(valid[0]["value"]),
+                    "date": valid[0]["date"],
+                }
+
+                # Compute YoY% for applicable series
+                if series_id in _YOY_SERIES and len(valid) >= 13:
+                    latest = float(valid[0]["value"])
+                    year_ago = float(valid[12]["value"])
+                    if year_ago != 0:
+                        entry["yoy_pct_change"] = round(
+                            (latest - year_ago) / year_ago * 100, 2
+                        )
+
+                results.append(entry)
             else:
                 results.append({
                     "indicator": description,
@@ -158,3 +183,82 @@ def get_economic_dashboard() -> list[dict]:
             })
 
     return results
+
+
+# ── Yield Curve ──────────────────────────────────────────────────
+
+YIELD_MATURITIES = {
+    "DGS3MO": "3-Month",
+    "DGS6MO": "6-Month",
+    "DGS1": "1-Year",
+    "DGS2": "2-Year",
+    "DGS5": "5-Year",
+    "DGS7": "7-Year",
+    "DGS10": "10-Year",
+    "DGS20": "20-Year",
+    "DGS30": "30-Year",
+}
+
+
+def get_yield_curve() -> dict:
+    """Get the full US Treasury yield curve with spreads and inversion status.
+
+    Returns yields for 3M through 30Y, key spreads (10Y-2Y, 10Y-3M, 30Y-2Y),
+    and whether the curve is normal, inverted, or flat.
+    """
+    api_key = _get_api_key()
+    curve = {}
+
+    for series_id, label in YIELD_MATURITIES.items():
+        try:
+            resp = requests.get(f"{FRED_BASE_URL}/series/observations", params={
+                "api_key": api_key, "series_id": series_id, "file_type": "json",
+                "sort_order": "desc", "limit": 1,
+            }, timeout=5)
+            obs = resp.json().get("observations", [])
+            if obs and obs[0].get("value") and obs[0]["value"] != ".":
+                curve[label] = {
+                    "yield_pct": float(obs[0]["value"]),
+                    "date": obs[0]["date"],
+                    "series_id": series_id,
+                }
+        except Exception:
+            pass
+
+    # Compute key spreads
+    spreads = {}
+    y10 = curve.get("10-Year", {}).get("yield_pct")
+    y2 = curve.get("2-Year", {}).get("yield_pct")
+    y3m = curve.get("3-Month", {}).get("yield_pct")
+    y30 = curve.get("30-Year", {}).get("yield_pct")
+
+    if y10 is not None and y2 is not None:
+        spreads["10Y_minus_2Y"] = round(y10 - y2, 2)
+    if y10 is not None and y3m is not None:
+        spreads["10Y_minus_3M"] = round(y10 - y3m, 2)
+    if y30 is not None and y2 is not None:
+        spreads["30Y_minus_2Y"] = round(y30 - y2, 2)
+
+    # Determine curve shape
+    spread_10y2y = spreads.get("10Y_minus_2Y")
+    if spread_10y2y is not None:
+        if spread_10y2y > 0.10:
+            shape = "normal"
+        elif spread_10y2y < -0.10:
+            shape = "inverted"
+        else:
+            shape = "flat"
+    else:
+        shape = "unknown"
+
+    return {
+        "curve": curve,
+        "spreads": spreads,
+        "shape": shape,
+        "shape_description": {
+            "normal": "Positively sloped — long-term rates above short-term. Healthy economy signal.",
+            "inverted": "Negatively sloped — short-term rates above long-term. Historically precedes recessions.",
+            "flat": "Minimal spread between short and long maturities. Transition or uncertainty signal.",
+            "unknown": "Insufficient data to determine curve shape.",
+        }.get(shape, ""),
+    }

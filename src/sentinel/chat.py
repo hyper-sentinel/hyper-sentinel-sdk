@@ -130,7 +130,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.8.4 | Build: June 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.8.5 | Build: June 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -339,7 +339,8 @@ TOOL_SCHEMAS = [
             "type": "object",
             "properties": {
                 "series_id": {"type": "string", "description": "FRED series ID (e.g. GDP, CPIAUCSL, UNRATE, FEDFUNDS)"},
-                "limit": {"type": "integer", "description": "Number of recent observations", "default": 10},
+                "period": {"type": "string", "description": "Lookback period — 3m, 6m, 1y, 2y, 5y, 10y. Default: 1y"},
+                "limit": {"type": "integer", "description": "Number of recent observations to return", "default": 10},
             },
             "required": ["series_id"],
         },
@@ -355,7 +356,12 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "get_economic_dashboard",
-        "description": "Get a snapshot of key economic indicators: GDP, CPI, unemployment, fed funds rate, 10yr yield.",
+        "description": "Get a snapshot of key economic indicators: GDP, CPI, unemployment, fed funds rate, 10yr yield. Includes YoY% change for CPI, GDP, M2, and payrolls.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_yield_curve",
+        "description": "Get the full US Treasury yield curve — 3M through 30Y yields, key spreads (10Y-2Y, 10Y-3M, 30Y-2Y), and inversion status (normal/inverted/flat). One-call macro snapshot.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
 
@@ -1785,7 +1791,7 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                 return json.dumps({"error": str(e), "tool": tool_name})
 
         # ── FRED (needs API key from config) ──────────────────────
-        if tool_name in ("get_fred_series", "search_fred", "get_economic_dashboard"):
+        if tool_name in ("get_fred_series", "search_fred", "get_economic_dashboard", "get_yield_curve"):
             try:
                 from sentinel.scrapers import fred
                 if tool_name == "get_fred_series":
@@ -1794,6 +1800,8 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                     return json.dumps(fred.search_fred(**args))
                 elif tool_name == "get_economic_dashboard":
                     return json.dumps(fred.get_economic_dashboard())
+                elif tool_name == "get_yield_curve":
+                    return json.dumps(fred.get_yield_curve())
             except Exception as e:
                 return json.dumps({"error": str(e), "tool": tool_name})
 
