@@ -64,7 +64,7 @@ def test_stationarity(series: pd.Series) -> dict:
         return {
             "adf_statistic": round(float(adf_stat), 4),
             "adf_pvalue": round(float(adf_p), 6),
-            "is_stationary": is_stationary,
+            "is_stationary": bool(is_stationary),
             "interpretation": interpretation,
         }
     except Exception as e:

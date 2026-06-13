@@ -50,7 +50,7 @@ def klines_to_df(
         return _klines_aster(symbol, interval, limit)
     else:
         # Both "hl" and "tradfi" use YFinance
-        return _klines_yfinance(symbol, interval, limit)
+        return _klines_yfinance(symbol, interval, limit, venue=venue)
 
 
 def _klines_aster(symbol: str, interval: str, limit: int) -> Optional[pd.DataFrame]:
@@ -80,11 +80,12 @@ def _klines_aster(symbol: str, interval: str, limit: int) -> Optional[pd.DataFra
     return df
 
 
-def _klines_yfinance(symbol: str, interval: str, limit: int) -> Optional[pd.DataFrame]:
+def _klines_yfinance(symbol: str, interval: str, limit: int, venue: str = "hl") -> Optional[pd.DataFrame]:
     """
     Fetch klines via YFinance — used for Hyperliquid and TradFi.
 
     Maps coin names (ETH, BTC, GOLD) to YFinance tickers (ETH-USD, BTC-USD, GC=F).
+    When venue='tradfi', stock tickers (AAPL, TSLA, LULU) pass through as-is.
     """
     try:
         import yfinance as yf
@@ -93,7 +94,7 @@ def _klines_yfinance(symbol: str, interval: str, limit: int) -> Optional[pd.Data
         return None
 
     # Map to YFinance ticker
-    yf_symbol = _map_to_yfinance(symbol)
+    yf_symbol = _map_to_yfinance(symbol, venue=venue)
 
     # Map interval string to (yfinance_interval, period)
     interval_map = {
@@ -152,19 +153,28 @@ _TRADFI_YF_MAP = {
 }
 
 
-def _map_to_yfinance(symbol: str) -> str:
-    """Map a Sentinel symbol to a YFinance ticker."""
+def _map_to_yfinance(symbol: str, venue: str = "hl") -> str:
+    """Map a Sentinel symbol to a YFinance ticker.
+
+    When venue='tradfi', stock tickers (AAPL, TSLA, LULU) pass through as-is.
+    When venue='hl' (default), bare symbols get '-USD' appended (crypto format).
+    """
     clean = symbol.upper().replace("XYZ:", "").strip()
 
-    # Check TradFi map
+    # Check TradFi map (commodities, indices, forex)
     if clean in _TRADFI_YF_MAP:
         return _TRADFI_YF_MAP[clean]
 
-    # Crypto: append -USD if needed
-    if not clean.endswith("-USD") and not clean.endswith("USDT"):
-        return f"{clean}-USD"
+    # Already has a YFinance suffix — use as-is
+    if clean.endswith("-USD") or clean.endswith("USDT") or "=" in clean or clean.startswith("^"):
+        return clean
 
-    return clean
+    # TradFi venue: stock tickers work directly in YFinance (AAPL, TSLA, LULU)
+    if venue == "tradfi":
+        return clean
+
+    # Default (hl/aster): assume crypto, append -USD
+    return f"{clean}-USD"
 
 
 # ══════════════════════════════════════════════════════════════════════
