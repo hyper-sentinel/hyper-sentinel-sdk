@@ -5,7 +5,8 @@ The brain that turns the SDK from a REST client into an AI agent.
 Sends user questions to an LLM with tool schemas; when the LLM requests
 tool calls, executes them on the Go gateway and feeds results back.
 
-Supports: Anthropic (Claude), OpenAI (GPT), xAI (Grok), Google (Gemini).
+Supports: Anthropic (Claude), OpenAI (GPT), xAI (Grok), Google (Gemini),
+         DeepSeek, Zhipu AI (GLM), Minimax, Moonshot (Kimi).
 
 Usage:
     sentinel chat          # interactive REPL
@@ -75,20 +76,77 @@ def _make_banner() -> str:
 # Config Helpers
 # ══════════════════════════════════════════════════════════════
 
+# Unambiguous key prefixes — checked first, no probing needed.
 KEY_PREFIXES = {
     "sk-ant-":  ("anthropic", "CLAUDE",  "Anthropic (Claude)",  "🟣"),
     "sk-proj-": ("openai",    "OPENAI",  "OpenAI (GPT)",        "🟢"),
-    "sk-":      ("openai",    "OPENAI",  "OpenAI (GPT)",        "🟢"),
     "AIza":     ("google",    "GEMINI",  "Google (Gemini)",     "🔵"),
     "xai-":     ("xai",       "GROK",    "xAI (Grok)",          "⚫"),
 }
 
+# GLM keys have a unique format: 32-char hex DOT 16-char alnum.
+_GLM_KEY_RE = re.compile(r'^[a-f0-9]{32}\.[A-Za-z0-9]{16}$')
+
+# Labels for providers whose keys share the sk- prefix (ambiguous).
+_SK_PROVIDER_LABELS = {
+    "openai":   ("openai",   "OPENAI",   "OpenAI (GPT)",       "🟢"),
+    "deepseek": ("deepseek", "DEEPSEEK", "DeepSeek",           "🟠"),
+    "minimax":  ("minimax",  "MINIMAX",  "Minimax",            "🟡"),
+    "moonshot": ("moonshot", "MOONSHOT", "Moonshot (Kimi)",    "🟤"),
+}
+
+
+def _probe_sk_provider(key: str) -> str:
+    """Resolve ambiguous sk- keys by probing each provider's /models endpoint.
+
+    Fires a lightweight GET against each candidate; the first non-401 wins.
+    Result is cached in config so the probe only runs once per key.
+    """
+    config = _load_config()
+    cached = config.get("provider_override")
+    if cached:
+        return cached
+
+    candidates = [
+        ("openai",   "https://api.openai.com/v1/models"),
+        ("deepseek", "https://api.deepseek.com/models"),
+        ("minimax",  "https://api.minimax.io/v1/models"),
+        ("moonshot", "https://api.moonshot.ai/v1/models"),
+    ]
+    for provider_id, url in candidates:
+        try:
+            resp = httpx.get(url, headers={"Authorization": f"Bearer {key}"}, timeout=3)
+            if resp.status_code != 401:
+                config["provider_override"] = provider_id
+                _save_config(config)
+                return provider_id
+        except Exception:
+            continue
+    return "openai"  # safe fallback
+
 
 def _detect_provider(key: str):
-    """Detect LLM provider from API key prefix."""
+    """Detect LLM provider from API key prefix.
+
+    Detection order:
+    1. GLM unique pattern ([hex32].[alnum16]) — no collision possible.
+    2. Unambiguous prefixes (sk-ant-, sk-proj-, AIza, xai-).
+    3. Generic sk- → silent endpoint probe (cached after first run).
+    """
+    # 1. GLM unique key format
+    if _GLM_KEY_RE.match(key):
+        return ("zhipu", "GLM", "Zhipu AI (GLM)", "🔴")
+
+    # 2. Unambiguous prefixes
     for prefix, info in KEY_PREFIXES.items():
         if key.startswith(prefix):
-            return info  # (provider_id, short_label, full_label, emoji)
+            return info
+
+    # 3. Ambiguous sk- → probe
+    if key.startswith("sk-"):
+        provider_id = _probe_sk_provider(key)
+        return _SK_PROVIDER_LABELS.get(provider_id, _SK_PROVIDER_LABELS["openai"])
+
     return None
 
 
@@ -190,6 +248,11 @@ DEFAULT_MODELS = {
     "openai": "gpt-5.5",
     "xai": "grok-4.3",
     "google": "gemini-3.5-flash",
+    # ── Chinese / open-source providers ──
+    "deepseek": "deepseek-v4-pro",
+    "zhipu":    "glm-5.2",
+    "minimax":  "minimax-m3",
+    "moonshot": "kimi-k2.7-code",
 }
 
 PROVIDER_ENDPOINTS = {
@@ -197,6 +260,11 @@ PROVIDER_ENDPOINTS = {
     "openai": "https://api.openai.com/v1/chat/completions",
     "xai": "https://api.x.ai/v1/chat/completions",
     "google": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    # ── Chinese / open-source providers ──
+    "deepseek": "https://api.deepseek.com/chat/completions",
+    "zhipu":    "https://api.z.ai/api/paas/v4/chat/completions",
+    "minimax":  "https://api.minimax.io/v1/chat/completions",
+    "moonshot": "https://api.moonshot.ai/v1/chat/completions",
 }
 
 # ── Model Catalog ─────────────────────────────────────────────
@@ -222,6 +290,20 @@ MODEL_CATALOG = {
     "xai": [
         {"id": "grok-4.3",      "label": "Grok 4.3",      "desc": "flagship · $1.25/$2.50"},
         {"id": "grok-4.1-fast", "label": "Grok 4.1 Fast", "desc": "fast / cheap"},
+    ],
+    # ── Chinese / open-source providers ──
+    "deepseek": [
+        {"id": "deepseek-v4-pro",   "label": "DeepSeek V4 Pro",   "desc": "1.6T · strongest open-source"},
+        {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "desc": "284B · fast / cheap"},
+    ],
+    "zhipu": [
+        {"id": "glm-5.2", "label": "GLM 5.2", "desc": "1M context · Zhipu AI"},
+    ],
+    "minimax": [
+        {"id": "minimax-m3", "label": "Minimax M3", "desc": "agentic · reasoning"},
+    ],
+    "moonshot": [
+        {"id": "kimi-k2.7-code", "label": "Kimi K2.7", "desc": "code + agentic · Moonshot AI"},
     ],
 }
 
@@ -1055,7 +1137,7 @@ def _track_llm_usage(resp_data: dict, provider: str, model: str):
         if provider == "anthropic":
             u = resp_data.get("usage", {})
             inp, out = u.get("input_tokens", 0), u.get("output_tokens", 0)
-        elif provider in ("openai", "xai"):
+        elif provider in ("openai", "xai", "deepseek", "minimax", "moonshot", "zhipu"):
             u = resp_data.get("usage", {})
             inp, out = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
         elif provider == "google":
@@ -1095,6 +1177,19 @@ def _call_anthropic(ai_key: str, model: str, messages: list, tools: list) -> dic
                     continue
         return result
     return result  # Return last error if all fallbacks exhausted
+
+
+def _provider_from_endpoint(endpoint: str) -> str:
+    """Resolve a provider endpoint URL to its provider ID."""
+    # Build reverse lookup from PROVIDER_ENDPOINTS (skip anthropic — different path)
+    for prov, url in PROVIDER_ENDPOINTS.items():
+        if prov == "anthropic":
+            continue
+        # Match on the domain portion of the URL
+        domain = url.split("//")[1].split("/")[0] if "//" in url else ""
+        if domain and domain in endpoint:
+            return prov
+    return "openai"  # safe fallback
 
 
 def _gateway_llm_request(provider: str, ai_key: str, model: str, messages: list, tools: list):
@@ -1249,12 +1344,7 @@ def _call_openai_compat(
 ) -> dict:
     """Call OpenAI-compatible API with tool support and model fallback."""
     # Detect provider for fallback chain
-    if "x.ai" in endpoint:
-        _prov = "xai"
-    elif "googleapis" in endpoint:
-        _prov = "google"
-    else:
-        _prov = "openai"
+    _prov = _provider_from_endpoint(endpoint)
 
     fallbacks = MODEL_FALLBACKS.get(_prov, [])
     models_to_try = [model] + [m for m in fallbacks if m != model]
@@ -1286,13 +1376,8 @@ def _call_openai_compat_single(
     endpoint: str,
 ) -> dict:
     """Call OpenAI-compatible API — single model attempt."""
-    # Derive provider from the (now legacy) endpoint hint, then route via the gateway.
-    if "x.ai" in endpoint:
-        _prov = "xai"
-    elif "googleapis" in endpoint:
-        _prov = "google"
-    else:
-        _prov = "openai"
+    # Derive provider from the endpoint, then route via the gateway.
+    _prov = _provider_from_endpoint(endpoint)
     url, headers, payload = _gateway_llm_request(_prov, ai_key, model, messages, tools)
 
     import time as _time
@@ -1310,11 +1395,7 @@ def _call_openai_compat_single(
             try:
                 data = resp.json()
                 # Detect provider from endpoint for tracking
-                _prov = "openai"
-                if "x.ai" in endpoint:
-                    _prov = "xai"
-                elif "googleapis" in endpoint:
-                    _prov = "google"
+                _prov = _provider_from_endpoint(endpoint)
                 _track_llm_usage(data, _prov, model)
                 return data
             except (ValueError, Exception):
@@ -3036,11 +3117,18 @@ def run_chat(config: dict):
                         response_text = "⚠ Response time limit reached. Try a simpler query."
                         break
                     iteration += 1
-                    history.append({
+                    assistant_entry = {
                         "role": "assistant",
                         "content": message.get("content"),
                         "tool_calls": message["tool_calls"],
-                    })
+                    }
+                    # Preserve reasoning fields for Chinese providers (DeepSeek, Kimi, Minimax).
+                    # These providers require reasoning context in subsequent turns or they 400.
+                    if message.get("reasoning_content"):
+                        assistant_entry["reasoning_content"] = message["reasoning_content"]
+                    if message.get("reasoning_details"):
+                        assistant_entry["reasoning_details"] = message["reasoning_details"]
+                    history.append(assistant_entry)
                     for tc in message["tool_calls"]:
                         func = tc.get("function", {})
                         name = func.get("name", "?")
