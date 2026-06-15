@@ -102,6 +102,21 @@ Trend: up (R²=0.72) | Regime: trending_up | Top signal: RSI
 > What's the put/call ratio on AAPL?
 P/C Ratio: 0.73 | IV: 28% | Sentiment: mildly bullish
 → Put/call below 1 suggests bullish positioning. IV is moderate.
+
+> Give me options data on LULU for Jan 2028
+[calls get_options_expirations → discovers 2028-01-21]
+[calls get_options_chain → LEAPS with Greeks]
+
+LULU Options — Jan 2028 LEAPS (585 DTE) | $116.74
+
+| Strike  | Bid/Ask       | Delta | IV    | OI    |
+|---------|---------------|-------|-------|-------|
+| 115 ITM | 33.65 / 35.45 | 0.69  | 58.8% | 302   |
+| 120     | 31.30 / 32.75 | 0.66  | 57.5% | 402   |
+| 130     | 28.35 / 29.55 | 0.62  | 57.7% | 1,782 |
+
+→ Positioning leans mildly bullish (call OI > put OI, call IV skew).
+  Breakeven on $130 call: ~$158 (+36%). Consider a call spread to cut IV cost.
 ```
 
 ## Pricing
