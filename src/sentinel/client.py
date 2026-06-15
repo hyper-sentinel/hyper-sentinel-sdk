@@ -1,5 +1,5 @@
 """
-Sentinel SDK v2.1 — Python client for the Sentinel API Gateway.
+Sentinel SDK v0.8.6 — Python client for the Sentinel API Gateway.
 
 © Sentinel Labs — https://hyper-sentinel.com
 

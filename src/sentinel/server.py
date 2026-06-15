@@ -1,5 +1,5 @@
 """
-Sentinel REST API Server — Local FastAPI with 60+ tools.
+Sentinel REST API Server — Local FastAPI with 69 tools.
 
 Ported from the hyper-sentinel Python engine. Provides the same
 POST /api/v1/tools/{tool_name} interface with auto-generated Swagger docs.
@@ -53,44 +53,48 @@ class RateLimiter:
 # ============================================================================
 
 def _build_registry():
-    """Build the tool registry with all available scrapers."""
+    """Build the tool registry with all 67 approved tools."""
     from sentinel.tool_registry import ToolRegistry
 
     registry = ToolRegistry()
 
-    # ── CoinGecko (free, no key) ──────────────────────────────
+    # ── CoinGecko (3) — free, no key ──────────────────────────
     try:
         from sentinel.scrapers.crypto import get_crypto_price, get_crypto_top_n, search_crypto
         registry.register(get_crypto_price, get_crypto_top_n, search_crypto)
     except ImportError:
-        pass
+        logger.warning("CoinGecko scrapers unavailable")
 
-    # ── DexScreener (free, no key) ────────────────────────────
+    # ── Yahoo Finance (6) — free, no key ──────────────────────
     try:
-        from sentinel.scrapers.dexscreener import (
-            search_pairs, get_token_pairs, get_pair,
-            get_token_profiles, get_boosted_tokens, get_top_boosted_tokens,
+        from sentinel.scrapers.yahoo import (
+            get_stock_price, get_stock_info, get_stock_news,
+            get_stock_history, get_analyst_recs, run_stock_analysis,
         )
-        registry.register(search_pairs, get_token_pairs, get_pair,
-                         get_token_profiles, get_boosted_tokens, get_top_boosted_tokens)
+        registry.register(get_stock_price, get_stock_info, get_stock_news,
+                         get_stock_history, get_analyst_recs, run_stock_analysis)
     except ImportError:
-        pass
+        logger.warning("Yahoo Finance scrapers unavailable (pip install yfinance)")
 
-    # ── FRED Macro (free key) ─────────────────────────────────
+    # ── FRED Macro (4) — free key ─────────────────────────────
     try:
-        from sentinel.scrapers.fred import get_fred_series, search_fred, get_economic_dashboard
-        registry.register(get_fred_series, search_fred, get_economic_dashboard)
+        from sentinel.scrapers.fred import get_fred_series, search_fred, get_economic_dashboard, get_yield_curve
+        registry.register(get_fred_series, search_fred, get_economic_dashboard, get_yield_curve)
     except ImportError:
-        pass
+        logger.warning("FRED scrapers unavailable")
 
-    # ── Y2 Intelligence ───────────────────────────────────────
+    # ── Y2 Intelligence (7) ───────────────────────────────────
     try:
-        from sentinel.scrapers.y2 import get_news_sentiment, get_news_recap, get_intelligence_reports, get_report_detail
-        registry.register(get_news_sentiment, get_news_recap, get_intelligence_reports, get_report_detail)
+        from sentinel.scrapers.y2 import (
+            get_news_sentiment, get_news_recap, get_intelligence_reports,
+            get_report_detail, get_y2_feeds, get_report_audio, list_y2_profiles,
+        )
+        registry.register(get_news_sentiment, get_news_recap, get_intelligence_reports,
+                         get_report_detail, get_y2_feeds, get_report_audio, list_y2_profiles)
     except ImportError:
-        pass
+        logger.warning("Y2 scrapers unavailable")
 
-    # ── Elfa AI ───────────────────────────────────────────────
+    # ── Elfa AI (5) ───────────────────────────────────────────
     try:
         from sentinel.scrapers.elfa import (
             get_trending_tokens, get_top_mentions, search_mentions,
@@ -99,9 +103,9 @@ def _build_registry():
         registry.register(get_trending_tokens, get_top_mentions, search_mentions,
                          get_trending_narratives, get_token_news)
     except ImportError:
-        pass
+        logger.warning("Elfa scrapers unavailable")
 
-    # ── X / Twitter ───────────────────────────────────────────
+    # ── X / Twitter (1) ───────────────────────────────────────
     try:
         from sentinel.scrapers.x import XScraper
         _x_token = os.getenv("X_BEARER_TOKEN", "").strip()
@@ -112,100 +116,141 @@ def _build_registry():
                 return _x_client.search_tweets(query, max_results)
             registry.register(search_x)
     except ImportError:
-        pass
+        logger.warning("X/Twitter scraper unavailable")
 
-    # ── Hyperliquid ───────────────────────────────────────────
+    # ── Hyperliquid (12) ──────────────────────────────────────
     try:
         from sentinel.scrapers.hyperliquid import (
             get_hl_config, get_hl_account_info, get_hl_positions,
-            get_hl_orderbook, get_hl_open_orders,
-            place_hl_order, cancel_hl_order, close_hl_position,
-            set_hl_leverage, approve_hl_builder_fee,
+            get_hl_orderbook, get_hl_open_orders, get_hl_tradfi_assets,
+            get_hl_tradfi_price, place_hl_order, cancel_hl_order,
+            close_hl_position, set_hl_leverage, approve_hl_builder_fee,
         )
         registry.register(
             get_hl_config, get_hl_account_info, get_hl_positions,
-            get_hl_orderbook, get_hl_open_orders,
-            place_hl_order, cancel_hl_order, close_hl_position,
-            set_hl_leverage, approve_hl_builder_fee,
+            get_hl_orderbook, get_hl_open_orders, get_hl_tradfi_assets,
+            get_hl_tradfi_price, place_hl_order, cancel_hl_order,
+            close_hl_position, set_hl_leverage, approve_hl_builder_fee,
         )
     except ImportError:
-        pass
+        logger.warning("Hyperliquid scrapers unavailable")
 
-    # ── Aster DEX ─────────────────────────────────────────────
+    # ── Aster DEX (15) ────────────────────────────────────────
     try:
         from sentinel.scrapers.aster import (
-            aster_diagnose, aster_ping, aster_ticker, aster_orderbook,
-            aster_klines, aster_funding_rate, aster_exchange_info,
-            aster_balance, aster_positions, aster_account_info,
+            aster_ticker, aster_klines, aster_positions,
+            aster_orderbook, aster_funding_rate, aster_exchange_info,
+            aster_balance, aster_account_info, aster_open_orders,
             aster_place_order, aster_cancel_order, aster_cancel_all_orders,
-            aster_open_orders, aster_set_leverage,
+            aster_set_leverage, aster_diagnose, aster_ping,
         )
         registry.register(
-            aster_diagnose, aster_ping, aster_ticker, aster_orderbook,
-            aster_klines, aster_funding_rate, aster_exchange_info,
-            aster_balance, aster_positions, aster_account_info,
+            aster_ticker, aster_klines, aster_positions,
+            aster_orderbook, aster_funding_rate, aster_exchange_info,
+            aster_balance, aster_account_info, aster_open_orders,
             aster_place_order, aster_cancel_order, aster_cancel_all_orders,
-            aster_open_orders, aster_set_leverage,
+            aster_set_leverage, aster_diagnose, aster_ping,
         )
+    except ImportError:
+        logger.warning("Aster scrapers unavailable")
+
+    # ── DexScreener (4) — free, no key ────────────────────────
+    try:
+        from sentinel.scrapers.dexscreener_v2 import (
+            dexscreener_search, dexscreener_pair,
+            dexscreener_token_lookup, dexscreener_trending,
+        )
+        registry.register(dexscreener_search, dexscreener_pair,
+                         dexscreener_token_lookup, dexscreener_trending)
+    except ImportError:
+        logger.warning("DexScreener v2 scrapers unavailable")
+
+    # ── TA / Quant Engine (9) ─────────────────────────────────
+    try:
+        from sentinel.scrapers.ta import get_ta_indicators, get_ta_signal, get_klines
+        registry.register(get_ta_indicators, get_ta_signal, get_klines)
+    except ImportError:
+        logger.warning("TA engine unavailable")
+
+    try:
+        from sentinel.scrapers.risk import get_risk_metrics
+        registry.register(get_risk_metrics)
     except ImportError:
         pass
 
-    # ── Polymarket ────────────────────────────────────────────
     try:
-        from sentinel.scrapers.polymarket import (
-            get_polymarket_markets, search_polymarket, get_polymarket_orderbook,
-            get_polymarket_price, get_polymarket_positions,
-            buy_polymarket, sell_polymarket, place_polymarket_limit,
-            cancel_polymarket_order, cancel_all_polymarket_orders,
-        )
-        registry.register(
-            get_polymarket_markets, search_polymarket, get_polymarket_orderbook,
-            get_polymarket_price, get_polymarket_positions,
-            buy_polymarket, sell_polymarket, place_polymarket_limit,
-            cancel_polymarket_order, cancel_all_polymarket_orders,
-        )
+        from sentinel.scrapers.ml_signals import get_ml_signals
+        registry.register(get_ml_signals)
     except ImportError:
         pass
 
-    # ── Telegram ──────────────────────────────────────────────
     try:
-        from sentinel.scrapers.telegram import (
-            tg_read_channel, tg_search_messages, tg_list_channels, tg_send_message,
-        )
-        registry.register(tg_read_channel, tg_search_messages, tg_list_channels, tg_send_message)
+        from sentinel.scrapers.timeseries import get_timeseries_forecast
+        registry.register(get_timeseries_forecast)
     except ImportError:
         pass
 
-    # ── Discord ───────────────────────────────────────────────
     try:
-        from sentinel.scrapers.discord import (
-            discord_read_channel, discord_search_messages,
-            discord_list_guilds, discord_list_channels, discord_send_message,
-        )
-        registry.register(discord_read_channel, discord_search_messages,
-                         discord_list_guilds, discord_list_channels, discord_send_message)
+        from sentinel.scrapers.portfolio import get_portfolio_risk, get_portfolio_summary
+        registry.register(get_portfolio_risk, get_portfolio_summary)
     except ImportError:
         pass
+
+    try:
+        from sentinel.scrapers.options import get_options_analysis, get_options_expirations, get_options_chain
+        registry.register(get_options_analysis, get_options_expirations, get_options_chain)
+    except ImportError:
+        pass
+
+    # ── Usage Tracking (1) ────────────────────────────────────
+    try:
+        from sentinel.scrapers.usage import get_usage_summary
+        registry.register(get_usage_summary)
+    except ImportError:
+        pass
+
+    # ── Polymarket — shelved ──────────────────────────────────
+    # ── Telegram — shelved ────────────────────────────────────
+    # ── Discord — shelved ─────────────────────────────────────
+    # ── Strategy — shelved (in-house algos, not production) ───
 
     return registry
 
 
 # ── Public tools — no API key required ────────────────────────
 PUBLIC_TOOLS = {
+    # CoinGecko (3)
     "get_crypto_price", "get_crypto_top_n", "search_crypto",
-    "get_economic_dashboard", "get_fred_series", "search_fred",
-    "get_news_sentiment", "get_news_recap", "get_intelligence_reports", "get_report_detail",
+    # Yahoo Finance (6)
+    "get_stock_price", "get_stock_info", "get_stock_news",
+    "get_stock_history", "get_analyst_recs", "run_stock_analysis",
+    # FRED (4)
+    "get_fred_series", "search_fred", "get_economic_dashboard", "get_yield_curve",
+    # Y2 Intelligence — read-only (5 of 7, reports + feeds)
+    "get_news_sentiment", "get_news_recap", "get_intelligence_reports",
+    "get_report_detail", "get_y2_feeds", "get_report_audio", "list_y2_profiles",
+    # Elfa (5)
     "get_trending_tokens", "get_top_mentions", "search_mentions",
-    "get_trending_narratives", "get_token_news", "search_x",
-    "aster_ping", "aster_ticker", "aster_orderbook",
-    "aster_klines", "aster_funding_rate", "aster_exchange_info",
-    "get_hl_orderbook", "get_hl_config",
-    "get_polymarket_markets", "search_polymarket",
-    "get_polymarket_orderbook", "get_polymarket_price",
-    "search_pairs", "get_token_pairs", "get_pair",
-    "get_token_profiles", "get_boosted_tokens", "get_top_boosted_tokens",
-    "tg_list_channels", "tg_read_channel", "tg_search_messages",
-    "discord_list_guilds", "discord_list_channels", "discord_read_channel", "discord_search_messages",
+    "get_trending_narratives", "get_token_news",
+    # X (1)
+    "search_x",
+    # DexScreener (4)
+    "dexscreener_search", "dexscreener_pair",
+    "dexscreener_token_lookup", "dexscreener_trending",
+    # HL — read-only (5 of 12)
+    "get_hl_positions", "get_hl_account_info", "get_hl_orderbook",
+    "get_hl_tradfi_assets", "get_hl_tradfi_price",
+    # Aster — read-only (8 of 15)
+    "aster_ping", "aster_ticker", "aster_orderbook", "aster_klines",
+    "aster_funding_rate", "aster_exchange_info", "aster_positions",
+    "aster_balance",
+    # TA/Quant (9)
+    "get_ta_indicators", "get_ta_signal", "get_klines",
+    "get_risk_metrics", "get_ml_signals", "get_timeseries_forecast",
+    "get_portfolio_risk", "get_portfolio_summary",
+    "get_options_analysis", "get_options_expirations", "get_options_chain",
+    # Usage (1)
+    "get_usage_summary",
 }
 
 
@@ -234,7 +279,7 @@ def create_app():
             "**Public tools** (no auth): crypto prices, social sentiment, news, macro data.\n\n"
             "**Auth-required tools** (X-API-Key header): DEX trading, account balances, order management."
         ),
-        version="3.0.6",
+        version="0.8.6",
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -264,7 +309,7 @@ def create_app():
     async def root():
         return {
             "name": "Sentinel API",
-            "version": "3.0.6",
+            "version": "0.8.6",
             "engine": "fastapi",
             "tools": registry.tool_count,
             "public_tools": len([t for t in registry.tool_names if t in PUBLIC_TOOLS]),

@@ -12,7 +12,7 @@
 
 # Hyper-Sentinel
 
-**AI trading terminal with 55 tools.**
+**AI trading terminal with 69 tools.** [See all tools →](TOOLS.md)
 
 One terminal. Multi-LLM. Trade Hyperliquid & Aster — quant + market intel built in.
 
@@ -145,7 +145,7 @@ Type `add hl` or `add aster` inside the terminal to connect.
 | Source | What |
 |--------|------|
 | X / Twitter | Tweet search, sentiment |
-| Y2 Intelligence | AI news recaps, sentiment scores |
+| Y2 Intelligence | News sentiment (GloriaAI), AI recaps, intelligence reports, audio narrations, monitoring profiles, OSINT feeds |
 | Elfa AI | Trending tokens, social mentions |
 
 Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
@@ -157,7 +157,7 @@ Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
 | Command | What |
 |---------|------|
 | `status` | Connection health + account info |
-| `tools` | List all 55 available tools |
+| `tools` | List all 60 available tools |
 | `model` | Pick your AI model (Fable, Opus, Sonnet, GPT, Gemini, Grok…) |
 | `add` | Configure exchanges & data sources |
 | `add ai` | Switch LLM provider / change your AI key |

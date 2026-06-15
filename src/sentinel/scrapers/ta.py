@@ -334,3 +334,35 @@ def get_ta_summary(symbol: str, interval: str = "5m", venue: str = "hl") -> dict
     Module ported from hyper-sentinel/core/ta_engine.py for Sentinel SDK 0.4.0.
     Adapted imports: sentinel.scrapers.aster, YFinance for HL/TradFi.
 """
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ToolRegistry Wrappers — named to match TOOL_SCHEMAS in chat.py
+# ══════════════════════════════════════════════════════════════════════
+
+def get_ta_indicators(symbol: str = "BTC", interval: str = "5m", venue: str = "hl") -> dict:
+    """Get full TA indicators — SMA, EMA, RSI, MACD, Bollinger Bands for any asset."""
+    result = compute_indicators(symbol, interval=interval, venue=venue)
+    if not result:
+        return {"error": f"Failed to compute indicators for {symbol}"}
+    return result
+
+
+def get_ta_signal(symbol: str = "BTC", interval: str = "5m", venue: str = "hl") -> dict:
+    """Get consolidated TA signal — bull/bear/neutral with confidence, RSI, and SMA crossover."""
+    return get_ta_summary(symbol, interval=interval, venue=venue)
+
+
+def get_klines(symbol: str = "BTC", interval: str = "5m", limit: int = 50, venue: str = "hl") -> dict:
+    """Get raw OHLCV candlestick data for any asset across venues."""
+    df = klines_to_df(symbol, interval=interval, limit=limit, venue=venue)
+    if df is not None and not df.empty:
+        records = df.tail(limit).reset_index().to_dict("records")
+        for r in records:
+            for k, v in r.items():
+                if hasattr(v, "isoformat"):
+                    r[k] = v.isoformat()
+                elif hasattr(v, "item"):  # numpy types
+                    r[k] = v.item()
+        return {"symbol": symbol, "interval": interval, "candles": len(records), "data": records}
+    return {"error": f"No kline data for {symbol}"}

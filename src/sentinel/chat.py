@@ -173,9 +173,12 @@ For quant analysis, use MULTIPLE tools together for a comprehensive report:
 - get_ta_indicators — RSI, MACD, Bollinger Bands, SMA/EMA crossovers (internal TA engine)
 - get_risk_metrics — Sharpe ratio, Sortino, VaR, CVaR, max drawdown (internal risk engine)
 - get_ml_signals — regression trend, K-Means regime detection, RF feature importance, logistic prediction (internal ML engine)
-- get_options_analysis — put/call ratio, implied volatility, ATM options (YFinance options chain)
+- get_options_analysis — put/call ratio, implied volatility, ATM options, sentiment (nearest expiry quick-look)
+- get_options_expirations — list all expiry dates including LEAPS for any stock/ETF (call FIRST before get_options_chain)
+- get_options_chain — full options chain for ANY expiry with Greeks (delta/gamma/theta/vega/rho). For LEAPS: call get_options_expirations first, then get_options_chain with the expiry date and near_money=5.
 - get_timeseries_forecast — ARIMA forecast, GARCH volatility, stationarity test (internal timeseries engine)
 Call them in parallel. For stocks, set venue="tradfi". For crypto, use venue="hl".
+For options queries: call get_options_expirations to discover valid dates, then get_options_chain with the exact date. Always use near_money=5 or near_money=10 to avoid dumping too many contracts.
 """
 
 # ══════════════════════════════════════════════════════════════
@@ -421,6 +424,50 @@ TOOL_SCHEMAS = [
         },
     },
 
+    {
+        "name": "get_intelligence_reports",
+        "description": "List AI-generated intelligence reports from Y2. Reports are deep-dive briefs on monitored topics. Returns report IDs for use with get_report_detail.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Number of reports to return (1-20, default 10)", "default": 10},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_report_detail",
+        "description": "Get the full content of a specific Y2 intelligence report — AI-written brief, source citations, metadata.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "report_id": {"type": "string", "description": "Report ID from get_intelligence_reports"},
+            },
+            "required": ["report_id"],
+        },
+    },
+    {
+        "name": "get_y2_feeds",
+        "description": "List all available Y2 news feed topics with descriptions. Shows the 19 topics Y2 can monitor.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_report_audio",
+        "description": "Get audio narration URL for a Y2 intelligence report.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "report_id": {"type": "string", "description": "Report ID"},
+            },
+            "required": ["report_id"],
+        },
+    },
+    {
+        "name": "list_y2_profiles",
+        "description": "List your Y2 monitoring profiles — what topics you are tracking and delivery schedule. Read-only.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+
     # ── Social (X/Twitter) ────────────────────────────────────
     {
         "name": "search_x",
@@ -454,6 +501,32 @@ TOOL_SCHEMAS = [
         "name": "get_trending_narratives",
         "description": "Get trending narratives and topics in crypto from social intelligence.",
         "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+
+    {
+        "name": "get_top_mentions",
+        "description": "Get top social media mentions for a token/ticker from Elfa AI.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Token ticker (e.g. BTC, ETH, SOL)"},
+                "time_window": {"type": "string", "description": "Time window: 1h, 6h, 24h, 7d", "default": "24h"},
+                "limit": {"type": "integer", "description": "Max results (default 10)", "default": 10},
+            },
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "get_token_news",
+        "description": "Get news mentions for a specific token from social media via Elfa AI.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Token ticker (e.g. BTC, ETH)"},
+                "limit": {"type": "integer", "description": "Max results (default 10)", "default": 10},
+            },
+            "required": ["ticker"],
+        },
     },
 
     # ── Hyperliquid (crypto + TradFi perps) ─────────────────────
@@ -513,6 +586,47 @@ TOOL_SCHEMAS = [
             "properties": {"symbol": {"type": "string", "description": "Asset symbol — GOLD, SILVER, OIL, TSLA, SP500, NVDA, AAPL, etc."}},
             "required": ["symbol"],
         },
+    },
+
+    {
+        "name": "get_hl_config",
+        "description": "Show current Hyperliquid configuration status — wallet, network, connected.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_hl_open_orders",
+        "description": "Get all open/pending orders on Hyperliquid.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "cancel_hl_order",
+        "description": "Cancel an open order on Hyperliquid.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "coin": {"type": "string", "description": "Trading pair (e.g. ETH, BTC)"},
+                "oid": {"type": "integer", "description": "Order ID to cancel"},
+            },
+            "required": ["coin", "oid"],
+        },
+    },
+    {
+        "name": "set_hl_leverage",
+        "description": "Set leverage for a coin on Hyperliquid.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "coin": {"type": "string", "description": "Trading pair"},
+                "leverage": {"type": "integer", "description": "Leverage multiplier"},
+                "is_cross": {"type": "boolean", "description": "True for cross margin, False for isolated", "default": True},
+            },
+            "required": ["coin", "leverage"],
+        },
+    },
+    {
+        "name": "approve_hl_builder_fee",
+        "description": "Approve the builder fee for Hyperliquid trading (one-time per account).",
+        "parameters": {"type": "object", "properties": {}, "required": []},
     },
 
     # ── Technical Analysis ────────────────────────────────────
@@ -599,11 +713,38 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "get_options_analysis",
-        "description": "Get options analysis for a stock or ETF — put/call ratio, implied volatility, ATM options, most active contracts, and sentiment (bullish/bearish/neutral). Only works for stocks and ETFs, not crypto.",
+        "description": "Get options analysis for a stock or ETF — put/call ratio, implied volatility, ATM options, most active contracts, and sentiment (bullish/bearish/neutral). Only works for stocks and ETFs, not crypto. Uses nearest expiry only — for specific dates or LEAPS, use get_options_chain instead.",
         "parameters": {
             "type": "object",
             "properties": {
                 "symbol": {"type": "string", "description": "Stock/ETF ticker — AAPL, TSLA, SPY, QQQ, MSFT"}
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_options_expirations",
+        "description": "List all available options expiration dates for a stock/ETF, including LEAPS (>1yr out). Use this FIRST to discover valid expiry dates before calling get_options_chain. Returns dates only, no chain data.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Stock/ETF ticker — AAPL, TSLA, SPY, LULU, GLD, TLT"}
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_options_chain",
+        "description": "Get the full options chain for a specific expiry — calls/puts with strike, bid/ask, volume, OI, IV, and computed Greeks (delta, gamma, theta, vega, rho). Supports LEAPS. Use get_options_expirations first to find valid dates.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Stock/ETF ticker — AAPL, TSLA, SPY, LULU, GLD"},
+                "expiry": {"type": "string", "description": "Expiration date YYYY-MM-DD from get_options_expirations. Omit for nearest."},
+                "option_type": {"type": "string", "description": "Filter: 'calls', 'puts', or 'both' (default: both)"},
+                "min_strike": {"type": "number", "description": "Minimum strike price filter"},
+                "max_strike": {"type": "number", "description": "Maximum strike price filter"},
+                "near_money": {"type": "integer", "description": "Show N strikes above + below ATM (e.g. 5 = ~10 contracts). Recommended to keep output focused."},
             },
             "required": ["symbol"],
         },
@@ -674,115 +815,205 @@ TOOL_SCHEMAS = [
         },
     },
 
-    # ── Telegram ──────────────────────────────────────────────
     {
-        "name": "tg_read_channel",
-        "description": "Read messages from a Telegram channel.",
+        "name": "aster_orderbook",
+        "description": "Get live orderbook (bids/asks) from Aster DEX.",
         "parameters": {
             "type": "object",
             "properties": {
-                "channel": {"type": "string", "description": "Channel username or ID"},
-                "limit": {"type": "integer", "description": "Number of messages", "default": 10},
+                "symbol": {"type": "string", "description": "Trading pair (e.g. BTCUSDT)"},
+                "limit": {"type": "integer", "description": "Depth levels (default 10)", "default": 10},
             },
-            "required": ["channel"],
+            "required": ["symbol"],
         },
     },
     {
-        "name": "tg_list_channels",
-        "description": "List available Telegram channels.",
+        "name": "aster_funding_rate",
+        "description": "Get current funding rate and mark price from Aster DEX.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair (optional — all pairs if omitted)"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "aster_exchange_info",
+        "description": "Get exchange info from Aster DEX — trading pairs, contract specs, tick sizes.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Specific pair (optional — all pairs if omitted)"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "aster_balance",
+        "description": "Get account balance on Aster DEX futures.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "aster_account_info",
+        "description": "Get full account info from Aster DEX — assets, positions, margins.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "aster_open_orders",
+        "description": "Get all open/pending orders on Aster DEX.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair (optional — all pairs if omitted)"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "aster_place_order",
+        "description": "Place an order on Aster DEX futures. Supports market, limit, stop-market, and stop-limit.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair (e.g. ETHUSDT)"},
+                "side": {"type": "string", "description": "BUY or SELL"},
+                "order_type": {"type": "string", "description": "MARKET, LIMIT, STOP_MARKET, STOP", "default": "MARKET"},
+                "quantity": {"type": "number", "description": "Order quantity in base asset", "default": 0},
+                "price": {"type": "number", "description": "Limit price (required for LIMIT/STOP orders)"},
+                "stop_price": {"type": "number", "description": "Trigger price for stop orders"},
+                "time_in_force": {"type": "string", "description": "GTC, IOC, FOK", "default": "GTC"},
+                "reduce_only": {"type": "boolean", "description": "Close-only order", "default": False},
+                "usd_amount": {"type": "number", "description": "Order size in USD (alternative to quantity)"},
+            },
+            "required": ["symbol", "side"],
+        },
+    },
+    {
+        "name": "aster_cancel_order",
+        "description": "Cancel an open order on Aster DEX.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair"},
+                "order_id": {"type": "integer", "description": "Order ID to cancel (latest if omitted)"},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "aster_cancel_all_orders",
+        "description": "Cancel all open orders for a symbol on Aster DEX.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair"},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "aster_set_leverage",
+        "description": "Set leverage for a symbol on Aster DEX (1-125x).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair"},
+                "leverage": {"type": "integer", "description": "Leverage multiplier (1-125)"},
+            },
+            "required": ["symbol", "leverage"],
+        },
+    },
+    {
+        "name": "aster_diagnose",
+        "description": "Run comprehensive diagnostics on Aster DEX connection — API key status, connectivity, account access.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "aster_ping",
+        "description": "Check Aster DEX API connectivity and latency.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
 
-    # ── Discord ───────────────────────────────────────────────
-    {
-        "name": "discord_list_guilds",
-        "description": "List connected Discord servers/guilds.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "discord_read_channel",
-        "description": "Read messages from a Discord channel.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "channel_id": {"type": "integer", "description": "Discord channel ID"},
-                "limit": {"type": "integer", "description": "Number of messages", "default": 50},
-            },
-            "required": ["channel_id"],
-        },
-    },
+    # ── Telegram — shelved ────────────────────────────────────
+    # {
+    #     "name": "tg_read_channel",
+    #     "description": "Read messages from a Telegram channel.",
+    #     "parameters": {
+    #         "type": "object",
+    #         "properties": {
+    #             "channel": {"type": "string", "description": "Channel username or ID"},
+    #             "limit": {"type": "integer", "description": "Number of messages", "default": 10},
+    #         },
+    #         "required": ["channel"],
+    #     },
+    # },
+    # {
+    #     "name": "tg_list_channels",
+    #     "description": "List available Telegram channels.",
+    #     "parameters": {"type": "object", "properties": {}, "required": []},
+    # },
 
-    # ── Wallets / DEX Swaps ───────────────────────────────────
-    {
-        "name": "list_wallets",
-        "description": "List configured wallets across chains (SOL, ETH).",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "dex_buy_sol",
-        "description": "Buy a token on Solana via Jupiter aggregator.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "contract_address": {"type": "string", "description": "Token contract address on Solana"},
-                "amount_sol": {"type": "number", "description": "Amount of SOL to spend"},
-                "slippage": {"type": "number", "description": "Max slippage %", "default": 0},
-            },
-            "required": ["contract_address", "amount_sol"],
-        },
-    },
-    {
-        "name": "dex_buy_eth",
-        "description": "Buy a token on Ethereum via Uniswap.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "contract_address": {"type": "string", "description": "Token contract address on Ethereum"},
-                "amount_eth": {"type": "number", "description": "Amount of ETH to spend"},
-                "slippage": {"type": "number", "description": "Max slippage %", "default": 0},
-            },
-            "required": ["contract_address", "amount_eth"],
-        },
-    },
+    # ── Discord — shelved ─────────────────────────────────────
+    # {
+    #     "name": "discord_list_guilds",
+    #     "description": "List connected Discord servers/guilds.",
+    #     "parameters": {"type": "object", "properties": {}, "required": []},
+    # },
+    # {
+    #     "name": "discord_read_channel",
+    #     "description": "Read messages from a Discord channel.",
+    #     "parameters": {
+    #         "type": "object",
+    #         "properties": {
+    #             "channel_id": {"type": "integer", "description": "Discord channel ID"},
+    #             "limit": {"type": "integer", "description": "Number of messages", "default": 50},
+    #         },
+    #         "required": ["channel_id"],
+    #     },
+    # },
 
-    # ── Strategy / Algo Trading ──────────────────────────────
-    {
-        "name": "strategy_status",
-        "description": "Get current algo trading strategy status — running, algo, position, P&L.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "strategy_start",
-        "description": "Start the algo trading strategy with current configuration.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "strategy_stop",
-        "description": "Stop the algo trading strategy.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "strategy_set_algo",
-        "description": "Set the active trading algorithm. Available: sma (SMA Crossover), bb (Bollinger Bands), macd (MACD Momentum), ema_spread (EMA Spread), rsi_ict (RSI + ICT Kill Zone).",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "algo": {"type": "string", "description": "Algorithm name: sma, bb, macd, ema_spread, rsi_ict"},
-                "params": {"type": "object", "description": "Optional algo-specific parameters"},
-            },
-            "required": ["algo"],
-        },
-    },
-    {
-        "name": "list_algos",
-        "description": "List all available trading algorithms with descriptions and default parameters.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
+    # ── Strategy / Algo Trading — shelved (in-house algos, not production) ──
+    # {
+    #     "name": "strategy_status",
+    #     "description": "Get current algo trading strategy status.",
+    #     "parameters": {"type": "object", "properties": {}, "required": []},
+    # },
+    # {
+    #     "name": "strategy_start",
+    #     "description": "Start the algo trading strategy.",
+    #     "parameters": {"type": "object", "properties": {}, "required": []},
+    # },
+    # {
+    #     "name": "strategy_stop",
+    #     "description": "Stop the algo trading strategy.",
+    #     "parameters": {"type": "object", "properties": {}, "required": []},
+    # },
+    # {
+    #     "name": "strategy_set_algo",
+    #     "description": "Set the active trading algorithm.",
+    #     "parameters": {
+    #         "type": "object",
+    #         "properties": {
+    #             "algo": {"type": "string", "description": "Algorithm name"},
+    #             "params": {"type": "object", "description": "Optional algo-specific parameters"},
+    #         },
+    #         "required": ["algo"],
+    #     },
+    # },
+    # {
+    #     "name": "list_algos",
+    #     "description": "List all available trading algorithms.",
+    #     "parameters": {"type": "object", "properties": {}, "required": []},
+    # },
+
+    # ── Wallets / DEX Swaps — removed (not a product feature) ──
 ]
 
 
 # ══════════════════════════════════════════════════════════════
 # Tool Format Converters
+
 # ══════════════════════════════════════════════════════════════
 
 def _tools_for_anthropic(tools: list[dict]) -> list[dict]:
@@ -1738,7 +1969,8 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                 return json.dumps({"error": str(e), "tool": tool_name})
 
         # ── Quantitative Analysis (local, uses klines from ta.py) ──
-        if tool_name in ("get_risk_metrics", "get_timeseries_forecast", "get_ml_signals", "get_options_analysis"):
+        if tool_name in ("get_risk_metrics", "get_timeseries_forecast", "get_ml_signals",
+                        "get_options_analysis", "get_options_expirations", "get_options_chain"):
             try:
                 if tool_name == "get_risk_metrics":
                     from sentinel.scrapers.risk import get_risk_metrics
@@ -1764,6 +1996,19 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                 elif tool_name == "get_options_analysis":
                     from sentinel.scrapers.options import get_options_analysis
                     result = get_options_analysis(args.get("symbol", "AAPL"))
+                elif tool_name == "get_options_expirations":
+                    from sentinel.scrapers.options import get_options_expirations
+                    result = get_options_expirations(args.get("symbol", "AAPL"))
+                elif tool_name == "get_options_chain":
+                    from sentinel.scrapers.options import get_options_chain
+                    result = get_options_chain(
+                        symbol=args.get("symbol", "AAPL"),
+                        expiry=args.get("expiry"),
+                        option_type=args.get("option_type", "both"),
+                        min_strike=args.get("min_strike"),
+                        max_strike=args.get("max_strike"),
+                        near_money=args.get("near_money"),
+                    )
                 return json.dumps(result)
             except ImportError as e:
                 return json.dumps({"error": f"Quant dependencies missing: {e}. Run: pip install statsmodels arch scikit-learn"})
@@ -2624,7 +2869,8 @@ def run_chat(config: dict):
                 # Technical Analysis
                 "get_ta_indicators", "get_ta_signal", "get_klines",
                 # Quantitative Analysis
-                "get_risk_metrics", "get_timeseries_forecast", "get_ml_signals", "get_options_analysis",
+                "get_risk_metrics", "get_timeseries_forecast", "get_ml_signals",
+                "get_options_analysis", "get_options_expirations", "get_options_chain",
                 # Portfolio
                 "get_portfolio_summary", "get_portfolio_risk",
                 # FRED

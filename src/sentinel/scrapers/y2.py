@@ -9,6 +9,15 @@ API key: https://y2.dev/app/developers/api-keys (Y2_API_KEY in .env)
 import os
 
 
+_Y2_UPGRADE_HINT = (
+    "Your Y2 API key authenticated successfully but returned no content. "
+    "This usually means you're on Y2's free/lite tier, which does not include "
+    "news articles, sentiment, recaps, or intelligence reports. "
+    "Upgrade to Y2 Pro ($20/mo) for full content access: https://y2.dev/pricing  "
+    "Manage your API key scopes at: https://y2.dev/app/developers/api-keys"
+)
+
+
 
 def _get_client():
     """Initialize the Y2 client."""
@@ -76,7 +85,7 @@ def get_news_sentiment(topics: str = "bitcoin,ethereum", limit: int = 15) -> dic
         else:
             overall = "MIXED"
 
-        return {
+        result = {
             "topics": topics,
             "total_items": len(items),
             "overall_sentiment": overall,
@@ -87,6 +96,11 @@ def get_news_sentiment(topics: str = "bitcoin,ethereum", limit: int = 15) -> dic
             },
             "news": items,
         }
+
+        if not items:
+            result["hint"] = _Y2_UPGRADE_HINT
+
+        return result
 
     except Exception as e:
         return {"error": f"Y2 API error: {str(e)}"}
@@ -118,17 +132,12 @@ def get_news_recap(topics: str = "bitcoin", timeframe: str = "24h") -> dict:
         data = raw.get("data", {})
 
         if not data:
-            news_result = get_news_sentiment(topics=topics, limit=5)
-            if "error" in news_result:
-                return news_result
-
-            headlines = [item["headline"] for item in news_result.get("news", [])]
             return {
                 "topics": topics,
                 "timeframe": timeframe,
-                "note": "No AI recap available for this window. Here are the latest headlines instead.",
-                "overall_sentiment": news_result.get("overall_sentiment", "MIXED"),
-                "headlines": headlines,
+                "total_recaps": 0,
+                "recaps": {},
+                "hint": _Y2_UPGRADE_HINT,
             }
 
         results = {}
@@ -184,10 +193,15 @@ def get_intelligence_reports(limit: int = 10) -> dict:
                     "profile": report.get("profile_name", report.get("profileName", "")),
                 })
 
-        return {
+        result = {
             "total_reports": len(items),
             "reports": items,
         }
+
+        if not items:
+            result["hint"] = _Y2_UPGRADE_HINT
+
+        return result
 
     except Exception as e:
         return {"error": f"Y2 API error: {str(e)}"}
@@ -225,3 +239,115 @@ def get_report_detail(report_id: str) -> dict:
 
     except Exception as e:
         return {"error": f"Y2 API error: {str(e)}"}
+
+
+def get_y2_feeds() -> dict:
+    """
+    List all available Y2 news feed topics with descriptions.
+    Shows what OSINT sources Y2 monitors — useful for discovering valid topics.
+
+    Returns:
+        Dict with available feeds and their descriptions.
+    """
+    client = _get_client()
+    if not client:
+        return {"error": "Y2_API_KEY not set. Get one at https://y2.dev/app/developers/api-keys"}
+
+    try:
+        feeds = client.news.list_feeds()
+        raw = feeds.model_dump() if hasattr(feeds, "model_dump") else {}
+        data = raw.get("data", [])
+
+        items = []
+        for feed in data:
+            if isinstance(feed, dict):
+                items.append({
+                    "id": feed.get("id", "N/A"),
+                    "name": feed.get("name", "N/A"),
+                    "description": feed.get("description", ""),
+                })
+
+        return {
+            "total_feeds": len(items),
+            "feeds": items,
+        }
+
+    except Exception as e:
+        return {"error": f"Y2 API error: {str(e)}"}
+
+
+def get_report_audio(report_id: str) -> dict:
+    """
+    Get audio narration URL and metadata for a Y2 intelligence report.
+
+    Args:
+        report_id: Report ID from get_intelligence_reports
+
+    Returns:
+        Dict with audio URL, format, duration, and file size.
+    """
+    client = _get_client()
+    if not client:
+        return {"error": "Y2_API_KEY not set. Get one at https://y2.dev/app/developers/api-keys"}
+
+    try:
+        audio = client.reports.retrieve_audio(report_id)
+        raw = audio.model_dump() if hasattr(audio, "model_dump") else {}
+        data = raw.get("data", raw)
+
+        if isinstance(data, dict) and data:
+            return {
+                "report_id": report_id,
+                "url": data.get("url"),
+                "format": data.get("format", "mp3"),
+                "duration": data.get("duration"),
+                "duration_formatted": data.get("duration_formatted"),
+                "file_size": data.get("file_size"),
+                "mime_type": data.get("mime_type", "audio/mpeg"),
+            }
+        return {"report_id": report_id, "error": "No audio available for this report"}
+
+    except Exception as e:
+        return {"error": f"Y2 API error: {str(e)}"}
+
+
+def list_y2_profiles() -> dict:
+    """
+    List your Y2 monitoring profiles — what topics you're tracking and delivery schedule.
+    Read-only. Does not create, modify, or delete profiles.
+
+    Returns:
+        Dict with profiles including topic, frequency, status, and delivery method.
+    """
+    client = _get_client()
+    if not client:
+        return {"error": "Y2_API_KEY not set. Get one at https://y2.dev/app/developers/api-keys"}
+
+    try:
+        profiles = client.profiles.list()
+        raw = profiles.model_dump() if hasattr(profiles, "model_dump") else {}
+        data = raw.get("data", [])
+
+        items = []
+        for entry in data:
+            if isinstance(entry, dict):
+                profile = entry.get("profile", {}) or {}
+                items.append({
+                    "profile_id": entry.get("profile_id", "N/A"),
+                    "name": profile.get("name", "N/A"),
+                    "topic": profile.get("topic", "N/A"),
+                    "frequency": profile.get("frequency", "N/A"),
+                    "status": profile.get("status", "N/A"),
+                    "audio_enabled": profile.get("audio_enabled", False),
+                    "delivery_method": entry.get("delivery_method", "N/A"),
+                    "is_active": entry.get("is_active", False),
+                })
+
+        return {
+            "total_profiles": len(items),
+            "profiles": items,
+        }
+
+    except Exception as e:
+        return {"error": f"Y2 API error: {str(e)}"}
+

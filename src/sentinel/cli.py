@@ -583,7 +583,7 @@ def _run_repl():
 """.format(version=__version__, n_tools=_tool_count())
 
     # ── Hand off to chat.py's full engine ────────────────────
-    # chat.py has the working REPL: 62 tool schemas, local tool execution,
+    # chat.py has the working REPL: 60 tool schemas, local tool execution,
     # session memory, swarm mode, markdown formatting — everything.
     # cli.py handles onboarding + auth. chat.py handles the actual chat.
     from sentinel.chat import run_chat, _load_config as _load_chat_config

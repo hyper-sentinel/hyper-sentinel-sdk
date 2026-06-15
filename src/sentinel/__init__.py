@@ -1,5 +1,5 @@
 """
-Hyper-Sentinel v0.8.0 — The AI Trading SDK
+Hyper-Sentinel v0.8.6 — The AI Trading SDK
 
 Soli Deo Gloria — To the Glory of God alone.
 © Sentinel Labs — https://hyper-sentinel.com
@@ -32,11 +32,11 @@ from sentinel.api.errors import (
     AuthenticationError,
 )
 
-__version__ = "0.8.5"
+__version__ = "0.8.6"
 
 
 class Sentinel(SentinelAPI):
-    """The Sentinel SDK — 54 AI trading tools via one API key.
+    """The Sentinel SDK — 69 AI trading tools via one API key.
 
     Usage:
         client = Sentinel()
