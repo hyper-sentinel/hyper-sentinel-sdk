@@ -60,6 +60,10 @@ Paste an API key from any supported provider:
 | OpenAI (GPT) | [platform.openai.com](https://platform.openai.com) |
 | Google (Gemini) | [aistudio.google.com](https://aistudio.google.com) — free tier available |
 | xAI (Grok) | [console.x.ai](https://console.x.ai) |
+| DeepSeek | [platform.deepseek.com](https://platform.deepseek.com) |
+| Zhipu AI (GLM) | [open.bigmodel.cn](https://open.bigmodel.cn) |
+| Minimax | [platform.minimaxi.com](https://platform.minimaxi.com) |
+| Moonshot (Kimi) | [platform.moonshot.cn](https://platform.moonshot.cn) |
 
 Your AI key is exchanged for a Sentinel API key. Both saved locally:
 - **macOS / Linux**: `~/.sentinel/`
