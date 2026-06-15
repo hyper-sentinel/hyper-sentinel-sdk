@@ -176,7 +176,7 @@ Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
 | Command | What |
 |---------|------|
 | `status` | Connection health + account info |
-| `tools` | List all 60 available tools |
+| `tools` | List all 69 available tools |
 | `model` | Pick your AI model (Fable, Opus, Sonnet, GPT, Gemini, Grok…) |
 | `add` | Configure exchanges & data sources |
 | `add ai` | Switch LLM provider / change your AI key |
