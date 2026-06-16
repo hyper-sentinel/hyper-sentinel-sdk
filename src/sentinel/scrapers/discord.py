@@ -1,7 +1,7 @@
 """
 Discord Scraper — Sync wrappers for the Discord bot.
 
-Provides tool-friendly functions that the agent swarm can call to read
+Provides tool-friendly functions that the agent can call to read
 Discord channels, search messages, list servers, and send messages.
 
 Uses the DiscordClient from automation/discord_client.py under the hood.

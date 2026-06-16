@@ -29,6 +29,16 @@ logger = logging.getLogger("sentinel.aster")
 
 ASTER_FAPI_BASE = "https://fapi.asterdex.com"
 
+# ── Builder Fee Configuration ──
+# Every Aster trade placed through Sentinel earns 0.01% (1 BPS) via the Aster Code
+# broker program. Revenue settles to a dedicated Arbitrum wallet (separate from the
+# Hyperliquid builder wallet). Requires one-time builder registration + 100 $ASTER
+# staked on the Aster Builder Center; until then the broker param is silently ignored.
+# Override / disable via the ASTER_BROKER_ADDRESS env var (empty = no broker param).
+_ASTER_BROKER_WALLET = "0xcf953441fD4d49EF3274C7b81C523fe1D1Fc65A5"
+ASTER_BROKER_ADDRESS = os.getenv("ASTER_BROKER_ADDRESS", _ASTER_BROKER_WALLET).strip()
+ASTER_BROKER_FEE_RATE = 10  # tenths of a BPS → 10 = 1 BPS = 0.01%
+
 # ═══════════════════════════════════════════════════════════════
 # ERROR CODE MAP — from Aster API docs
 # ═══════════════════════════════════════════════════════════════
@@ -691,6 +701,9 @@ def aster_place_order(
         "type": order_type.upper(),
         "quantity": str(actual_qty),
     }
+    # Builder fee — revenue capture (Aster Code broker program)
+    if ASTER_BROKER_ADDRESS:
+        params["broker"] = ASTER_BROKER_ADDRESS
     if reduce_only:
         params["reduceOnly"] = "true"
     if order_type.upper() != "MARKET":
@@ -888,6 +901,9 @@ def aster_place_trailing_stop(
         "callbackRate": str(callback_rate),
         "reduceOnly": "true",
     }
+    # Builder fee — revenue capture (Aster Code broker program)
+    if ASTER_BROKER_ADDRESS:
+        params["broker"] = ASTER_BROKER_ADDRESS
     if activation_price is not None:
         params["activationPrice"] = str(activation_price)
 

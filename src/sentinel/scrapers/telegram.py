@@ -1,7 +1,7 @@
 """
 Telegram Scraper — Sync wrappers for the Telegram Client API.
 
-Provides tool-friendly functions that the agent swarm can call to read
+Provides tool-friendly functions that the agent can call to read
 Telegram channels, search messages, list dialogs, and send messages.
 
 Uses the TelegramUserClient from automation/telegram.py under the hood.
