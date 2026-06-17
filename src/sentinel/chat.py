@@ -2321,29 +2321,30 @@ def _handle_402(resp_dict: dict) -> bool:
     return True
 
 
-def _fetch_prompt_meter(api_key: str) -> tuple[int | None, int | None]:
-    """Fetch prompts_used / prompt_limit from the billing/status endpoint.
+def _fetch_billing_status(api_key: str = "") -> dict:
+    """Fetch the full billing/status dict (payment_status, prompts_used, prompt_limit, ...).
 
-    Returns (prompts_used, prompt_limit) or (None, None) on any error.
-    Used to display the per-prompt meter after each response.
+    CRITICAL (v0.8.9 Bug B fix): authenticate with the SAME key the LLM call uses —
+    load_api_key() reads ~/.sentinel/api_key, which is the credential _gateway_llm_request
+    sends on /api/v1/llm/chat. The free-tier gate counts prompts under THAT user, so the
+    meter must read THAT user too. (The chat config's "sentinel_api_key" can be a different
+    key → a different user → the 0/10 bug.) Returns {} on any error.
     """
-    if not api_key:
-        return None, None
+    from sentinel.api._http import load_api_key
+    key = load_api_key() or api_key
+    if not key:
+        return {}
     try:
         resp = httpx.get(
             f"{GATEWAY_URL}/api/v1/billing/status",
-            headers={"X-API-Key": api_key},
+            headers={"X-API-Key": key},
             timeout=httpx.Timeout(8.0, connect=5.0),
         )
         if resp.status_code == 200:
-            data = resp.json()
-            used = data.get("prompts_used")
-            limit = data.get("prompt_limit")
-            if used is not None and limit is not None:
-                return int(used), int(limit)
+            return resp.json()
     except Exception:
         pass
-    return None, None
+    return {}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -2357,12 +2358,26 @@ def _print_dashboard(config: dict, gateway_ok: bool):
     detected = _detect_provider(ai_key) if ai_key else None
     model = _resolve_model(config, provider)
 
+    # Refresh live billing/quota for the line tied under the LLM line (boot + on `clear`).
+    if gateway_ok:
+        config["billing_status"] = _fetch_billing_status(config.get("sentinel_api_key", ""))
+
     # ── LLM confirmation line (matches Python folder) ─────────
     if detected:
         provider_id, short_label, full_label, emoji = detected
         console.print(f"  [green]✓ LLM: {short_label} → {provider_id}/{model}[/]")
     else:
         console.print(f"  [s.error]✗ LLM: No API key configured[/]")
+
+    # ── Billing/quota line — tied directly under the LLM line (per sentinel_example.md) ──
+    billing = config.get("billing_status", {})
+    if billing.get("payment_status") == "active":
+        console.print("  [green]✓[/] [dim]Pay-as-you-go · Unlimited[/]")
+    elif billing.get("prompts_used") is not None:
+        _limit = int(billing.get("prompt_limit", 10))
+        _remaining = max(0, _limit - int(billing.get("prompts_used", 0)))
+        _color = "green" if _remaining > 3 else ("yellow" if _remaining > 0 else "red")
+        console.print(f"  [{_color}]✓[/] [dim]Free tier · {_remaining}/{_limit} prompts left this week[/]")
 
     # ── Infrastructure Panel ──────────────────────────────────
     infra = Table(
@@ -2386,11 +2401,14 @@ def _print_dashboard(config: dict, gateway_ok: bool):
         payment_status = billing.get("payment_status", config.get("payment_status", "free"))
         if payment_status in ("free", "") or payment_status is None:
             prompts_used = billing.get("prompts_used")
-            prompt_limit = billing.get("prompt_limit", 10)
+            prompt_limit = int(billing.get("prompt_limit", 10))
             if prompts_used is not None:
-                detail = f"Free · {prompts_used}/{prompt_limit} prompts/wk · Cloud Run"
+                # Match the under-LLM line: show REMAINING with the same green→yellow→red coloring.
+                remaining = max(0, prompt_limit - int(prompts_used))
+                color = "green" if remaining > 3 else ("yellow" if remaining > 0 else "red")
+                detail = f"Free tier · [{color}]{remaining}/{prompt_limit}[/] prompts left · Cloud Run"
             else:
-                detail = "Free · 10 prompts/wk · Cloud Run"
+                detail = "Free tier · Cloud Run"
         else:
             detail = "Pay-as-you-go · Unlimited · Cloud Run"
         infra.add_row("🌐 Gateway", f"[green]● Connected[/]", detail)
@@ -2542,6 +2560,20 @@ def run_chat(config: dict):
     """
     ai_key = config.get("ai_key", "")
     api_key = config.get("sentinel_api_key", "")
+
+    # v0.8.9 Bug B fix — UNIFY IDENTITY. The LLM call + free-tier gate authenticate with
+    # load_api_key() (~/.sentinel/api_key); the chat config's key can be a *different* key →
+    # a different gateway user → the "0/10 forever" bug. Make the chat config + tool calls use
+    # the SAME canonical key so every gateway call (LLM, tools, billing) resolves to ONE user.
+    try:
+        from sentinel.api._http import load_api_key
+        _canonical = load_api_key()
+        if _canonical and _canonical != api_key:
+            api_key = _canonical
+            config["sentinel_api_key"] = _canonical
+            _save_config(config)
+    except Exception:
+        pass
     provider = config.get("ai_provider", "anthropic")
 
     # Fallback: check ~/.sentinel/ai_key flat file (cli.py saves here)
@@ -3174,18 +3206,9 @@ def run_chat(config: dict):
                 ))
                 console.print()
 
-            # ── Per-prompt meter (free tier) ──────────
-            # Fetch latest quota from billing/status after each successful response.
-            # This is the low-effort, always-reliable approach — no header plumbing needed.
-            if api_key and response_text:
-                try:
-                    _used, _limit = _fetch_prompt_meter(api_key)
-                    if _used is not None and _limit is not None:
-                        _remaining = max(0, _limit - _used)
-                        console.print(f"  [dim]{_remaining}/{_limit} prompts left this week[/]")
-                        console.print()
-                except Exception:
-                    pass
+            # NOTE (v0.8.9): the per-response prompt meter was removed. The free-tier
+            # count now lives on the dashboard line tied under "✓ LLM:" (see _print_dashboard),
+            # refreshed on boot and on `clear`. No line is tacked onto each response.
 
         except Exception as e:
             console.print(Panel(
