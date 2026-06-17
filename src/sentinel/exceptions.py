@@ -24,7 +24,7 @@ class ForbiddenError(SentinelError):
 
 
 class RateLimitError(SentinelError):
-    """429 — Rate limit exceeded (Free: 300/min, Pro: 1K/min, Enterprise: unlimited)."""
+    """429 — Per-minute request rate limit exceeded."""
 
     def __init__(self, message: str, detail: dict | None = None):
         d = detail or {}
@@ -36,6 +36,30 @@ class RateLimitError(SentinelError):
         self.upgrade_to = d.get("upgrade_to", "")
         self.upgrade_price = d.get("upgrade_price", "")
         super().__init__(message, status_code=429, detail=detail)
+
+
+class QuotaExceededError(SentinelError):
+    """402 — Free-tier weekly prompt quota exceeded.
+
+    Free tier = 10 prompts per rolling 7-day window.  Add a payment method at
+    ``checkout_url`` for unlimited access (flat 20% platform fee, pay-as-you-go).
+
+    Attributes:
+        prompts_used: Number of prompts used in the current window.
+        prompt_limit: Maximum prompts allowed on the free tier.
+        window_days: Length of the rolling window in days.
+        resets_at: ISO-8601 timestamp when the oldest prompt ages out.
+        checkout_url: Stripe Checkout URL to add a payment method.
+    """
+
+    def __init__(self, message: str, detail: dict | None = None):
+        d = detail or {}
+        self.prompts_used = d.get("prompts_used", 0)
+        self.prompt_limit = d.get("prompt_limit", 10)
+        self.window_days = d.get("window_days", 7)
+        self.resets_at = d.get("resets_at", "")
+        self.checkout_url = d.get("checkout_url", "")
+        super().__init__(message, status_code=402, detail=detail)
 
 
 class ToolNotFoundError(SentinelError):

@@ -32,7 +32,7 @@ from sentinel.api.errors import (
     AuthenticationError,
 )
 
-__version__ = "0.8.8"
+__version__ = "0.8.9"
 
 
 class Sentinel(SentinelAPI):
@@ -43,7 +43,7 @@ class Sentinel(SentinelAPI):
         client = Sentinel(api_key="sk-sentinel-xxx")
 
     Everything routes through api.hyper-sentinel.com.
-    Every call is metered and billed per your tier.
+    Every call is metered and billed pay-as-you-go (flat 20% on LLM cost).
     """
 
     # ── AI Chat ───────────────────────────────────────────────

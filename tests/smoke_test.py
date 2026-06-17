@@ -350,15 +350,16 @@ def test_circuit_breaker_exists():
 check("Circuit breaker in tool loop", test_circuit_breaker_exists)
 
 def test_time_cap_exists():
-    """Verify the 60s time cap exists in run_chat."""
-    import ast
+    """Verify the response time cap (150s, v0.8.9) exists in run_chat."""
     with open("src/sentinel/chat.py") as f:
         source = f.read()
-    if "time.time() - t0 > 60" not in source:
-        return "60s time cap not found — tool loop can run indefinitely"
+    if "RESPONSE_TIME_LIMIT_S = 150" not in source:
+        return "RESPONSE_TIME_LIMIT_S=150 not found — response time cap missing/changed"
+    if "time.time() - t0 > RESPONSE_TIME_LIMIT_S" not in source:
+        return "time cap guard not found — tool loop can run indefinitely"
     return True
 
-check("60s time cap in tool loop", test_time_cap_exists)
+check("150s time cap in tool loop", test_time_cap_exists)
 
 def test_llm_timeout_and_retry():
     """Verify LLM timeout is 120s with retry-on-timeout logic."""

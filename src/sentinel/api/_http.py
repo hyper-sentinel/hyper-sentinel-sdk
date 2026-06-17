@@ -21,6 +21,7 @@ import httpx
 from sentinel.api.errors import (
     AuthenticationError,
     InsufficientBalanceError,
+    QuotaExceededError,
     RateLimitError,
     SentinelAPIError,
     ServerError,
@@ -290,7 +291,11 @@ class HTTPClient:
         if status_code == 401:
             raise AuthenticationError(msg, response=body)
         elif status_code == 402:
-            raise InsufficientBalanceError(msg, response=body)
+            err_code = body.get("error", "")
+            if err_code == "quota_exceeded":
+                raise QuotaExceededError(msg, response=body)
+            else:
+                raise InsufficientBalanceError(msg, response=body)
         elif status_code == 404:
             raise ToolNotFoundError(msg, response=body)
         elif status_code == 429:

@@ -125,12 +125,13 @@ LULU Options — Jan 2028 LEAPS (585 DTE) | $116.74
 
 ## Pricing
 
-Pay-as-you-go — **no subscriptions, no tiers**. You only pay for what you use:
+**Free tier — no credit card required to start.**
 
-- **AI calls** are routed through the Sentinel gateway, which adds a flat **20% markup** over the raw provider cost. Billed monthly in arrears via Stripe.
+- **10 prompts per rolling 7-day window** — always free, sign in with any LLM key.
+- **Unlimited prompts** — add a payment method via Stripe. AI calls are billed at a flat **20% markup** over raw provider cost, monthly in arrears. No subscriptions, no tiers.
 - **Trades** carry a 0.01% on-chain builder fee, settled automatically with each order — on both Hyperliquid and Aster.
 
-Bring your own LLM key; market data and quant tools are free.
+Bring your own LLM key; market data and quant tools are always free. When you hit the 10-prompt cap the CLI shows an amber panel with your Stripe Checkout link.
 
 ## Data Sources (Always Available)
 

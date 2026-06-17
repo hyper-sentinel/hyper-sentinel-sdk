@@ -188,7 +188,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.8.5 | Build: June 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.8.9 | Build: June 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -320,6 +320,10 @@ def _resolve_model(config: dict, provider: str) -> str:
         return saved
     return DEFAULT_MODELS.get(provider, "claude-sonnet-4-6")
 
+
+# Maximum wall-clock seconds the agent tool-use loop may run per prompt.
+# Raised from 60s (v0.8.8) to match the gateway's 150s proxy timeout.
+RESPONSE_TIME_LIMIT_S = 150
 
 # ══════════════════════════════════════════════════════════════
 # Tool Schema Definitions (curated from SentinelClient methods)
@@ -2263,6 +2267,86 @@ def _md_to_rich(text: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════
+# 402 Quota / Payment Handler
+# ══════════════════════════════════════════════════════════════
+
+def _handle_402(resp_dict: dict) -> bool:
+    """Detect a gateway 402 response and render an amber info panel.
+
+    Returns True if the response was a 402 (caller should ``continue`` the REPL
+    loop); False if it was a different kind of error and the caller should handle
+    it normally.
+
+    Gateway 402 shapes:
+    - ``error == "quota_exceeded"``  → free-tier weekly prompt cap hit
+    - ``error == "payment_failed"``  → card on file was declined
+    """
+    err_code = resp_dict.get("error")
+    if err_code not in ("quota_exceeded", "payment_failed"):
+        return False
+
+    prompts_used = resp_dict.get("prompts_used", "?")
+    prompt_limit = resp_dict.get("prompt_limit", 10)
+    resets_at = resp_dict.get("resets_at", "")
+    checkout_url = resp_dict.get("checkout_url", "https://hyper-sentinel.com")
+    msg = resp_dict.get("message", "")
+
+    if err_code == "quota_exceeded":
+        body = (
+            f"[bold yellow]Free tier:[/] {prompts_used}/{prompt_limit} prompts used this week\n"
+            f"[s.dim]Resets: {resets_at}[/]\n\n"
+            f"Add a payment method for unlimited access (flat 20% fee, no subscription):\n"
+            f"[bold cyan]{checkout_url}[/]"
+        )
+        if msg:
+            body = f"[s.dim]{msg}[/]\n\n" + body
+    else:
+        # payment_failed
+        body = (
+            f"[bold yellow]Payment method failed.[/]\n"
+            f"[s.dim]{msg}[/]\n\n"
+            f"Update your card to continue using Sentinel:\n"
+            f"[bold cyan]{checkout_url}[/]"
+        )
+
+    console.print(Panel(
+        body,
+        title="[bold yellow]Free Tier Limit Reached[/]" if err_code == "quota_exceeded" else "[bold yellow]Payment Failed[/]",
+        title_align="right",
+        border_style="yellow",
+        box=box.ROUNDED,
+        padding=(1, 3),
+    ))
+    console.print()
+    return True
+
+
+def _fetch_prompt_meter(api_key: str) -> tuple[int | None, int | None]:
+    """Fetch prompts_used / prompt_limit from the billing/status endpoint.
+
+    Returns (prompts_used, prompt_limit) or (None, None) on any error.
+    Used to display the per-prompt meter after each response.
+    """
+    if not api_key:
+        return None, None
+    try:
+        resp = httpx.get(
+            f"{GATEWAY_URL}/api/v1/billing/status",
+            headers={"X-API-Key": api_key},
+            timeout=httpx.Timeout(8.0, connect=5.0),
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            used = data.get("prompts_used")
+            limit = data.get("prompt_limit")
+            if used is not None and limit is not None:
+                return int(used), int(limit)
+    except Exception:
+        pass
+    return None, None
+
+
+# ══════════════════════════════════════════════════════════════
 # Dashboard — Mirrors main.py's _print_status()
 # ══════════════════════════════════════════════════════════════
 
@@ -2298,8 +2382,18 @@ def _print_dashboard(config: dict, gateway_ok: bool):
 
     # Gateway
     if gateway_ok:
-        tier = config.get("tier", "free").capitalize()
-        infra.add_row("🌐 Gateway", f"[green]● Connected[/]", f"{tier} tier · Cloud Run")
+        billing = config.get("billing_status", {})
+        payment_status = billing.get("payment_status", config.get("payment_status", "free"))
+        if payment_status in ("free", "") or payment_status is None:
+            prompts_used = billing.get("prompts_used")
+            prompt_limit = billing.get("prompt_limit", 10)
+            if prompts_used is not None:
+                detail = f"Free · {prompts_used}/{prompt_limit} prompts/wk · Cloud Run"
+            else:
+                detail = "Free · 10 prompts/wk · Cloud Run"
+        else:
+            detail = "Pay-as-you-go · Unlimited · Cloud Run"
+        infra.add_row("🌐 Gateway", f"[green]● Connected[/]", detail)
     else:
         infra.add_row("🌐 Gateway", "[dim]○ Pending[/]", "Auto-connects on first query")
 
@@ -2901,6 +2995,10 @@ def run_chat(config: dict):
             # ── Process Anthropic response ────────────
             if provider == "anthropic":
                 if "error" in llm_resp:
+                    if _handle_402(llm_resp):
+                        if history and history[-1].get("role") == "user":
+                            history.pop()
+                        continue
                     err = llm_resp["error"]
                     if isinstance(err, dict):
                         err = err.get("message", str(err))
@@ -2919,7 +3017,7 @@ def run_chat(config: dict):
                 iteration = 0
                 failed_tools: dict = {}
                 while stop_reason == "tool_use" and iteration < 15:
-                    if time.time() - t0 > 60:
+                    if time.time() - t0 > RESPONSE_TIME_LIMIT_S:
                         response_text = "⚠ Response time limit reached. Try a simpler query."
                         break
                     iteration += 1
@@ -2952,6 +3050,9 @@ def run_chat(config: dict):
                     llm_resp = _call_anthropic_streamed(ai_key, model_name, history, tools)
 
                     if "error" in llm_resp:
+                        if _handle_402(llm_resp):
+                            response_text = ""
+                            break
                         err = llm_resp["error"]
                         if isinstance(err, dict):
                             err = err.get("message", str(err))
@@ -2971,6 +3072,10 @@ def run_chat(config: dict):
             # ── Process OpenAI-compatible response ────
             else:
                 if "error" in llm_resp:
+                    if _handle_402(llm_resp):
+                        if history and history[-1].get("role") == "user":
+                            history.pop()
+                        continue
                     err = llm_resp["error"]
                     if isinstance(err, dict):
                         err = err.get("message", str(err))
@@ -2989,7 +3094,7 @@ def run_chat(config: dict):
                 iteration = 0
                 failed_tools: dict = {}
                 while finish_reason == "tool_calls" and message.get("tool_calls") and iteration < 15:
-                    if time.time() - t0 > 60:
+                    if time.time() - t0 > RESPONSE_TIME_LIMIT_S:
                         response_text = "⚠ Response time limit reached. Try a simpler query."
                         break
                     iteration += 1
@@ -3030,6 +3135,9 @@ def run_chat(config: dict):
                     llm_resp = _call_openai_compat(ai_key, model_name, history, tools, endpoint)
 
                     if "error" in llm_resp:
+                        if _handle_402(llm_resp):
+                            response_text = ""
+                            break
                         err = llm_resp["error"]
                         if isinstance(err, dict):
                             err = err.get("message", str(err))
@@ -3049,20 +3157,35 @@ def run_chat(config: dict):
             n_tools = len(tool_calls_this_turn)
             footer = f"[s.dim]{n_tools} tool{'s' if n_tools != 1 else ''} · {elapsed:.1f}s[/]"
 
-            # Same themed box for every provider (Claude streams a live preview first,
-            # which clears; gpt/grok/gemini render straight into the box).
-            console.print(Panel(
-                _md_to_rich(response_text),
-                title="[bold cyan]🛡️ Sentinel[/]",
-                subtitle=footer,
-                title_align="right",
-                subtitle_align="right",
-                border_style="#2a6e6e",
-                box=box.ROUNDED,
-                padding=(1, 3),
-                expand=True,
-            ))
-            console.print()
+            # response_text == "" means _handle_402 already showed its panel; skip.
+            if response_text:
+                # Same themed box for every provider (Claude streams a live preview first,
+                # which clears; gpt/grok/gemini render straight into the box).
+                console.print(Panel(
+                    _md_to_rich(response_text),
+                    title="[bold cyan]🛡️ Sentinel[/]",
+                    subtitle=footer,
+                    title_align="right",
+                    subtitle_align="right",
+                    border_style="#2a6e6e",
+                    box=box.ROUNDED,
+                    padding=(1, 3),
+                    expand=True,
+                ))
+                console.print()
+
+            # ── Per-prompt meter (free tier) ──────────
+            # Fetch latest quota from billing/status after each successful response.
+            # This is the low-effort, always-reliable approach — no header plumbing needed.
+            if api_key and response_text:
+                try:
+                    _used, _limit = _fetch_prompt_meter(api_key)
+                    if _used is not None and _limit is not None:
+                        _remaining = max(0, _limit - _used)
+                        console.print(f"  [dim]{_remaining}/{_limit} prompts left this week[/]")
+                        console.print()
+                except Exception:
+                    pass
 
         except Exception as e:
             console.print(Panel(
@@ -3112,6 +3235,9 @@ def run_ask(config: dict, question: str):
             llm_resp = _call_openai_compat(ai_key, model, history, tools, endpoint)
 
         if "error" in llm_resp:
+            if _handle_402(llm_resp):
+                response_text = ""
+                break
             err = llm_resp["error"]
             if isinstance(err, dict):
                 err = err.get("message", str(err))
@@ -3159,15 +3285,17 @@ def run_ask(config: dict, question: str):
         response_text = "⚠ Max iterations reached."
 
     elapsed = time.time() - t0
-    console.print(Panel(
-        _md_to_rich(response_text),
-        title="[bold cyan]🛡️ Sentinel[/]",
-        subtitle=f"[s.dim]{elapsed:.1f}s[/]",
-        title_align="right", subtitle_align="right",
-        border_style="#2a6e6e", box=box.ROUNDED,
-        padding=(1, 3), expand=True,
-    ))
-    console.print()
+    # response_text == "" means _handle_402 already rendered its panel.
+    if response_text:
+        console.print(Panel(
+            _md_to_rich(response_text),
+            title="[bold cyan]🛡️ Sentinel[/]",
+            subtitle=f"[s.dim]{elapsed:.1f}s[/]",
+            title_align="right", subtitle_align="right",
+            border_style="#2a6e6e", box=box.ROUNDED,
+            padding=(1, 3), expand=True,
+        ))
+        console.print()
 
 
 # ══════════════════════════════════════════════════════════════

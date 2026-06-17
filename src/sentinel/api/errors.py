@@ -3,11 +3,12 @@ Sentinel API — Error types.
 
 Modeled after OpenAI's error hierarchy:
     SentinelAPIError
-    ├── AuthenticationError   (401)
-    ├── RateLimitError        (429)
-    ├── InsufficientBalanceError (402)
-    ├── ToolNotFoundError     (404)
-    └── ServerError           (500+)
+    ├── AuthenticationError      (401)
+    ├── QuotaExceededError       (402 quota_exceeded — free-tier weekly limit)
+    ├── InsufficientBalanceError (402 payment_failed  — payment method issue)
+    ├── RateLimitError           (429)
+    ├── ToolNotFoundError        (404)
+    └── ServerError              (500+)
 """
 
 
@@ -41,10 +42,34 @@ class RateLimitError(SentinelAPIError):
         self.retry_after = kwargs.get("retry_after")
 
 
-class InsufficientBalanceError(SentinelAPIError):
-    """402 — USDC balance too low."""
+class QuotaExceededError(SentinelAPIError):
+    """402 quota_exceeded — Free-tier weekly prompt quota exhausted.
 
-    def __init__(self, message: str = "Insufficient USDC balance", **kwargs):
+    Free tier = 10 prompts per rolling 7-day window.  Add a payment method
+    at ``checkout_url`` for unlimited access (flat 20% platform fee).
+
+    Attributes:
+        prompts_used: Prompts consumed in the current 7-day window.
+        prompt_limit: Allowed prompts on the free tier (default 10).
+        window_days: Rolling window length in days.
+        resets_at: ISO-8601 timestamp when quota next resets.
+        checkout_url: Stripe Checkout URL to add a payment method.
+    """
+
+    def __init__(self, message: str = "Free-tier weekly prompt quota exceeded", **kwargs):
+        response = kwargs.get("response", {})
+        self.prompts_used = response.get("prompts_used", 0)
+        self.prompt_limit = response.get("prompt_limit", 10)
+        self.window_days = response.get("window_days", 7)
+        self.resets_at = response.get("resets_at", "")
+        self.checkout_url = response.get("checkout_url", "")
+        super().__init__(message, status_code=402, **kwargs)
+
+
+class InsufficientBalanceError(SentinelAPIError):
+    """402 payment_failed — Payment method failed or insufficient balance."""
+
+    def __init__(self, message: str = "Payment method failed or balance insufficient", **kwargs):
         super().__init__(message, status_code=402, **kwargs)
 
 
