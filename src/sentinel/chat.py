@@ -2285,40 +2285,94 @@ def _handle_402(resp_dict: dict) -> bool:
     if err_code not in ("quota_exceeded", "payment_failed"):
         return False
 
-    prompts_used = resp_dict.get("prompts_used", "?")
     prompt_limit = resp_dict.get("prompt_limit", 10)
     resets_at = resp_dict.get("resets_at", "")
-    checkout_url = resp_dict.get("checkout_url", "https://hyper-sentinel.com")
-    msg = resp_dict.get("message", "")
+
+    # Humanize the reset date: ISO 8601 → "Tue, Jun 24 · 6d".
+    reset_str = ""
+    if resets_at:
+        try:
+            from datetime import datetime, timezone
+            dt = datetime.fromisoformat(resets_at.replace("Z", "+00:00"))
+            days = max(0, (dt - datetime.now(timezone.utc)).days)
+            reset_str = dt.strftime("%a, %b ") + str(dt.day) + (f" · {days}d" if days else " · today")
+        except Exception:
+            reset_str = resets_at[:10]
 
     if err_code == "quota_exceeded":
-        body = (
-            f"[bold yellow]Free tier:[/] {prompts_used}/{prompt_limit} prompts used this week\n"
-            f"[s.dim]Resets: {resets_at}[/]\n\n"
-            f"Add a payment method for unlimited access (flat 20% fee, no subscription):\n"
-            f"[bold cyan]{checkout_url}[/]"
-        )
-        if msg:
-            body = f"[s.dim]{msg}[/]\n\n" + body
-    else:
-        # payment_failed
-        body = (
-            f"[bold yellow]Payment method failed.[/]\n"
-            f"[s.dim]{msg}[/]\n\n"
-            f"Update your card to continue using Sentinel:\n"
-            f"[bold cyan]{checkout_url}[/]"
-        )
+        lines = [f"You've used all [bold]{prompt_limit}[/] free prompts this week."]
+        if reset_str:
+            lines.append(f"[s.dim]Resets {reset_str}[/]")
+        lines += [
+            "",
+            "Add a payment method for [bold]unlimited[/] access —",
+            "pay-as-you-go, flat 20%, no subscription.",
+            "",
+            "[bold]→ Type  [cyan]upgrade[/]  to add a card[/]",
+        ]
+        title = "[bold yellow]⚡ Free limit reached[/]"
+        border = "yellow"
+    else:  # payment_failed
+        lines = [
+            "[bold]Your payment method failed.[/]",
+            "Update your card to keep going:",
+            "",
+            "[bold]→ Type  [cyan]upgrade[/]  to update payment[/]",
+        ]
+        title = "[bold red]Payment failed[/]"
+        border = "red"
 
     console.print(Panel(
-        body,
-        title="[bold yellow]Free Tier Limit Reached[/]" if err_code == "quota_exceeded" else "[bold yellow]Payment Failed[/]",
-        title_align="right",
-        border_style="yellow",
+        "\n".join(lines),
+        title=title,
+        title_align="left",
+        border_style=border,
         box=box.ROUNDED,
         padding=(1, 3),
     ))
     console.print()
     return True
+
+
+def _do_upgrade(api_key: str = "") -> None:
+    """Fetch the real Stripe upgrade link from the gateway and open it in the browser.
+
+    Calls POST /api/v1/billing/subscribe (authenticated). The gateway returns a Stripe
+    Payment Link (buy.stripe.com/...) with the user's client_reference_id attached; after
+    the user adds a card on Stripe's hosted page, the checkout.session.completed webhook
+    flips them to unlimited. No website pages involved — Stripe hosts the whole flow.
+    """
+    import webbrowser
+    from sentinel.api._http import load_api_key
+    key = load_api_key() or api_key
+    try:
+        resp = httpx.post(
+            f"{GATEWAY_URL}/api/v1/billing/subscribe",
+            headers={"X-API-Key": key} if key else {},
+            timeout=httpx.Timeout(10.0, connect=5.0),
+        )
+        if resp.status_code == 200:
+            url = resp.json().get("checkout_url", "")
+            if url:
+                console.print(Panel(
+                    "Opening Stripe checkout in your browser…\n\n"
+                    f"If it doesn't open, paste this link:\n[bold cyan]{url}[/]\n\n"
+                    "[s.dim]Add a card → unlimited prompts, pay-as-you-go at a flat 20%. "
+                    "No subscription, cancel anytime.[/]",
+                    title="[bold]⚡ Upgrade[/]", title_align="left",
+                    border_style="#5fd7ff", box=box.ROUNDED, padding=(1, 3),
+                ))
+                console.print()
+                try:
+                    webbrowser.open(url)
+                except Exception:
+                    pass
+                return
+            console.print("  [s.error]No checkout link returned by the gateway.[/]\n")
+            return
+        console.print(f"  [s.error]Couldn't start checkout (HTTP {resp.status_code}). Try again shortly.[/]\n")
+    except Exception as e:
+        console.print(f"  [s.error]Upgrade failed: {e}[/]\n")
 
 
 def _fetch_billing_status(api_key: str = "") -> dict:
@@ -2765,6 +2819,10 @@ def run_chat(config: dict):
         if cmd == "status":
             config = _load_config()  # refresh
             _print_dashboard(config, gateway_ok)
+            continue
+
+        if cmd in ("upgrade", "subscribe", "billing"):
+            _do_upgrade(api_key)
             continue
 
         if cmd == "model" or cmd.startswith("model "):
