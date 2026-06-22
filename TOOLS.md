@@ -1,6 +1,6 @@
 # Sentinel Tool Reference
 
-> **60 tools** across 10 categories. Updated for v0.8.6.
+> **69 tools** across 10 categories. Updated for v0.9.0.
 >
 > Tools are called automatically by the AI agent based on your natural language input.
 > Some tools require API keys — type `add` in the terminal to configure.
@@ -113,11 +113,16 @@
 
 | Tool | Description | Example Prompt |
 |------|-------------|---------------|
-| `get_hl_positions` | Current open positions (crypto + TradFi) | `"show my Hyperliquid positions"` |
+| `get_hl_config` | Exchange config + connection status (crypto + TradFi) | `"check my HL connection"` |
+| `get_hl_positions` | All open positions — crypto **and** TradFi (GOLD, TSLA, SP500, etc.) | `"show my Hyperliquid positions"` |
+| `get_hl_account_info` | Account equity across all asset classes, margin, per-dex breakdown | `"what's my HL balance?"` |
+| `get_hl_open_orders` | Pending orders — crypto + TradFi | `"show my open orders"` |
 | `get_hl_orderbook` | Order book for any pair (crypto + TradFi) | `"show BTC orderbook"` |
-| `get_hl_account_info` | Account balances, margin, equity | `"what's my HL balance?"` |
 | `place_hl_order` | Place a trade — crypto + TradFi (GOLD, TSLA, SP500, etc.) | `"long 0.1 BTC at market"` |
 | `close_hl_position` | Close an open position | `"close my ETH position"` |
+| `cancel_hl_order` | Cancel a pending order | `"cancel my BTC limit order"` |
+| `set_hl_leverage` | Set leverage for a coin | `"set BTC leverage to 10x"` |
+| `approve_hl_builder_fee` | One-time builder fee approval for trading | `"approve HL builder fee"` |
 | `get_hl_tradfi_assets` | List available TradFi perps (GOLD, SILVER, OIL, TSLA, NVDA, 50+) | `"what TradFi assets can I trade?"` |
 | `get_hl_tradfi_price` | Current price, spread, funding for a TradFi asset | `"what's GOLD trading at on HL?"` |
 
@@ -184,4 +189,4 @@
 
 ---
 
-*Sentinel v0.8.6 — [Sentinel Labs LLC](https://hyper-sentinel.com) — AGPL-3.0*
+*Sentinel v0.9.0 — [Sentinel Labs LLC](https://hyper-sentinel.com) — AGPL-3.0*

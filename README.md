@@ -80,10 +80,12 @@ Type what you want. The AI agent calls the right tools automatically.
 BTC $84,219 (+1.8%) | Vol $31.2B | MCap $1.67T
 
 > Show my Hyperliquid positions
-| Coin | Size  | Entry    | PnL      | ROE    | Leverage |
-|------|-------|----------|----------|--------|----------|
-| BTC  | 0.7   | $70,711  | +$752    | +50.1% | 33x      |
-| SOL  | 220   | $82.55   | +$169    | +18.6% | 20x      |
+| Coin | Size  | Entry    | PnL      | ROE    | Leverage | Type   |
+|------|-------|----------|----------|--------|----------|--------|
+| BTC  | 0.7   | $70,711  | +$752    | +50.1% | 33x      | crypto |
+| SOL  | 220   | $82.55   | +$169    | +18.6% | 20x      | crypto |
+| GOLD | 2.0   | $2,641   | +$38     | +7.2%  | 10x      | tradfi |
+| NVDA | 15    | $131.20  | +$94     | +12.0% | 5x       | tradfi |
 
 > Get GDP, unemployment, and fed rate
 [calls get_fred_series x3 — real economic data]

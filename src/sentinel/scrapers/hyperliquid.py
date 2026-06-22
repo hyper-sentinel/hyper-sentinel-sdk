@@ -54,6 +54,13 @@ TRADFI_ALIASES = {
     "SNDK": "xyz:SNDK", "CRCL": "xyz:CRCL",
 }
 
+# ── Perp Dex Namespaces ──
+# All dex namespaces to query for full account visibility.
+# "" = native crypto perps (BTC, ETH, SOL)
+# "xyz" = TradFi builder dex (GOLD, OIL, TSLA, SP500, stocks, forex)
+# Add future HIP-3 dexes here — all read functions auto-expand.
+_PERP_DEXES = ["", "xyz"]
+
 
 def _resolve_coin(coin: str) -> str:
     """
@@ -158,9 +165,10 @@ def _get_info():
 def get_hl_config() -> dict:
     """
     Show the current Hyperliquid configuration status.
+    Checks connectivity to both native crypto and TradFi (xyz) dexes.
 
     Returns:
-        Wallet address, trading capability, and connection status.
+        Wallet address, trading capability, and connection status for all dexes.
     """
     wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
     private_key = os.getenv("HYPERLIQUID_PRIVATE_KEY", "").strip()
@@ -175,10 +183,19 @@ def get_hl_config() -> dict:
     if wallet:
         try:
             info, _ = _get_info()
-            user_state = info.user_state(wallet)
+            # Check native crypto dex
+            user_state = info.user_state(wallet, dex="")
             config["connection"] = "Connected"
             cross_margin = user_state.get("crossMarginSummary", user_state.get("marginSummary", {}))
             config["account_value"] = cross_margin.get("accountValue", "0")
+            # Check xyz (TradFi) dex
+            try:
+                xyz_state = info.user_state(wallet, dex="xyz")
+                xyz_margin = xyz_state.get("crossMarginSummary", xyz_state.get("marginSummary", {}))
+                config["xyz_connection"] = "Connected"
+                config["xyz_account_value"] = xyz_margin.get("accountValue", "0")
+            except Exception:
+                config["xyz_connection"] = "Error"
         except Exception as e:
             config["connection"] = f"Error: {str(e)}"
 
@@ -187,27 +204,50 @@ def get_hl_config() -> dict:
 
 def get_hl_account_info() -> dict:
     """
-    Get Hyperliquid account balances and margin info.
+    Get Hyperliquid account balances and margin info across all dexes.
+    Aggregates equity from both native crypto and TradFi (xyz) perps.
 
     Returns:
-        Account equity, available margin, positions summary.
+        Total account equity, margin, and per-dex breakdown.
     """
     try:
         info, wallet = _get_info()
         if not wallet:
             return {"error": "HYPERLIQUID_WALLET_ADDRESS not set in .env. Use 'add hl' to configure."}
 
-        user_state = info.user_state(wallet)
+        total_value = 0.0
+        total_margin = 0.0
+        total_ntl = 0.0
+        withdrawable = "0"
+        dex_breakdown = {}
 
-        margin_summary = user_state.get("marginSummary", {})
-        cross_margin = user_state.get("crossMarginSummary", margin_summary)
+        for dex in _PERP_DEXES:
+            try:
+                user_state = info.user_state(wallet, dex=dex)
+                margin = user_state.get("crossMarginSummary", user_state.get("marginSummary", {}))
+                val = float(margin.get("accountValue", 0))
+                mgn = float(margin.get("totalMarginUsed", 0))
+                ntl = float(margin.get("totalNtlPos", 0))
+                total_value += val
+                total_margin += mgn
+                total_ntl += ntl
+                if dex == "":
+                    withdrawable = user_state.get("withdrawable", "0")
+                dex_label = dex or "native"
+                dex_breakdown[dex_label] = {
+                    "account_value": str(val),
+                    "margin_used": str(mgn),
+                }
+            except Exception:
+                pass  # One dex failing shouldn't block the other
 
         return {
             "wallet": wallet,
-            "account_value": cross_margin.get("accountValue", "0"),
-            "total_margin_used": cross_margin.get("totalMarginUsed", "0"),
-            "total_ntl_pos": cross_margin.get("totalNtlPos", "0"),
-            "withdrawable": user_state.get("withdrawable", "0"),
+            "account_value": str(round(total_value, 2)),
+            "total_margin_used": str(round(total_margin, 2)),
+            "total_ntl_pos": str(round(total_ntl, 2)),
+            "withdrawable": withdrawable,
+            "dex_breakdown": dex_breakdown,
         }
     except Exception as e:
         wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
@@ -216,33 +256,47 @@ def get_hl_account_info() -> dict:
 
 def get_hl_positions() -> dict:
     """
-    Get all open positions on Hyperliquid.
+    Get all open positions on Hyperliquid (native crypto + TradFi/xyz).
+
+    Queries both the native dex (BTC, ETH, SOL) and the xyz builder dex
+    (GOLD, SP500, OIL, TSLA, etc.) and merges results.
 
     Returns:
-        List of positions with PnL, size, entry price, leverage.
+        List of positions with PnL, size, entry price, leverage, asset_type, dex.
     """
     try:
         info, wallet = _get_info()
         if not wallet:
             return {"error": "HYPERLIQUID_WALLET_ADDRESS not set in .env"}
 
-        user_state = info.user_state(wallet)
         positions = []
+        seen_coins = set()  # Deduplicate in case of Unified Account
 
-        for pos in user_state.get("assetPositions", []):
-            p = pos.get("position", {})
-            if float(p.get("szi", 0)) != 0:
-                positions.append({
-                    "coin": p.get("coin", "N/A"),
-                    "size": p.get("szi", "0"),
-                    "entry_price": p.get("entryPx", "0"),
-                    "mark_price": p.get("markPx", "0"),
-                    "unrealized_pnl": p.get("unrealizedPnl", "0"),
-                    "return_on_equity": p.get("returnOnEquity", "0"),
-                    "leverage": p.get("leverage", {}).get("value", "N/A"),
-                    "liquidation_price": p.get("liquidationPx", "N/A"),
-                    "margin_used": p.get("marginUsed", "0"),
-                })
+        # Query both native and xyz (TradFi) dexes
+        for dex in _PERP_DEXES:
+            try:
+                user_state = info.user_state(wallet, dex=dex)
+            except Exception:
+                continue
+
+            for pos in user_state.get("assetPositions", []):
+                p = pos.get("position", {})
+                coin = p.get("coin", "N/A")
+                if float(p.get("szi", 0)) != 0 and coin not in seen_coins:
+                    seen_coins.add(coin)
+                    positions.append({
+                        "coin": coin,
+                        "asset_type": "tradfi" if dex == "xyz" else "crypto",
+                        "dex": dex or "native",
+                        "size": p.get("szi", "0"),
+                        "entry_price": p.get("entryPx", "0"),
+                        "mark_price": p.get("markPx", "0"),
+                        "unrealized_pnl": p.get("unrealizedPnl", "0"),
+                        "return_on_equity": p.get("returnOnEquity", "0"),
+                        "leverage": p.get("leverage", {}).get("value", "N/A"),
+                        "liquidation_price": p.get("liquidationPx", "N/A"),
+                        "margin_used": p.get("marginUsed", "0"),
+                    })
 
         return {
             "total_positions": len(positions),
@@ -288,24 +342,33 @@ def get_hl_orderbook(coin: str, depth: int = 5) -> dict:
 
 
 def get_hl_open_orders() -> dict:
-    """Get all open/pending orders on Hyperliquid."""
+    """Get all open/pending orders on Hyperliquid (native crypto + TradFi/xyz)."""
     try:
         info, wallet = _get_info()
         if not wallet:
             return {"error": "HYPERLIQUID_WALLET_ADDRESS not set in .env"}
 
-        orders = info.open_orders(wallet)
-
         formatted = []
-        for o in orders:
-            formatted.append({
-                "oid": o.get("oid"),
-                "coin": o.get("coin", "N/A"),
-                "side": o.get("side", "N/A"),
-                "size": o.get("sz", "0"),
-                "price": o.get("limitPx", "0"),
-                "order_type": o.get("orderType", "N/A"),
-            })
+        seen_oids = set()  # Deduplicate across dexes
+
+        for dex in _PERP_DEXES:
+            try:
+                orders = info.open_orders(wallet, dex=dex)
+                for o in orders:
+                    oid = o.get("oid")
+                    if oid not in seen_oids:
+                        seen_oids.add(oid)
+                        formatted.append({
+                            "oid": oid,
+                            "coin": o.get("coin", "N/A"),
+                            "side": o.get("side", "N/A"),
+                            "size": o.get("sz", "0"),
+                            "price": o.get("limitPx", "0"),
+                            "order_type": o.get("orderType", "N/A"),
+                            "dex": dex or "native",
+                        })
+            except Exception:
+                pass  # One dex failing shouldn't block the other
 
         return {
             "total_open_orders": len(formatted),
