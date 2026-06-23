@@ -150,42 +150,37 @@
 
 ---
 
-## 💬 Messaging (Telegram & Discord)
+## 🔒 Shelved (Not Yet Implemented)
 
-*Requires configuration (`add tg`, `add discord`)*
+> The following tools are planned but **not currently available** in v0.9.0.
+> They are not included in the 69-tool count above.
 
-| Tool | Description | Example Prompt |
-|------|-------------|---------------|
-| `tg_read_channel` | Read messages from a Telegram channel | `"read the last 10 messages from crypto channel"` |
-| `tg_list_channels` | List available Telegram channels | `"list my telegram channels"` |
-| `discord_list_guilds` | List connected Discord servers | `"show my discord servers"` |
-| `discord_read_channel` | Read messages from a Discord channel | `"read messages from #trading"` |
+### 💬 Messaging (Telegram & Discord)
 
----
+| Tool | Description |
+|------|-------------|
+| `tg_read_channel` | Read messages from a Telegram channel |
+| `tg_list_channels` | List available Telegram channels |
+| `discord_list_guilds` | List connected Discord servers |
+| `discord_read_channel` | Read messages from a Discord channel |
 
-## 🤖 Strategy Engine
+### 🤖 Strategy Engine
 
-*Requires Hyperliquid connection*
+| Tool | Description |
+|------|-------------|
+| `strategy_status` | Algo strategy status, position, P&L |
+| `strategy_start` | Start the algo trading strategy |
+| `strategy_stop` | Stop the algo trading strategy |
+| `strategy_set_algo` | Set algorithm (SMA, Bollinger, MACD, EMA spread) |
+| `list_algos` | List all available algorithms |
 
-| Tool | Description | Example Prompt |
-|------|-------------|---------------|
-| `strategy_status` | Current algo strategy status, position, P&L | `"what's my strategy doing?"` |
-| `strategy_start` | Start the algo trading strategy | `"start the trading strategy"` |
-| `strategy_stop` | Stop the algo trading strategy | `"stop trading"` |
-| `strategy_set_algo` | Set algorithm (SMA, Bollinger, MACD, EMA spread) | `"switch to MACD strategy"` |
-| `list_algos` | List all available algorithms with descriptions | `"what algos are available?"` |
+### 🔗 On-Chain (Wallet Operations)
 
----
-
-## 🔗 On-Chain (Wallet Operations)
-
-*Requires wallet configuration*
-
-| Tool | Description | Example Prompt |
-|------|-------------|---------------|
-| `list_wallets` | List configured wallets across chains | `"show my wallets"` |
-| `dex_buy_sol` | Buy a token on Solana via Jupiter | `"buy SOL token [address]"` |
-| `dex_buy_eth` | Buy a token on Ethereum via Uniswap | `"buy ETH token [address]"` |
+| Tool | Description |
+|------|-------------|
+| `list_wallets` | List configured wallets across chains |
+| `dex_buy_sol` | Buy a token on Solana via Jupiter |
+| `dex_buy_eth` | Buy a token on Ethereum via Uniswap |
 
 ---
 

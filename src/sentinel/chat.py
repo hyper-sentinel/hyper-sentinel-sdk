@@ -2602,6 +2602,40 @@ def _first_run_setup() -> dict:
 
 
 # ══════════════════════════════════════════════════════════════
+# Config → Environment Bridge
+# ══════════════════════════════════════════════════════════════
+
+_CONFIG_TO_ENV_MAP = {
+    "hyperliquid_wallet": "HYPERLIQUID_WALLET_ADDRESS",
+    "hyperliquid_key": "HYPERLIQUID_PRIVATE_KEY",
+    "aster_api_key": "ASTER_API_KEY",
+    "aster_api_secret": "ASTER_API_SECRET",
+    "polymarket_key": "POLYMARKET_PRIVATE_KEY",
+    "polymarket_funder": "POLYMARKET_FUNDER",
+    "fred_api_key": "FRED_API_KEY",
+    "y2_api_key": "Y2_API_KEY",
+    "elfa_api_key": "ELFA_API_KEY",
+    "x_bearer_token": "X_BEARER_TOKEN",
+    "tg_api_id": "TELEGRAM_API_ID",
+    "tg_api_hash": "TELEGRAM_API_HASH",
+    "discord_token": "DISCORD_BOT_TOKEN",
+    "eodhd_api_key": "EODHD_API_KEY",
+}
+
+
+def _bridge_config_to_env(config: dict):
+    """Bridge ~/.sentinel/config keys → os.environ so tools can find them.
+
+    Called on boot AND after every `add <service>` so that tools configured
+    mid-session work immediately without restarting sentinel.
+    """
+    for config_key, env_key in _CONFIG_TO_ENV_MAP.items():
+        val = config.get(config_key, "")
+        if val:
+            os.environ[env_key] = str(val)
+
+
+# ══════════════════════════════════════════════════════════════
 # Interactive Chat REPL
 # ══════════════════════════════════════════════════════════════
 
@@ -2655,23 +2689,8 @@ def run_chat(config: dict):
 
     gateway_ok = bool(api_key)
 
-    # Bridge config → env (must happen before dashboard)
-    _CONFIG_TO_ENV = {
-        "hyperliquid_wallet": "HYPERLIQUID_WALLET_ADDRESS",
-        "hyperliquid_key": "HYPERLIQUID_PRIVATE_KEY",
-        "aster_api_key": "ASTER_API_KEY",
-        "aster_api_secret": "ASTER_API_SECRET",
-        "polymarket_key": "POLYMARKET_PRIVATE_KEY",
-        "polymarket_funder": "POLYMARKET_FUNDER",
-        "fred_api_key": "FRED_API_KEY",
-        "y2_api_key": "Y2_API_KEY",
-        "elfa_api_key": "ELFA_API_KEY",
-        "x_bearer_token": "X_BEARER_TOKEN",
-        "tg_api_id": "TELEGRAM_API_ID",
-        "tg_api_hash": "TELEGRAM_API_HASH",
-        "discord_token": "DISCORD_BOT_TOKEN",
-        "eodhd_api_key": "EODHD_API_KEY",
-    }
+    # Bridge config → env on boot
+    _bridge_config_to_env(config)
 
     # ── Staged boot with spinners ─────────────────────────────
     from rich.live import Live
@@ -2685,7 +2704,7 @@ def run_chat(config: dict):
         ("🤖", "Authenticating LLM", f"{provider_label} → {_resolve_model(config, provider)}", 0.3),
         ("🔑", "Loading credentials", f"~/.sentinel/config", 0.2),
         ("🔧", "Initializing tool registry", f"{len(TOOL_SCHEMAS)} tools", 0.25),
-        ("📡", "Bridging environment", f"{sum(1 for k in _CONFIG_TO_ENV if config.get(k))} services", 0.15),
+        ("📡", "Bridging environment", f"{sum(1 for k in _CONFIG_TO_ENV_MAP if config.get(k))} services", 0.15),
         ("📊", "Connecting data sources", "CoinGecko · YFinance · DexScreener", 0.2),
     ]
 
@@ -2726,10 +2745,7 @@ def run_chat(config: dict):
 
             # Do the actual work for this stage
             if "Bridging" in label:
-                for config_key, env_key in _CONFIG_TO_ENV.items():
-                    val = config.get(config_key, "")
-                    if val and not os.environ.get(env_key):
-                        os.environ[env_key] = str(val)
+                _bridge_config_to_env(config)
 
             completed.append((icon, label, detail))
 
@@ -2919,6 +2935,7 @@ def run_chat(config: dict):
                 from sentinel.cli import _add_service
                 _add_service(service)
                 config = _load_config()  # refresh after add
+                _bridge_config_to_env(config)  # re-bridge so tools work immediately
             else:
                 # Show available services
                 console.print()
