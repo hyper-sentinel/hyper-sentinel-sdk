@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.9.1 — 2026-06-24
+
+### 🐛 Bug Fix — Config→Environment Bridge
+
+**Services configured via `add <service>` mid-session now work immediately** without requiring a restart.
+
+Previously, `_add_service()` wrote credentials to `~/.sentinel/config` but didn't update `os.environ`, so tools (scrapers) that read environment variables would fail until the next session boot. The new `_bridge_config_to_env()` function syncs config→env at boot AND after any `add` call.
+
+### ⚡ Gateway Improvements (v0.9.1)
+
+- **Metering diagnostics** — Boot-time logs confirm Stripe meter configuration (restricted key, price ID, event name). Meter event failures now log full context (customer, model, fee, HTTP status) instead of swallowing errors.
+- **Meter retry** — 1× retry with 2s delay for transient 5xx/network errors. Uses idempotent request IDs so retries can't double-bill.
+- **Google Gemini streaming** — Fixed missing `"google"` in the streaming provider case. Gemini users can now use `?stream=true`.
+
+---
+
 ## v0.9.0 — 2026-06-22
 
 ### 🐛 Bug Fix — TradFi Position Visibility

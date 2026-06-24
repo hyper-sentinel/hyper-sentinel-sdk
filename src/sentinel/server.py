@@ -53,7 +53,7 @@ class RateLimiter:
 # ============================================================================
 
 def _build_registry():
-    """Build the tool registry with all 67 approved tools."""
+    """Build the tool registry with all 69 tools."""
     from sentinel.tool_registry import ToolRegistry
 
     registry = ToolRegistry()
@@ -108,13 +108,13 @@ def _build_registry():
     # ── X / Twitter (1) ───────────────────────────────────────
     try:
         from sentinel.scrapers.x import XScraper
-        _x_token = os.getenv("X_BEARER_TOKEN", "").strip()
-        if _x_token:
-            _x_client = XScraper(_x_token)
-            def search_x(query: str, max_results: int = 10) -> list:
-                """Search recent tweets on X (Twitter) for a query."""
-                return _x_client.search_tweets(query, max_results)
-            registry.register(search_x)
+        def search_x(query: str, max_results: int = 10) -> list:
+            """Search recent tweets on X (Twitter) for a query."""
+            _x_token = os.getenv("X_BEARER_TOKEN", "").strip()
+            if not _x_token:
+                return [{"error": "X_BEARER_TOKEN not configured. Run: add x"}]
+            return XScraper(_x_token).search_tweets(query, max_results)
+        registry.register(search_x)
     except ImportError:
         logger.warning("X/Twitter scraper unavailable")
 
@@ -279,7 +279,7 @@ def create_app():
             "**Public tools** (no auth): crypto prices, social sentiment, news, macro data.\n\n"
             "**Auth-required tools** (X-API-Key header): DEX trading, account balances, order management."
         ),
-        version="0.9.0",
+        version="0.9.1",
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -309,7 +309,7 @@ def create_app():
     async def root():
         return {
             "name": "Sentinel API",
-            "version": "0.9.0",
+            "version": "0.9.1",
             "engine": "fastapi",
             "tools": registry.tool_count,
             "public_tools": len([t for t in registry.tool_names if t in PUBLIC_TOOLS]),

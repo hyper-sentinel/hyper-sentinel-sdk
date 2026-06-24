@@ -1,6 +1,6 @@
 # Sentinel Tool Reference
 
-> **69 tools** across 10 categories. Updated for v0.9.0.
+> **69 tools** across 10 categories. Updated for v0.9.1.
 >
 > Tools are called automatically by the AI agent based on your natural language input.
 > Some tools require API keys — type `add` in the terminal to configure.
@@ -152,7 +152,7 @@
 
 ## 🔒 Shelved (Not Yet Implemented)
 
-> The following tools are planned but **not currently available** in v0.9.0.
+> The following tools are planned but **not currently available** in v0.9.1.
 > They are not included in the 69-tool count above.
 
 ### 💬 Messaging (Telegram & Discord)
@@ -184,4 +184,4 @@
 
 ---
 
-*Sentinel v0.9.0 — [Sentinel Labs LLC](https://hyper-sentinel.com) — AGPL-3.0*
+*Sentinel v0.9.1 — [Sentinel Labs LLC](https://hyper-sentinel.com) — AGPL-3.0*
