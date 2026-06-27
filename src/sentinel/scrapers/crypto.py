@@ -2,18 +2,28 @@
 Cryptocurrency price scraper using CoinGecko (free, no API key required).
 
 Includes:
-- 60-second price cache to avoid rate limits and give instant repeat queries
+- 300-second price cache (v0.9.2: extended from 60s to reduce 429s under burst)
 - 10s timeout (instead of 30s) for fast failure
 - CoinGecko Demo API key header for higher free-tier rate limits
+- tenacity retry with exponential backoff on 429/5xx (v0.9.2)
+- Graceful degradation: persistent 429 returns a clear error dict instead of crashing
 """
 
 import os
 import time
 import requests
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+    RetryError,
+)
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 
 # Optional CoinGecko Demo API key (free, 30 calls/min vs 10 without)
+# Set COINGECKO_API_KEY in environment / ~/.sentinel/config to unlock higher limits.
 _CG_API_KEY = os.getenv("COINGECKO_API_KEY", "").strip()
 
 # Headers to avoid rate limiting / bot blocking
@@ -22,11 +32,16 @@ _HEADERS = {
     "Accept": "application/json",
 }
 if _CG_API_KEY:
-    _HEADERS["x-cg-demo-api-key"] = _CG_API_KEY
+    # Use x-cg-demo-api-key for Demo keys; Pro keys use x-cg-pro-api-key.
+    # Demo key prefix is "CG-" (30 req/min); Pro keys are longer.
+    if _CG_API_KEY.startswith("CG-"):
+        _HEADERS["x-cg-demo-api-key"] = _CG_API_KEY
+    else:
+        _HEADERS["x-cg-pro-api-key"] = _CG_API_KEY
 
-# Simple price cache: {coin_id: (timestamp, data)}
+# Price cache: {coin_id: (timestamp, data)}
 _price_cache: dict[str, tuple[float, dict]] = {}
-_CACHE_TTL = 60  # seconds
+_CACHE_TTL = 300  # 5 minutes — extended from 60s to reduce burst 429s
 
 # Common symbol → CoinGecko ID mapping
 SYMBOL_TO_ID = {
@@ -40,6 +55,33 @@ SYMBOL_TO_ID = {
     "bitcoin": "bitcoin", "ethereum": "ethereum", "solana": "solana",
     "dogecoin": "dogecoin", "cardano": "cardano", "ripple": "ripple",
 }
+
+
+def _is_rate_limit_or_server_error(exc: BaseException) -> bool:
+    """tenacity predicate: retry on 429 and 5xx responses."""
+    if isinstance(exc, requests.HTTPError):
+        return exc.response is not None and exc.response.status_code in (429, 500, 502, 503, 504)
+    return False
+
+
+def _cg_get(url: str, params: dict | None = None) -> requests.Response:
+    """GET a CoinGecko endpoint with tenacity retry on 429/5xx.
+
+    Raises requests.HTTPError on persistent failure so callers can handle it.
+    Up to 3 attempts: waits 2s, then 8s (exponential, jitter off for predictability).
+    """
+    @retry(
+        retry=retry_if_exception(_is_rate_limit_or_server_error),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=2, max=30),
+        reraise=True,
+    )
+    def _do_get() -> requests.Response:
+        resp = requests.get(url, params=params, headers=_HEADERS, timeout=12)
+        resp.raise_for_status()
+        return resp
+
+    return _do_get()
 
 
 def get_crypto_price(coin_id: str) -> dict:
@@ -57,8 +99,23 @@ def get_crypto_price(coin_id: str) -> dict:
     params = {"localization": "false", "tickers": "false",
               "community_data": "false", "developer_data": "false"}
 
-    resp = requests.get(url, params=params, headers=_HEADERS, timeout=10)
-    resp.raise_for_status()
+    try:
+        resp = _cg_get(url, params)
+    except requests.HTTPError as e:
+        status = e.response.status_code if e.response is not None else 0
+        if status == 429:
+            return {
+                "error": "CoinGecko rate limit hit (429). Add a COINGECKO_API_KEY env var for "
+                         "higher limits (free demo key at coingecko.com/api), or retry in ~30s.",
+                "coin_id": coin_id,
+                "source": "coingecko",
+            }
+        if status == 404:
+            return {"error": f"Coin '{coin_id}' not found on CoinGecko. Try search_crypto first.", "coin_id": coin_id}
+        return {"error": f"CoinGecko HTTP {status}: {e}", "coin_id": coin_id}
+    except Exception as e:
+        return {"error": f"CoinGecko request failed: {e}", "coin_id": coin_id}
+
     data = resp.json()
     market = data.get("market_data", {})
 
@@ -75,6 +132,7 @@ def get_crypto_price(coin_id: str) -> dict:
         "price_change_pct_30d": market.get("price_change_percentage_30d"),
         "ath": market.get("ath", {}).get("usd"),
         "circulating_supply": market.get("circulating_supply"),
+        "source": "coingecko",
     }
 
     # Cache the result
@@ -88,8 +146,15 @@ def get_crypto_top_n(n: int = 20) -> list[dict]:
     params = {"vs_currency": "usd", "order": "market_cap_desc",
               "per_page": min(n, 250), "page": 1, "sparkline": "false"}
 
-    resp = requests.get(url, params=params, headers=_HEADERS, timeout=10)
-    resp.raise_for_status()
+    try:
+        resp = _cg_get(url, params)
+    except requests.HTTPError as e:
+        status = e.response.status_code if e.response is not None else 0
+        if status == 429:
+            return [{"error": "CoinGecko rate limit (429). Retry shortly or add COINGECKO_API_KEY."}]
+        return [{"error": f"CoinGecko HTTP {status}"}]
+    except Exception as e:
+        return [{"error": f"CoinGecko request failed: {e}"}]
 
     return [
         {
@@ -99,6 +164,7 @@ def get_crypto_top_n(n: int = 20) -> list[dict]:
             "current_price": c.get("current_price"),
             "market_cap": c.get("market_cap"),
             "price_change_pct_24h": c.get("price_change_percentage_24h"),
+            "source": "coingecko",
         }
         for c in resp.json()
     ]
@@ -106,8 +172,15 @@ def get_crypto_top_n(n: int = 20) -> list[dict]:
 
 def search_crypto(query: str) -> list[dict]:
     """Search for a cryptocurrency by name or symbol."""
-    resp = requests.get(f"{COINGECKO_BASE}/search", params={"query": query}, headers=_HEADERS, timeout=10)
-    resp.raise_for_status()
+    try:
+        resp = _cg_get(f"{COINGECKO_BASE}/search", {"query": query})
+    except requests.HTTPError as e:
+        status = e.response.status_code if e.response is not None else 0
+        if status == 429:
+            return [{"error": "CoinGecko rate limit (429). Retry shortly or add COINGECKO_API_KEY."}]
+        return [{"error": f"CoinGecko HTTP {status}"}]
+    except Exception as e:
+        return [{"error": f"CoinGecko search failed: {e}"}]
 
     return [
         {
@@ -115,6 +188,7 @@ def search_crypto(query: str) -> list[dict]:
             "symbol": c.get("symbol", "").upper(),
             "name": c.get("name"),
             "market_cap_rank": c.get("market_cap_rank"),
+            "source": "coingecko",
         }
         for c in resp.json().get("coins", [])[:10]
     ]

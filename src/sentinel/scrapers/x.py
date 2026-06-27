@@ -39,6 +39,17 @@ class XScraper:
                     time.sleep(2)  # Brief retry on transient DNS/network errors
                     continue
                 raise Exception(f"Network error after retry ({endpoint}): {str(e)}")
+            except requests.exceptions.HTTPError as e:
+                # v0.9.2: surface X API billing/quota errors clearly so users
+                # know it's an X account issue, not a Sentinel bug.
+                if e.response is not None and e.response.status_code == 402:
+                    raise Exception(
+                        "X API returned 402 Payment Required. This is an X/Twitter billing "
+                        "or quota issue on your X developer account — not a Sentinel bug. "
+                        "Check your X API tier/credits at developer.twitter.com. "
+                        "Alternatives: use get_news_sentiment, get_token_news, or search_elfa_mentions."
+                    )
+                raise Exception(f"Error making request to {endpoint}: {str(e)}")
             except requests.exceptions.RequestException as e:
                 raise Exception(f"Error making request to {endpoint}: {str(e)}")
         raise Exception(f"Request failed ({endpoint}): {str(last_err)}")

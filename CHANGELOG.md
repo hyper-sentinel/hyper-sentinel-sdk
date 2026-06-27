@@ -1,5 +1,60 @@
 # Changelog
 
+## v0.9.3 — 2026-06-26
+
+### 🔴 Identity Fix — free-prompt counting for UPGRADED users
+
+**Symptom:** after upgrading 0.9.1 → 0.9.2, the prompt counter stayed frozen at "10/10" and usage was
+never billed. Root cause: an upgraded user already has `~/.sentinel/config` with an AI key, so the
+first-run setup block (which registers with the gateway and saves a Sentinel key) was **skipped**.
+With no saved Sentinel key, every gateway call — the LLM chat **and** the billing/status poll that draws
+the counter — went out as `anonymous`, so nothing was counted or attributed.
+
+- **Register at launch (`run_chat`)** — if an AI key is present but no Sentinel key is saved, the SDK now
+  registers with the gateway on startup (idempotent) and persists the returned key to `~/.sentinel/api_key`.
+  Every subsequent call sends `X-API-Key` → the user is identified, counted, and billed.
+- **`X-AI-Key` header on LLM calls (`_gateway_llm_request`)** — belt-and-suspenders: the AI key is now
+  also sent as a header so the gateway resolves identity even if the local key-file save fails (e.g. on
+  Windows). The provider key still travels in the body for the upstream call.
+
+No gateway changes — the gateway (0.9.2, deployed) was already correct; the SDK simply never identified
+upgraded users.
+
+## v0.9.2 — 2026-06-26
+
+### 🔴 Revenue Fix — Free-tier prompts now actually count (paid-conversion funnel)
+
+**Free prompts were never being counted, so the paywall never triggered.** The CLI showed a frozen "10/10 prompts left" no matter how many prompts you sent.
+
+Root cause: the SDK sent the LLM key as the `X-AI-Key` header, but the gateway's auth middleware only recognized `Authorization: Bearer` and `X-API-Key` — so every BYO-key user fell through to `anonymous` and was bypassed uncounted (and unmetered).
+
+- **SDK** — `_register_with_gateway()` now persists the gateway-issued key via `save_api_key()`, so `load_api_key()` returns it and **every** LLM call sends `X-API-Key`. The post-turn line now shows the live `Quota: N/M free prompts remaining`.
+- **Gateway** — added a third auth path: a request carrying only `X-AI-Key` is resolved to the account created by `POST /auth/ai-key` (deterministic `sha256("sentinel-ai:"+key)`), so the quota gate counts it. Existing JWT and API-key paths are unchanged (read-only, additive).
+- **Gateway** — `/api/v1/billing/status` and `/billing/usage` now return `prompt_limit: 0` for paying (`active`) users, so the counter is shown only to free users.
+
+### 🐛 Scraper / Tool Fixes (work for real end users)
+
+- **Aster DEX** — added missing `tenacity>=8.2.0` dependency (was `No module named 'tenacity'` on every Aster call for pip-install users).
+- **CoinGecko** — added `tenacity` retry with exponential backoff on 429/5xx, lengthened the price cache to 5 min, proper demo/pro API-key headers, and a graceful rate-limit message instead of a crash. Fixes lookups failing even for `bitcoin` under burst.
+- **`get_news_sentiment`** — fixed tool-schema mismatch (`query=` ↔ `topics=`) that raised `unexpected keyword argument 'query'`.
+- **`search_crypto`** — fixed a latent `ImportError` (imported `search_coins`; the function is `search_crypto`).
+- **X / Twitter** — a 402 from the X API now returns a clear "billing/quota on your X account, not a Sentinel bug" message instead of crashing the turn.
+
+### 🧪 Diagnostics
+
+- New `tools diagnose` command runs a per-category tool smoke test (CoinGecko, DexScreener, YFinance, and any key-gated sources) and reports pass/fail.
+
+### 📋 Version Sync
+
+- Bumped to 0.9.2 across `pyproject.toml`, `__init__.py`, SDK banner, and the gateway OpenAPI spec.
+
+### ⚠️ Known limitations
+
+- **Polymarket** remains lazy-imported and is not in the active tool schema (avoids shipping Web3/Ethereum binaries to all users); install `py-clob-client` manually to use it.
+- **Quota persistence** — durable. The production gateway runs on **Supabase Postgres** (`DATABASE_URL` set on Cloud Run; SQLite is local-dev only), so prompt counts and accounts persist across deploys.
+
+---
+
 ## v0.9.1 — 2026-06-24
 
 ### 🐛 Bug Fix — Config→Environment Bridge

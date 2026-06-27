@@ -169,7 +169,13 @@ def _save_config(config: dict):
 
 
 def _register_with_gateway(ai_key: str) -> dict:
-    """Lazy-register with gateway using AI key."""
+    """Lazy-register with gateway using AI key.
+
+    v0.9.2: also persists the returned sentinel key to ~/.sentinel/api_key so
+    _gateway_llm_request() (which calls load_api_key()) sends X-API-Key on every
+    /api/v1/llm/chat call.  Without this, BYO-key users went out as anonymous and
+    were never counted by the FreeQuotaGate.
+    """
     try:
         resp = httpx.post(
             f"{GATEWAY_URL}/auth/ai-key",
@@ -177,7 +183,15 @@ def _register_with_gateway(ai_key: str) -> dict:
             timeout=30.0,
         )
         if resp.status_code in (200, 201):
-            return resp.json()
+            data = resp.json()
+            sentinel_key = data.get("api_key", "")
+            if sentinel_key:
+                try:
+                    from sentinel.api._http import save_api_key
+                    save_api_key(sentinel_key)
+                except Exception:
+                    pass
+            return data
     except Exception:
         pass
     return {}
@@ -188,7 +202,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.8.9 | Build: June 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.9.3 | Build: June 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -457,10 +471,10 @@ TOOL_SCHEMAS = [
     # ── News & Sentiment ──────────────────────────────────────
     {
         "name": "get_news_sentiment",
-        "description": "Get news sentiment analysis for a topic or asset.",
+        "description": "Get news sentiment analysis for a topic or asset using Y2 Intelligence. Requires Y2_API_KEY.",
         "parameters": {
             "type": "object",
-            "properties": {"query": {"type": "string", "description": "Topic to analyze (e.g. 'crypto', 'bitcoin', 'AI stocks')"}},
+            "properties": {"query": {"type": "string", "description": "Topic or comma-separated topics to analyze (e.g. 'bitcoin', 'bitcoin,ethereum', 'AI stocks', 'macro')"}},
             "required": ["query"],
         },
     },
@@ -1217,6 +1231,11 @@ def _gateway_llm_request(provider: str, ai_key: str, model: str, messages: list,
     headers = {"Content-Type": "application/json"}
     if sentinel_key:
         headers["X-API-Key"] = sentinel_key
+    # v0.9.3: also send the AI key as a header so the gateway's X-AI-Key identity path resolves the
+    # user even if no Sentinel key was saved (e.g. Windows file-save failed). Belt-and-suspenders — the
+    # gateway forwards the provider key from the body, so this is purely for auth/identity.
+    if ai_key:
+        headers["X-AI-Key"] = ai_key
     return f"{GATEWAY_URL}/api/v1/llm/chat", headers, body
 
 
@@ -1629,6 +1648,149 @@ def _fetch_and_format_top(n: int) -> str | None:
 
 
 # ══════════════════════════════════════════════════════════════
+# Tool Smoke Test / Diagnose
+# ══════════════════════════════════════════════════════════════
+
+def _run_tool_smoke_test(api_key: str) -> None:
+    """Run a smoke test across all 69 tool categories and report pass/fail.
+
+    v0.9.2: expanded from 4 probes to full category coverage.
+    - Keyless tools: always tested (CoinGecko, YFinance, DexScreener, Aster public, TA/quant/options)
+    - Key-gated tools: tested when key present, explicitly skipped+labeled when absent
+    Categories map to all 69 TOOL_SCHEMAS entries.
+    """
+    import os
+
+    # ── Always-on probes (no API key required) ────────────────────
+    always_probes = [
+        # CoinGecko (3 tools)
+        ("get_crypto_price",        {"coin_id": "bitcoin"},                            "CoinGecko · price (bitcoin)"),
+        ("get_crypto_top_n",        {"n": 5},                                          "CoinGecko · top 5"),
+        ("search_crypto",           {"query": "ethereum"},                             "CoinGecko · search"),
+        # YFinance (6 tools)
+        ("get_stock_price",         {"symbol": "AAPL"},                               "YFinance · stock price"),
+        ("get_stock_info",          {"symbol": "AAPL"},                               "YFinance · stock info"),
+        ("get_stock_history",       {"symbol": "AAPL", "period": "1mo"},              "YFinance · stock history"),
+        ("get_analyst_recs",        {"symbol": "AAPL"},                               "YFinance · analyst recs"),
+        ("get_stock_news",          {"symbol": "AAPL"},                               "YFinance · stock news"),
+        ("run_stock_analysis",      {"symbol": "AAPL"},                               "YFinance · full analysis"),
+        # DexScreener (4 tools)
+        ("dexscreener_search",      {"query": "PEPE"},                                "DexScreener · search"),
+        ("dexscreener_trending",    {},                                                "DexScreener · trending"),
+        ("dexscreener_token_lookup",{"token_address": "So11111111111111111111111111111111111111112"}, "DexScreener · token lookup (SOL)"),
+        # Aster DEX public (no key needed)
+        ("aster_ping",              {},                                                "Aster · ping"),
+        ("aster_exchange_info",     {},                                                "Aster · exchange info"),
+        ("aster_ticker",            {"symbol": "BTCUSDT"},                            "Aster · ticker BTC"),
+        ("aster_funding_rate",      {},                                                "Aster · funding rate"),
+        # TA / Quant (local compute — use tradfi/YFinance venue to avoid HL auth)
+        ("get_ta_indicators",       {"symbol": "AAPL", "interval": "1d", "venue": "tradfi"},  "TA · indicators AAPL"),
+        ("get_ta_signal",           {"symbol": "AAPL", "interval": "1d", "venue": "tradfi"},  "TA · signal AAPL"),
+        ("get_risk_metrics",        {"symbol": "AAPL", "interval": "1d", "venue": "tradfi"},  "Quant · risk metrics AAPL"),
+        ("get_ml_signals",          {"symbol": "AAPL", "interval": "1d", "venue": "tradfi"},  "Quant · ML signals AAPL"),
+        ("get_timeseries_forecast", {"symbol": "AAPL", "interval": "1d", "venue": "tradfi"},  "Quant · timeseries AAPL"),
+        # Options (YFinance, no key)
+        ("get_options_expirations", {"symbol": "AAPL"},                               "Options · expirations AAPL"),
+        ("get_options_analysis",    {"symbol": "AAPL"},                               "Options · analysis AAPL"),
+        # Portfolio + usage (local, no key)
+        ("get_portfolio_summary",   {},                                                "Portfolio · summary"),
+        ("get_usage_summary",       {"period": "today"},                              "Usage · today"),
+    ]
+
+    # ── Key-gated probes — skipped (labeled) when key absent ─────
+    keyed_probes = [
+        # FRED
+        ("FRED_API_KEY",        "get_fred_series",       {"series_id": "CPIAUCSL", "limit": 3},  "FRED · CPI series"),
+        ("FRED_API_KEY",        "search_fred",           {"query": "unemployment"},               "FRED · search"),
+        ("FRED_API_KEY",        "get_economic_dashboard",{},                                      "FRED · macro dashboard"),
+        ("FRED_API_KEY",        "get_yield_curve",       {},                                      "FRED · yield curve"),
+        # Y2
+        ("Y2_API_KEY",          "get_news_sentiment",    {"query": "bitcoin"},                    "Y2 · news sentiment"),
+        ("Y2_API_KEY",          "get_news_recap",        {},                                      "Y2 · news recap"),
+        ("Y2_API_KEY",          "get_intelligence_reports", {"limit": 3},                         "Y2 · intelligence reports"),
+        ("Y2_API_KEY",          "get_y2_feeds",          {},                                      "Y2 · feeds"),
+        ("Y2_API_KEY",          "list_y2_profiles",      {},                                      "Y2 · profiles"),
+        # Elfa
+        ("ELFA_API_KEY",        "get_trending_tokens",   {},                                      "Elfa · trending tokens"),
+        ("ELFA_API_KEY",        "search_mentions",       {"query": "bitcoin"},                    "Elfa · search mentions"),
+        ("ELFA_API_KEY",        "get_trending_narratives", {},                                    "Elfa · narratives"),
+        ("ELFA_API_KEY",        "get_top_mentions",      {"ticker": "BTC"},                       "Elfa · top mentions BTC"),
+        ("ELFA_API_KEY",        "get_token_news",        {"ticker": "BTC"},                       "Elfa · token news BTC"),
+        # X / Twitter
+        ("X_BEARER_TOKEN",      "search_x",              {"query": "bitcoin", "max_results": 5},  "X · search"),
+        # Hyperliquid
+        ("HYPERLIQUID_WALLET_ADDRESS", "get_hl_config",  {},                                      "HL · config"),
+        ("HYPERLIQUID_WALLET_ADDRESS", "get_hl_tradfi_assets", {},                                "HL · TradFi assets"),
+        ("HYPERLIQUID_WALLET_ADDRESS", "get_hl_positions", {},                                    "HL · positions"),
+        ("HYPERLIQUID_WALLET_ADDRESS", "get_hl_account_info", {},                                 "HL · account info"),
+        # Aster (authenticated)
+        ("ASTER_API_KEY",       "aster_balance",         {},                                      "Aster · balance"),
+        ("ASTER_API_KEY",       "aster_positions",       {},                                      "Aster · positions"),
+        ("ASTER_API_KEY",       "aster_open_orders",     {},                                      "Aster · open orders"),
+        ("ASTER_API_KEY",       "aster_diagnose",        {},                                      "Aster · diagnose"),
+        ("ASTER_API_KEY",       "aster_account_info",    {},                                      "Aster · account info"),
+    ]
+
+    console.print()
+    console.print("  [bold cyan]Tool Smoke Test[/] [dim]— all-69 category sweep...[/]")
+    console.print()
+
+    passed, failed, skipped = 0, 0, 0
+    results = []
+
+    def _probe(tool_name: str, args: dict, desc: str):
+        nonlocal passed, failed
+        try:
+            raw = _execute_direct(tool_name, args)
+            if raw is None:
+                raw = _execute_tool(api_key, tool_name, args)
+            parsed = json.loads(raw) if raw else {}
+            if isinstance(parsed, dict) and "error" in parsed:
+                results.append(("FAIL", desc, str(parsed["error"])[:80]))
+                failed += 1
+            elif isinstance(parsed, list) and parsed and isinstance(parsed[0], dict) and "error" in parsed[0]:
+                results.append(("FAIL", desc, str(parsed[0]["error"])[:80]))
+                failed += 1
+            else:
+                results.append(("PASS", desc, ""))
+                passed += 1
+        except Exception as e:
+            results.append(("FAIL", desc, str(e)[:80]))
+            failed += 1
+
+    # Always-on
+    for tool_name, args, desc in always_probes:
+        _probe(tool_name, args, desc)
+
+    # Key-gated
+    for env_key, tool_name, args, desc in keyed_probes:
+        if os.getenv(env_key):
+            _probe(tool_name, args, desc)
+        else:
+            results.append(("SKIP", desc, f"{env_key} not set"))
+            skipped += 1
+
+    # Print results grouped by status
+    for status, desc, detail in results:
+        if status == "PASS":
+            console.print(f"  [green]✓[/] {desc}")
+        elif status == "FAIL":
+            console.print(f"  [red]✗[/] [bold]{desc}[/] [dim]— {detail}[/]")
+        else:
+            console.print(f"  [dim]—[/] {desc} [dim](skipped: {detail})[/]")
+
+    total_run = passed + failed
+    color = "green" if failed == 0 else ("yellow" if failed < total_run / 2 else "red")
+    console.print()
+    console.print(
+        f"  [{color}]{passed}/{total_run} passed[/]"
+        f"  [dim]{skipped} skipped (keys absent)[/]"
+        f"  [dim]· Run 'tools' for the full 69-tool list[/]"
+    )
+    console.print()
+
+
+# ══════════════════════════════════════════════════════════════
 # Tool Execution via Gateway
 # ══════════════════════════════════════════════════════════════
 
@@ -1662,59 +1824,45 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
     """Execute free tools directly without gateway. Returns None if not a direct tool."""
     try:
         # ── CoinGecko (free, no key) ──────────────────────────
+        # v0.9.2: route through scrapers/crypto.py so retry/backoff/cache/demo-key
+        # apply uniformly.  Previously this path made raw httpx calls with no retry.
         if tool_name == "get_crypto_price":
-            symbol = args.get("symbol", "").lower()
-            # CoinGecko simple price API
-            r = httpx.get(
-                "https://api.coingecko.com/api/v3/simple/price",
-                params={"ids": symbol, "vs_currencies": "usd", "include_24hr_change": "true",
-                         "include_market_cap": "true", "include_24hr_vol": "true"},
-                timeout=10.0,
-            )
-            data = r.json()
-            if not data or symbol not in data:
-                # Try search first
-                sr = httpx.get(f"https://api.coingecko.com/api/v3/search?query={symbol}", timeout=10.0)
-                coins = sr.json().get("coins", [])
-                if coins:
-                    coin_id = coins[0]["id"]
-                    r = httpx.get(
-                        "https://api.coingecko.com/api/v3/simple/price",
-                        params={"ids": coin_id, "vs_currencies": "usd", "include_24hr_change": "true",
-                                 "include_market_cap": "true", "include_24hr_vol": "true"},
-                        timeout=10.0,
-                    )
-                    data = r.json()
-                    symbol = coin_id
-            if symbol in data:
-                info = data[symbol]
+            from sentinel.scrapers.crypto import get_crypto_price as _cgprice, SYMBOL_TO_ID
+            # Tool schema uses coin_id; fallback to symbol for compatibility
+            symbol = args.get("coin_id", args.get("symbol", "")).lower().strip()
+            coin_id = SYMBOL_TO_ID.get(symbol, symbol)
+            result = _cgprice(coin_id)
+            if "error" in result:
+                # Try interpreting symbol as a literal CoinGecko ID
+                if coin_id != symbol:
+                    result2 = _cgprice(symbol)
+                    if "error" not in result2:
+                        result = result2
+            # Normalize output shape to what the LLM expects
+            if "error" not in result:
                 return json.dumps({
-                    "symbol": symbol,
-                    "price_usd": info.get("usd"),
-                    "change_24h_pct": info.get("usd_24h_change"),
-                    "market_cap_usd": info.get("usd_market_cap"),
-                    "volume_24h_usd": info.get("usd_24h_vol"),
+                    "symbol": result.get("symbol", coin_id.upper()),
+                    "price_usd": result.get("current_price"),
+                    "change_24h_pct": result.get("price_change_pct_24h"),
+                    "market_cap_usd": result.get("market_cap"),
+                    "volume_24h_usd": result.get("total_volume_24h"),
                     "source": "coingecko",
                 })
-            return json.dumps({"error": f"Token '{symbol}' not found on CoinGecko"})
+            return json.dumps(result)
 
-        if tool_name == "get_crypto_top":
+        if tool_name in ("get_crypto_top", "get_crypto_top_n"):
+            from sentinel.scrapers.crypto import get_crypto_top_n as _cgtop
             n = args.get("n", 10)
-            r = httpx.get(
-                "https://api.coingecko.com/api/v3/coins/markets",
-                params={"vs_currency": "usd", "order": "market_cap_desc", "per_page": n, "page": 1},
-                timeout=10.0,
-            )
-            coins = [{"rank": c["market_cap_rank"], "name": c["name"], "symbol": c["symbol"],
-                       "price": c["current_price"], "change_24h": c.get("price_change_percentage_24h"),
-                       "market_cap": c["market_cap"]} for c in r.json()]
+            coins_data = _cgtop(n)
+            coins = [{"rank": c.get("rank"), "name": c.get("name"), "symbol": c.get("symbol"),
+                       "price": c.get("current_price"), "change_24h": c.get("price_change_pct_24h"),
+                       "market_cap": c.get("market_cap")} for c in coins_data if "error" not in c]
             return json.dumps({"top_coins": coins, "source": "coingecko"})
 
         if tool_name == "search_crypto":
+            from sentinel.scrapers.crypto import search_crypto as _cgsearch
             query = args.get("query", "")
-            r = httpx.get(f"https://api.coingecko.com/api/v3/search?query={query}", timeout=10.0)
-            coins = [{"id": c["id"], "name": c["name"], "symbol": c["symbol"],
-                       "market_cap_rank": c.get("market_cap_rank")} for c in r.json().get("coins", [])[:10]]
+            coins = _cgsearch(query)
             return json.dumps({"results": coins, "source": "coingecko"})
 
         # ── YFinance (free, no key) ───────────────────────────
@@ -2136,17 +2284,50 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                 return json.dumps({"error": str(e), "tool": tool_name})
 
         # ── Y2 Intelligence (needs API key) ───────────────────────
-        if tool_name in ("get_news_sentiment", "get_news_recap", "get_intelligence_reports", "get_report_detail"):
+        if tool_name in ("get_news_sentiment", "get_news_recap", "get_intelligence_reports",
+                         "get_report_detail", "get_y2_feeds", "get_report_audio", "list_y2_profiles"):
             try:
                 from sentinel.scrapers import y2
+                # v0.9.2: TOOL_SCHEMA exposes "query=" but y2.get_news_sentiment() takes
+                # "topics=".  Map here so the schema mismatch doesn't crash end users.
+                def _news_sentiment_call():
+                    _args = dict(args)
+                    if "query" in _args and "topics" not in _args:
+                        _args["topics"] = _args.pop("query")
+                    return y2.get_news_sentiment(**_args)
                 dispatch = {
-                    "get_news_sentiment": lambda: y2.get_news_sentiment(**args),
+                    "get_news_sentiment": _news_sentiment_call,
                     "get_news_recap": lambda: y2.get_news_recap(**args),
                     "get_intelligence_reports": lambda: y2.get_intelligence_reports(**args),
                     "get_report_detail": lambda: y2.get_report_detail(**args),
+                    # v0.9.2: three Y2 tools were in TOOL_SCHEMAS but not dispatched locally;
+                    # they would silently fall through to the gateway even though they need
+                    # the user's local Y2_API_KEY.
+                    "get_y2_feeds": lambda: y2.get_y2_feeds(),
+                    "get_report_audio": lambda: y2.get_report_audio(**args),
+                    "list_y2_profiles": lambda: y2.list_y2_profiles(),
                 }
                 if tool_name in dispatch:
                     return json.dumps(dispatch[tool_name]())
+            except Exception as e:
+                return json.dumps({"error": str(e), "tool": tool_name})
+
+        # ── X / Twitter (needs X_BEARER_TOKEN) ────────────────────
+        if tool_name == "search_x":
+            try:
+                import os as _os
+                from sentinel.scrapers.x import XScraper
+                token = _os.getenv("X_BEARER_TOKEN", "").strip()
+                if not token:
+                    return json.dumps({
+                        "error": "X_BEARER_TOKEN not set. Add it with 'sentinel add x' or "
+                                 "set X_BEARER_TOKEN in your environment.",
+                        "tool": "search_x",
+                    })
+                query = args.get("query", "")
+                max_results = args.get("max_results", 10)
+                result = XScraper(token).search_tweets(query, max_results)
+                return json.dumps(result)
             except Exception as e:
                 return json.dumps({"error": str(e), "tool": tool_name})
 
@@ -2155,10 +2336,18 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                          "get_trending_narratives", "get_token_news"):
             try:
                 from sentinel.scrapers import elfa
+                # v0.9.2: TOOL_SCHEMA exposes "query=" for search_mentions but
+                # elfa.search_mentions() takes "keywords=".  Map here so the schema
+                # mismatch doesn't produce a TypeError on every LLM call.
+                def _search_mentions_call():
+                    _args = dict(args)
+                    if "query" in _args and "keywords" not in _args:
+                        _args["keywords"] = _args.pop("query")
+                    return elfa.search_mentions(**_args)
                 dispatch = {
                     "get_trending_tokens": lambda: elfa.get_trending_tokens(**args),
                     "get_top_mentions": lambda: elfa.get_top_mentions(**args),
-                    "search_mentions": lambda: elfa.search_mentions(**args),
+                    "search_mentions": _search_mentions_call,
                     "get_trending_narratives": lambda: elfa.get_trending_narratives(**args),
                     "get_token_news": lambda: elfa.get_token_news(**args),
                 }
@@ -2172,16 +2361,29 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
             try:
                 from sentinel.scrapers import aster
                 dispatch = {
+                    # ── Public / read-only ──
                     "aster_ticker": lambda: aster.aster_ticker(**args),
                     "aster_orderbook": lambda: aster.aster_orderbook(**args),
                     "aster_klines": lambda: aster.aster_klines(**args),
                     "aster_funding_rate": lambda: aster.aster_funding_rate(**args),
                     "aster_exchange_info": lambda: aster.aster_exchange_info(**args),
+                    "aster_ping": lambda: aster.aster_ping(),
+                    # ── Authenticated read ──
                     "aster_balance": lambda: aster.aster_balance(),
                     "aster_positions": lambda: aster.aster_positions(**args),
                     "aster_config": lambda: aster.aster_config(),
                     "aster_diagnose": lambda: aster.aster_diagnose(),
-                    "aster_ping": lambda: aster.aster_ping(),
+                    # v0.9.2: six Aster tools were in TOOL_SCHEMAS but missing from this
+                    # dispatch dict — they fell through to the gateway even though they
+                    # require the user's local ASTER_API_KEY/SECRET and would always fail
+                    # at the gateway (no user credentials there).
+                    "aster_account_info": lambda: aster.aster_account_info(),
+                    "aster_open_orders": lambda: aster.aster_open_orders(**args),
+                    # ── Trading ──
+                    "aster_place_order": lambda: aster.aster_place_order(**args),
+                    "aster_cancel_order": lambda: aster.aster_cancel_order(**args),
+                    "aster_cancel_all_orders": lambda: aster.aster_cancel_all_orders(**args),
+                    "aster_set_leverage": lambda: aster.aster_set_leverage(**args),
                 }
                 if tool_name in dispatch:
                     return json.dumps(dispatch[tool_name]())
@@ -2211,38 +2413,11 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
         #     except Exception as e:
         #         return json.dumps({"error": str(e), "tool": tool_name})
 
-        # ── Telegram (needs session) ──────────────────────────────
-        if tool_name.startswith("tg_"):
-            try:
-                from sentinel.scrapers import telegram as tg
-                dispatch = {
-                    "tg_read_channel": lambda: tg.tg_read_channel(**args),
-                    "tg_search_messages": lambda: tg.tg_search_messages(**args),
-                    "tg_list_channels": lambda: tg.tg_list_channels(**args),
-                    "tg_send_message": lambda: tg.tg_send_message(**args),
-                    "tg_get_config": lambda: tg.tg_get_config(),
-                }
-                if tool_name in dispatch:
-                    return json.dumps(dispatch[tool_name]())
-            except Exception as e:
-                return json.dumps({"error": str(e), "tool": tool_name})
-
-        # ── Discord (needs bot token) ─────────────────────────────
-        if tool_name.startswith("discord_"):
-            try:
-                from sentinel.scrapers import discord as dc
-                dispatch = {
-                    "discord_read_channel": lambda: dc.discord_read_channel(**args),
-                    "discord_search_messages": lambda: dc.discord_search_messages(**args),
-                    "discord_list_guilds": lambda: dc.discord_list_guilds(),
-                    "discord_list_channels": lambda: dc.discord_list_channels(**args),
-                    "discord_send_message": lambda: dc.discord_send_message(**args),
-                    "discord_get_config": lambda: dc.discord_get_config(),
-                }
-                if tool_name in dispatch:
-                    return json.dumps(dispatch[tool_name]())
-            except Exception as e:
-                return json.dumps({"error": str(e), "tool": tool_name})
+        # ── Telegram / Discord — shelved (ghost code removed in v0.9.2) ──────────
+        # telegram.py and discord.py import from automation.* which is a mono-repo
+        # module not shipped in the SDK pip package.  The schemas were already removed
+        # from TOOL_SCHEMAS so the LLM cannot call these.  The dispatch blocks have
+        # been removed to prevent confusing ImportError messages if somehow called.
 
     except Exception as e:
         return json.dumps({"error": str(e), "tool": tool_name})
@@ -2684,6 +2859,25 @@ def run_chat(config: dict):
         console.print("  [s.error]✗ No AI key configured[/] — run [bold]sentinel[/] to set up.\n")
         return
 
+    # v0.9.3 IDENTITY FIX — upgraded users (0.9.1 → 0.9.2/0.9.3) already had ~/.sentinel/config with an
+    # ai_key, so first-run setup (which registers with the gateway) was SKIPPED. With no Sentinel api_key,
+    # load_api_key() is empty → every gateway call (LLM + the billing/status counter poll) goes out as
+    # "anonymous" → never counted, never billed, counter stuck at 10/10. Register now (idempotent — the
+    # gateway returns the same account for a given ai_key) so a Sentinel key exists and is persisted to
+    # ~/.sentinel/api_key, which _gateway_llm_request() and _fetch_billing_status() read for X-API-Key.
+    if ai_key and not api_key:
+        result = _register_with_gateway(ai_key)
+        api_key = result.get("api_key", "")
+        if not api_key:
+            try:
+                from sentinel.api._http import load_api_key as _lk
+                api_key = _lk() or ""
+            except Exception:
+                api_key = ""
+        if api_key:
+            config["sentinel_api_key"] = api_key
+            _save_config(config)
+
     # ── Animated Boot Sequence ─────────────────────────────────
     console.print(_make_banner())
 
@@ -2830,6 +3024,10 @@ def run_chat(config: dict):
             for t in TOOL_SCHEMAS:
                 console.print(f"  [s.cyan]{t['name']:<30}[/] [s.dim]{t['description'][:65]}[/]")
             console.print()
+            continue
+
+        if cmd in ("tools diagnose", "diagnose"):
+            _run_tool_smoke_test(api_key)
             continue
 
         if cmd == "status":
@@ -3012,36 +3210,45 @@ def run_chat(config: dict):
             tool_calls_total += 1
 
             # Direct tools — ALL scrapers run locally, no gateway needed
+            # v0.9.2 DIRECT_TOOLS — every tool in TOOL_SCHEMAS that runs on the user's
+            # machine (all 69 schema tools + the get_crypto_top alias).
+            # Ghost tg_*/discord_* entries removed; missing tools added.
             DIRECT_TOOLS = {
-                # CoinGecko
-                "get_crypto_price", "get_crypto_top", "search_crypto",
-                # YFinance
+                # CoinGecko (free, no key)
+                "get_crypto_price", "get_crypto_top", "get_crypto_top_n", "search_crypto",
+                # YFinance (free, no key)
                 "get_stock_price", "get_stock_info", "get_analyst_recs", "get_stock_news", "get_stock_history", "run_stock_analysis",
-                # DexScreener
+                # DexScreener (free, no key)
                 "dexscreener_search", "dexscreener_token_lookup", "dexscreener_trending", "dexscreener_pair",
-                # Hyperliquid
+                # Hyperliquid (needs wallet; read-only works with HYPERLIQUID_WALLET_ADDRESS)
                 "get_hl_positions", "get_hl_account_info", "get_hl_open_orders",
                 "get_hl_orderbook", "get_hl_config", "place_hl_order",
                 "close_hl_position", "cancel_hl_order", "set_hl_leverage",
                 "approve_hl_builder_fee", "get_hl_tradfi_assets", "get_hl_tradfi_price",
-                # Technical Analysis
+                # Technical Analysis (local compute, uses HL/Aster/YFinance data)
                 "get_ta_indicators", "get_ta_signal", "get_klines",
-                # Quantitative Analysis
+                # Quantitative Analysis (local compute)
                 "get_risk_metrics", "get_timeseries_forecast", "get_ml_signals",
                 "get_options_analysis", "get_options_expirations", "get_options_chain",
-                # Portfolio
+                # Portfolio (local aggregation of HL+Aster)
                 "get_portfolio_summary", "get_portfolio_risk",
-                # FRED
-                "get_fred_series", "search_fred", "get_economic_dashboard",
-                # Y2 Intelligence
+                # FRED (needs FRED_API_KEY)
+                "get_fred_series", "search_fred", "get_economic_dashboard", "get_yield_curve",
+                # Y2 Intelligence (needs Y2_API_KEY) — v0.9.2: added missing 3 tools
                 "get_news_sentiment", "get_news_recap", "get_intelligence_reports", "get_report_detail",
-                # Elfa AI
+                "get_y2_feeds", "get_report_audio", "list_y2_profiles",
+                # X / Twitter (needs X_BEARER_TOKEN) — v0.9.2: added missing dispatch
+                "search_x",
+                # Elfa AI (needs ELFA_API_KEY)
                 "get_trending_tokens", "get_top_mentions", "search_mentions",
                 "get_trending_narratives", "get_token_news",
-                # Aster DEX
+                # Aster DEX (public endpoints need no key; trading needs ASTER_API_KEY+SECRET)
+                # v0.9.2: added 6 missing tools that were in TOOL_SCHEMAS but fell through to gateway
                 "aster_ticker", "aster_orderbook", "aster_klines", "aster_funding_rate",
                 "aster_exchange_info", "aster_balance", "aster_positions",
                 "aster_config", "aster_diagnose", "aster_ping",
+                "aster_account_info", "aster_open_orders",
+                "aster_place_order", "aster_cancel_order", "aster_cancel_all_orders", "aster_set_leverage",
                 # Polymarket — archived
                 # "get_polymarket_markets", "search_polymarket", "get_polymarket_orderbook",
                 # "get_polymarket_price", "get_polymarket_positions", "buy_polymarket",
@@ -3049,12 +3256,8 @@ def run_chat(config: dict):
                 # "cancel_all_polymarket_orders",
                 # Usage / Revenue
                 "get_usage_summary",
-                # Telegram
-                "tg_read_channel", "tg_search_messages", "tg_list_channels",
-                "tg_send_message", "tg_get_config",
-                # Discord
-                "discord_read_channel", "discord_search_messages", "discord_list_guilds",
-                "discord_list_channels", "discord_send_message", "discord_get_config",
+                # Note: Telegram (tg_*) and Discord (discord_*) tools were removed in v0.9.2.
+                # They imported from automation.* which is not shipped in the SDK package.
             }
 
             # Lazy gateway registration — only for gateway-dependent tools
@@ -3281,9 +3484,23 @@ def run_chat(config: dict):
                 ))
                 console.print()
 
-            # NOTE (v0.8.9): the per-response prompt meter was removed. The free-tier
-            # count now lives on the dashboard line tied under "✓ LLM:" (see _print_dashboard),
-            # refreshed on boot and on `clear`. No line is tacked onto each response.
+            # v0.9.2: refresh billing status after each turn and show live counter.
+            # This makes the counter visibly decrement so users know they're being counted,
+            # and ensures the 402 paywall renders on the very turn the limit is hit.
+            if gateway_ok and response_text != "":
+                try:
+                    billing = _fetch_billing_status(api_key)
+                    if billing:
+                        config["billing_status"] = billing
+                        _ps = billing.get("payment_status", "free")
+                        if _ps not in ("active",):
+                            _pu = int(billing.get("prompts_used", 0))
+                            _pl = int(billing.get("prompt_limit", 10))
+                            _rem = max(0, _pl - _pu)
+                            _col = "green" if _rem > 3 else ("yellow" if _rem > 0 else "red")
+                            console.print(f"  [dim]Quota: [{_col}]{_rem}/{_pl}[/] free prompts remaining[/]")
+                except Exception:
+                    pass
 
         except Exception as e:
             console.print(Panel(

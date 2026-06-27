@@ -7,6 +7,11 @@ import pytest
 
 from sentinel.api.client import SentinelAPI as SentinelClient
 
+# smoke_test.py is a standalone pre-publish script (run via `python tests/smoke_test.py`),
+# not a pytest module — it executes at import and calls sys.exit(), which aborts the whole
+# pytest run. Exclude it from collection so the real test_*.py files can run.
+collect_ignore = ["smoke_test.py"]
+
 PROD_URL = "https://sentinel-api-281199879392.us-south1.run.app"
 
 

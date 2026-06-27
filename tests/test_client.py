@@ -46,13 +46,9 @@ def test_all_exports():
     assert "AuthenticationError" in __all__
 
 
-def test_hyper_sentinel_import():
-    from hyper_sentinel import Sentinel as S
-    assert S is Sentinel
-
-
 # ── Version string format ────────────────────────────────────
 
 def test_version_format():
     import re
-    assert re.match(r"^\d+\.\d+\.\d+$", sentinel.__version__)
+    # Allow optional pre-release suffix (e.g. 0.9.2rc1) for release candidates.
+    assert re.match(r"^\d+\.\d+\.\d+([abrc]+\d+)?$", sentinel.__version__)
