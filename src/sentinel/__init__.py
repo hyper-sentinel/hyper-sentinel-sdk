@@ -32,7 +32,7 @@ from sentinel.api.errors import (
     AuthenticationError,
 )
 
-__version__ = "0.9.3"
+__version__ = "0.9.4"
 
 
 class Sentinel(SentinelAPI):

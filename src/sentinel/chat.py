@@ -202,7 +202,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.9.3 | Build: June 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.9.4 | Build: June 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -2859,23 +2859,26 @@ def run_chat(config: dict):
         console.print("  [s.error]✗ No AI key configured[/] — run [bold]sentinel[/] to set up.\n")
         return
 
-    # v0.9.3 IDENTITY FIX — upgraded users (0.9.1 → 0.9.2/0.9.3) already had ~/.sentinel/config with an
-    # ai_key, so first-run setup (which registers with the gateway) was SKIPPED. With no Sentinel api_key,
-    # load_api_key() is empty → every gateway call (LLM + the billing/status counter poll) goes out as
-    # "anonymous" → never counted, never billed, counter stuck at 10/10. Register now (idempotent — the
-    # gateway returns the same account for a given ai_key) so a Sentinel key exists and is persisted to
-    # ~/.sentinel/api_key, which _gateway_llm_request() and _fetch_billing_status() read for X-API-Key.
-    if ai_key and not api_key:
+    # v0.9.4 IDENTITY FIX — ALWAYS register the current ai_key with the gateway at launch, idempotently.
+    # (0.9.3 only registered "if not api_key", but upgraded users carry a STALE sentinel_api_key in
+    # ~/.sentinel/config from an old/ephemeral-DB session — so the guard skipped, the stale key didn't
+    # resolve, and every call fell through to "anonymous": counter stuck at 10/10, usage unbilled.)
+    # /auth/ai-key is idempotent (creates-or-returns the account + its canonical Sentinel key for this
+    # ai_key), so re-registering a valid key is a no-op and a stale key gets replaced with the right one.
+    # The returned key is persisted to ~/.sentinel/api_key, which _gateway_llm_request() and
+    # _fetch_billing_status() read for the X-API-Key header.
+    if ai_key:
         result = _register_with_gateway(ai_key)
-        api_key = result.get("api_key", "")
-        if not api_key:
+        new_key = result.get("api_key", "")
+        if not new_key:
             try:
                 from sentinel.api._http import load_api_key as _lk
-                api_key = _lk() or ""
+                new_key = _lk() or ""
             except Exception:
-                api_key = ""
-        if api_key:
-            config["sentinel_api_key"] = api_key
+                new_key = ""
+        if new_key:
+            api_key = new_key
+            config["sentinel_api_key"] = new_key
             _save_config(config)
 
     # ── Animated Boot Sequence ─────────────────────────────────

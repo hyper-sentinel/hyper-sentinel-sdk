@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.9.4 — 2026-06-26
+
+### 🔴 Identity Fix (cont.) — stale config key no longer blocks registration
+
+0.9.3 registered with the gateway only `if not api_key`. But users upgrading across versions carry a
+**stale `sentinel_api_key`** in `~/.sentinel/config` (from an old session / the pre-Supabase ephemeral
+DB). That stale key made the guard skip registration, the key failed to resolve, and every call fell
+through to `anonymous` — counter stuck at 10/10, usage unbilled.
+
+- **`run_chat` now ALWAYS registers the current `ai_key` at launch**, idempotently. `/auth/ai-key`
+  creates-or-returns the account for the key; a valid key is a no-op, a stale key is replaced with the
+  correct canonical Sentinel key (persisted to `~/.sentinel/api_key`). Identity then resolves on every
+  call — `X-API-Key` (Path 2) and the `X-AI-Key` header from 0.9.3 (Path 3) both work.
+
+Upgraded users self-heal on next launch — no need to delete `~/.sentinel/config`.
+
 ## v0.9.3 — 2026-06-26
 
 ### 🔴 Identity Fix — free-prompt counting for UPGRADED users
