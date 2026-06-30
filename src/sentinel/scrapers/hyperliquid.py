@@ -117,6 +117,9 @@ def approve_hl_builder_fee() -> dict:
     This must be called before the first trade if a BUILDER_FEE_ADDRESS is set.
     It's safe to call multiple times — Hyperliquid ignores duplicate approvals.
 
+    NOTE: With agent wallets, this may fail with "Must deposit before performing
+    actions" — trades will still work without builder fees.
+
     Returns:
         Dict with approval status.
     """
@@ -130,10 +133,18 @@ def approve_hl_builder_fee() -> dict:
             return {"error": "HYPERLIQUID_PRIVATE_KEY not set in .env"}
 
         exchange, _, _ = result
-        # max_fee_rate is in the same format as the SDK expects: "0.01%" = 1 BPS
         resp = exchange.approve_builder_fee(BUILDER_FEE_ADDRESS, "0.01%")
-        _builder_fee_approved = True
 
+        # Check if the approval actually succeeded
+        resp_str = str(resp)
+        if isinstance(resp, dict) and resp.get("status") == "err":
+            return {
+                "status": "FAILED",
+                "reason": resp.get("response", "Unknown error"),
+                "note": "Trades will still work without builder fee.",
+            }
+
+        _builder_fee_approved = True
         return {
             "status": "APPROVED",
             "builder_address": BUILDER_FEE_ADDRESS,
@@ -141,7 +152,7 @@ def approve_hl_builder_fee() -> dict:
             "response": str(resp)[:200],
         }
     except Exception as e:
-        return {"error": f"Builder fee approval failed: {str(e)}"}
+        return {"error": f"Builder fee approval failed: {str(e)}. Trades still work without it."}
 
 
 def _ensure_builder_fee_approved():
@@ -560,11 +571,29 @@ def place_hl_order(coin: str, side: str, size: float, price: float = None,
         # Try with builder fee first (earns revenue), fallback without
         result = _execute_order(use_builder=True)
 
-        # If builder fee not approved, retry without it
+        # Check for builder fee errors at BOTH levels:
+        # Level 1: {"status": "err", "response": "Must deposit..."}
+        # Level 2: {"status": "ok", "response": {"data": {"statuses": [{"error": "Builder fee has not been approved."}]}}}
+        needs_retry = False
         if isinstance(result, dict):
-            resp_str = str(result.get("response", ""))
-            if result.get("status") == "err" and ("builder" in resp_str.lower() or "approved" in resp_str.lower()):
-                result = _execute_order(use_builder=False)
+            # Top-level error
+            resp_str = str(result.get("response", "")).lower()
+            if result.get("status") == "err" and (
+                "builder" in resp_str or "approved" in resp_str or "must deposit" in resp_str
+            ):
+                needs_retry = True
+            # Nested error inside statuses
+            elif result.get("status") == "ok":
+                response = result.get("response", {})
+                if isinstance(response, dict):
+                    statuses = response.get("data", {}).get("statuses", [])
+                    if statuses and isinstance(statuses[0], dict) and "error" in statuses[0]:
+                        err_msg = statuses[0]["error"].lower()
+                        if "builder" in err_msg or "approved" in err_msg:
+                            needs_retry = True
+
+        if needs_retry:
+            result = _execute_order(use_builder=False)
 
         # Parse response
         if isinstance(result, dict):
@@ -572,9 +601,17 @@ def place_hl_order(coin: str, side: str, size: float, price: float = None,
             response = result.get("response", {})
 
             if status == "ok":
-                data = response.get("data", {})
+                data = response.get("data", {}) if isinstance(response, dict) else {}
                 statuses = data.get("statuses", [{}])
                 filled_info = statuses[0] if statuses else {}
+
+                # Check if the order actually filled or had a non-builder error
+                if isinstance(filled_info, dict) and "error" in filled_info:
+                    return {
+                        "status": "FAILED",
+                        "coin": coin,
+                        "error": filled_info["error"],
+                    }
 
                 return {
                     "status": "SUCCESS",
@@ -694,8 +731,8 @@ def close_hl_position(coin: str) -> dict:
         size = abs(float(current_pos["szi"]))
         is_long = float(current_pos["szi"]) > 0
 
-        # Close by opening opposite side — with builder fee fallback
-        _ensure_builder_fee_approved()  # Auto-approve on first trade (revenue capture)
+        # Close by opening opposite side — try with builder fee, fallback without
+        _ensure_builder_fee_approved()
         builder = None
         if BUILDER_FEE_ADDRESS:
             builder = {"b": BUILDER_FEE_ADDRESS, "f": BUILDER_FEE_RATE}
@@ -703,13 +740,40 @@ def close_hl_position(coin: str) -> dict:
             resolved, not is_long, size, None, builder=builder,
         )
 
-        # If builder fee not approved, retry without it
+        # Check for builder fee errors at both levels (same pattern as place_hl_order)
+        needs_retry = False
         if isinstance(result, dict):
-            resp_str = str(result.get("response", ""))
-            if result.get("status") == "err" and ("builder" in resp_str.lower() or "approved" in resp_str.lower()):
-                result = exchange.market_open(
-                    resolved, not is_long, size, None, builder=None,
-                )
+            resp_str = str(result.get("response", "")).lower()
+            if result.get("status") == "err" and (
+                "builder" in resp_str or "approved" in resp_str or "must deposit" in resp_str
+            ):
+                needs_retry = True
+            elif result.get("status") == "ok":
+                response = result.get("response", {})
+                if isinstance(response, dict):
+                    statuses = response.get("data", {}).get("statuses", [])
+                    if statuses and isinstance(statuses[0], dict) and "error" in statuses[0]:
+                        err_msg = statuses[0]["error"].lower()
+                        if "builder" in err_msg or "approved" in err_msg:
+                            needs_retry = True
+
+        if needs_retry:
+            result = exchange.market_open(
+                resolved, not is_long, size, None, builder=None,
+            )
+
+        # Check if the close actually succeeded
+        if isinstance(result, dict) and result.get("status") == "ok":
+            response = result.get("response", {})
+            if isinstance(response, dict):
+                statuses = response.get("data", {}).get("statuses", [])
+                if statuses and isinstance(statuses[0], dict):
+                    if "error" in statuses[0]:
+                        return {
+                            "status": "FAILED",
+                            "coin": resolved,
+                            "error": statuses[0]["error"],
+                        }
 
         return {
             "status": "CLOSED",
