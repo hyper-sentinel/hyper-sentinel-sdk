@@ -114,11 +114,15 @@ def _resolve_coin(coin: str) -> str:
 def approve_hl_builder_fee() -> dict:
     """
     Approve the builder fee for Hyperliquid trading (one-time per account).
-    This must be called before the first trade if a BUILDER_FEE_ADDRESS is set.
-    It's safe to call multiple times — Hyperliquid ignores duplicate approvals.
 
-    NOTE: With agent wallets, this may fail with "Must deposit before performing
-    actions" — trades will still work without builder fees.
+    IMPORTANT: The HL protocol requires the MASTER wallet to sign this
+    approval — agent/API keys cannot approve builder fees. If using an
+    agent key, run the one-time approval script with the master wallet:
+
+        python scripts/approve_builder_fee.py <MASTER_PRIVATE_KEY>
+
+    Once approved, all trades placed by the agent key will automatically
+    include the builder fee. You never need to approve again.
 
     Returns:
         Dict with approval status.
@@ -136,12 +140,19 @@ def approve_hl_builder_fee() -> dict:
         resp = exchange.approve_builder_fee(BUILDER_FEE_ADDRESS, "0.01%")
 
         # Check if the approval actually succeeded
-        resp_str = str(resp)
         if isinstance(resp, dict) and resp.get("status") == "err":
+            error_msg = resp.get("response", "Unknown error")
+            if "Must deposit" in error_msg:
+                return {
+                    "status": "REQUIRES_MASTER_WALLET",
+                    "error": "Builder fee approval must be signed by the MASTER wallet, not the agent key.",
+                    "fix": "Run: python scripts/approve_builder_fee.py <MASTER_PRIVATE_KEY>",
+                    "note": "This is a one-time approval. After running, all agent trades include builder fees.",
+                    "builder_address": BUILDER_FEE_ADDRESS,
+                }
             return {
                 "status": "FAILED",
-                "reason": resp.get("response", "Unknown error"),
-                "note": "Trades will still work without builder fee.",
+                "reason": error_msg,
             }
 
         _builder_fee_approved = True
@@ -152,7 +163,7 @@ def approve_hl_builder_fee() -> dict:
             "response": str(resp)[:200],
         }
     except Exception as e:
-        return {"error": f"Builder fee approval failed: {str(e)}. Trades still work without it."}
+        return {"error": f"Builder fee approval failed: {str(e)}"}
 
 
 def _ensure_builder_fee_approved():
