@@ -23,9 +23,10 @@ BUILDER_FEE_RATE = 10  # tenths of a BPS → 10 = 1 BPS = 0.01%
 _builder_fee_approved = False  # Module-level flag — only approve once per session
 
 # ── TradFi / Commodity Aliases ──
-# Maps user-friendly names → xyz dex coin names so the LLM can just say "GOLD" or "oil"
+# Maps user-friendly names → xyz dex coin names so the LLM can just say "GOLD" or "SPCX"
+# v0.9.5: ALL 97 xyz dex assets — synced from live HL API 2026-06-30
 TRADFI_ALIASES = {
-    # Commodities
+    # ── Commodities ────────────────────────────────────────────
     "GOLD": "xyz:GOLD", "XAU": "xyz:GOLD",
     "SILVER": "xyz:SILVER", "XAG": "xyz:SILVER",
     "OIL": "xyz:CL", "WTIOIL": "xyz:CL", "WTI": "xyz:CL", "CL": "xyz:CL", "CRUDEOIL": "xyz:CL",
@@ -33,25 +34,55 @@ TRADFI_ALIASES = {
     "COPPER": "xyz:COPPER", "NATGAS": "xyz:NATGAS", "NATURALGAS": "xyz:NATGAS",
     "PLATINUM": "xyz:PLATINUM", "PALLADIUM": "xyz:PALLADIUM",
     "ALUMINIUM": "xyz:ALUMINIUM", "ALUMINUM": "xyz:ALUMINIUM",
-    "CORN": "xyz:CORN", "URANIUM": "xyz:URANIUM",
-    # Indices
+    "CORN": "xyz:CORN", "URANIUM": "xyz:URANIUM", "URNM": "xyz:URNM",
+    "WHEAT": "xyz:WHEAT", "TTF": "xyz:TTF",
+    # ── Indices ────────────────────────────────────────────────
     "SP500": "xyz:SP500", "S&P500": "xyz:SP500", "S&P": "xyz:SP500", "SPX": "xyz:SP500",
     "XYZ100": "xyz:XYZ100",
     "JP225": "xyz:JP225", "NIKKEI": "xyz:JP225",
     "KR200": "xyz:KR200", "KOSPI": "xyz:KR200",
-    "VIX": "xyz:VIX",
+    "NIFTY": "xyz:NIFTY",
+    "IBOV": "xyz:IBOV",
+    "VIX": "xyz:VIX", "VOL": "xyz:VOL",
     "DXY": "xyz:DXY",
-    # Forex
+    "SMH": "xyz:SMH", "XLE": "xyz:XLE",
+    # ── Forex ──────────────────────────────────────────────────
     "EURUSD": "xyz:EUR", "EUR": "xyz:EUR",
     "USDJPY": "xyz:JPY", "JPY": "xyz:JPY",
-    # Stocks
-    "TSLA": "xyz:TSLA", "NVDA": "xyz:NVDA", "AAPL": "xyz:AAPL", "MSFT": "xyz:MSFT",
-    "GOOGL": "xyz:GOOGL", "AMZN": "xyz:AMZN", "META": "xyz:META", "AMD": "xyz:AMD",
-    "MSTR": "xyz:MSTR", "COIN": "xyz:COIN", "HOOD": "xyz:HOOD", "PLTR": "xyz:PLTR",
-    "NFLX": "xyz:NFLX", "INTC": "xyz:INTC", "MU": "xyz:MU", "ORCL": "xyz:ORCL",
-    "GME": "xyz:GME", "RIVN": "xyz:RIVN", "BABA": "xyz:BABA", "COST": "xyz:COST",
-    "LLY": "xyz:LLY", "TSM": "xyz:TSM", "HIMS": "xyz:HIMS", "DKNG": "xyz:DKNG",
-    "SNDK": "xyz:SNDK", "CRCL": "xyz:CRCL",
+    "GBP": "xyz:GBP", "GBPUSD": "xyz:GBP",
+    "KRW": "xyz:KRW", "USDKRW": "xyz:KRW",
+    # ── Country ETFs ──────────────────────────────────────────
+    "EWJ": "xyz:EWJ", "EWT": "xyz:EWT", "EWY": "xyz:EWY", "EWZ": "xyz:EWZ",
+    # ── US Stocks ──────────────────────────────────────────────
+    "AAPL": "xyz:AAPL", "AMAT": "xyz:AMAT", "AMD": "xyz:AMD", "AMZN": "xyz:AMZN",
+    "ARM": "xyz:ARM", "ASML": "xyz:ASML", "AVGO": "xyz:AVGO",
+    "BABA": "xyz:BABA", "BB": "xyz:BB", "BE": "xyz:BE", "BX": "xyz:BX",
+    "COIN": "xyz:COIN", "COST": "xyz:COST", "CRCL": "xyz:CRCL",
+    "DELL": "xyz:DELL", "DKNG": "xyz:DKNG",
+    "EBAY": "xyz:EBAY",
+    "GME": "xyz:GME", "GOOGL": "xyz:GOOGL",
+    "HIMS": "xyz:HIMS", "HOOD": "xyz:HOOD",
+    "IBM": "xyz:IBM", "INTC": "xyz:INTC",
+    "LITE": "xyz:LITE", "LLY": "xyz:LLY",
+    "META": "xyz:META", "MRVL": "xyz:MRVL", "MSFT": "xyz:MSFT", "MSTR": "xyz:MSTR", "MU": "xyz:MU",
+    "NBIS": "xyz:NBIS", "NFLX": "xyz:NFLX", "NOK": "xyz:NOK", "NOW": "xyz:NOW", "NVDA": "xyz:NVDA",
+    "ORCL": "xyz:ORCL",
+    "PLTR": "xyz:PLTR",
+    "QCOM": "xyz:QCOM", "QNT": "xyz:QNT",
+    "RIVN": "xyz:RIVN", "RKLB": "xyz:RKLB",
+    "SNDK": "xyz:SNDK",
+    "SPCX": "xyz:SPCX", "SPACEX": "xyz:SPCX",
+    "TSLA": "xyz:TSLA", "TSM": "xyz:TSM",
+    "WDC": "xyz:WDC",
+    "ZM": "xyz:ZM",
+    # ── International Stocks ───────────────────────────────────
+    "HYUNDAI": "xyz:HYUNDAI", "IBIDEN": "xyz:IBIDEN", "KIOXIA": "xyz:KIOXIA",
+    "SMSN": "xyz:SMSN", "SAMSUNG": "xyz:SMSN",
+    "SKHX": "xyz:SKHX", "SOFTBANK": "xyz:SOFTBANK",
+    # ── Crypto-adjacent / HL-native xyz assets ─────────────────
+    "BIRD": "xyz:BIRD", "BOT": "xyz:BOT", "CBRS": "xyz:CBRS", "CRWV": "xyz:CRWV",
+    "DRAM": "xyz:DRAM", "H100": "xyz:H100", "MINIMAX": "xyz:MINIMAX",
+    "PURRDAT": "xyz:PURRDAT", "STRC": "xyz:STRC", "USAR": "xyz:USAR", "ZHIPU": "xyz:ZHIPU",
 }
 
 # ── Perp Dex Namespaces ──
@@ -125,35 +156,37 @@ def _ensure_builder_fee_approved():
 
 
 def _derive_wallet() -> str:
-    """Derive the canonical wallet address.
+    """Return the canonical wallet address for balance/position queries.
 
-    Priority: HYPERLIQUID_PRIVATE_KEY (derived) > HYPERLIQUID_WALLET_ADDRESS (env).
-    This guarantees balance reads and trades always use the same wallet.
+    Priority: HYPERLIQUID_WALLET_ADDRESS (master) > PK-derived (agent fallback).
 
-    v0.9.5 — fixes the $0 balance bug where _get_info() queried a different
-    wallet than _get_exchange() traded from.
+    In Hyperliquid's Agent Wallet system, the PK is a sub-key that signs
+    on behalf of the master wallet. Reads must hit the MASTER address
+    (where the funds live), not the agent address (which is empty).
+
+    v0.9.5 — supports HL agent wallets where PK ≠ wallet address.
     """
+    env_wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
+    if env_wallet:
+        return env_wallet
+    # Fallback: derive from PK if no explicit wallet configured
     private_key = os.getenv("HYPERLIQUID_PRIVATE_KEY", "").strip()
     if private_key:
         try:
             import eth_account
-            derived = eth_account.Account.from_key(private_key).address
-            # Warn if env wallet differs from PK-derived wallet
-            env_wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
-            if env_wallet and env_wallet.lower() != derived.lower():
-                import logging
-                logging.getLogger("sentinel.hl").warning(
-                    f"WALLET MISMATCH: HYPERLIQUID_WALLET_ADDRESS={env_wallet[:10]}... "
-                    f"but private key derives {derived[:10]}... — using PK-derived address."
-                )
-            return derived
+            return eth_account.Account.from_key(private_key).address
         except Exception:
             pass
-    return os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
+    return ""
 
 
 def _get_exchange():
-    """Initialize the Hyperliquid exchange client with native + TradFi (xyz) perps."""
+    """Initialize the Hyperliquid exchange client with agent wallet support.
+
+    If HYPERLIQUID_WALLET_ADDRESS differs from the PK-derived address,
+    the PK is treated as an HL Agent Wallet — trades are signed by the
+    agent key but execute on the master wallet via vault_address.
+    """
     try:
         from hyperliquid.info import Info
         from hyperliquid.exchange import Exchange
@@ -167,11 +200,26 @@ def _get_exchange():
         return None, None
 
     account = eth_account.Account.from_key(private_key)
-    wallet_address = account.address
+    agent_address = account.address
+
+    # Agent wallet detection: if user-entered wallet ≠ PK-derived address,
+    # the PK is an agent key — pass vault_address so trades execute on master.
+    master_wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
+    vault_addr = None
+    if master_wallet and master_wallet.lower() != agent_address.lower():
+        vault_addr = master_wallet
+        wallet_address = master_wallet
+        import logging
+        logging.getLogger("sentinel.hl").info(
+            f"Agent wallet mode: signing with {agent_address[:10]}..., "
+            f"trading on master {master_wallet[:10]}..."
+        )
+    else:
+        wallet_address = agent_address
 
     # Load both native perps ("") and TradFi builder dex ("xyz")
     info = Info(constants.MAINNET_API_URL, skip_ws=True, perp_dexs=["", "xyz"])
-    exchange = Exchange(account, constants.MAINNET_API_URL)
+    exchange = Exchange(account, constants.MAINNET_API_URL, vault_address=vault_addr)
 
     return exchange, info, wallet_address
 
@@ -274,9 +322,36 @@ def get_hl_account_info() -> dict:
             except Exception:
                 pass  # One dex failing shouldn't block the other
 
+        # ── Spot balances (unified account) ──────────────────────
+        spot_balances = []
+        spot_value = 0.0
+        try:
+            r = requests.post("https://api.hyperliquid.xyz/info", json={
+                "type": "spotClearinghouseState",
+                "user": wallet,
+            }, timeout=10)
+            spot_data = r.json()
+            for b in spot_data.get("balances", []):
+                total = float(b.get("total", 0))
+                if total > 0:
+                    coin = b.get("coin", "?")
+                    spot_balances.append({
+                        "coin": coin,
+                        "total": str(round(total, 6)),
+                        "hold": b.get("hold", "0"),
+                    })
+                    # USDC counts toward total value
+                    if coin == "USDC":
+                        spot_value += total
+        except Exception:
+            pass  # Spot query failure shouldn't block perps data
+
         return {
             "wallet": wallet,
-            "account_value": str(round(total_value, 2)),
+            "account_value": str(round(total_value + spot_value, 2)),
+            "perps_value": str(round(total_value, 2)),
+            "spot_value": str(round(spot_value, 2)),
+            "spot_balances": spot_balances,
             "total_margin_used": str(round(total_margin, 2)),
             "total_ntl_pos": str(round(total_ntl, 2)),
             "withdrawable": withdrawable,
