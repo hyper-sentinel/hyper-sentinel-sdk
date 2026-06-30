@@ -203,11 +203,12 @@ def _get_exchange():
     agent_address = account.address
 
     # Agent wallet detection: if user-entered wallet ≠ PK-derived address,
-    # the PK is an agent key — pass vault_address so trades execute on master.
+    # the PK is an API/agent key — pass account_address so trades execute on master.
+    # NOTE: account_address (not vault_address) — HL vaults are a different mechanism.
     master_wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
-    vault_addr = None
+    account_addr = None
     if master_wallet and master_wallet.lower() != agent_address.lower():
-        vault_addr = master_wallet
+        account_addr = master_wallet
         wallet_address = master_wallet
         import logging
         logging.getLogger("sentinel.hl").info(
@@ -219,7 +220,7 @@ def _get_exchange():
 
     # Load both native perps ("") and TradFi builder dex ("xyz")
     info = Info(constants.MAINNET_API_URL, skip_ws=True, perp_dexs=["", "xyz"])
-    exchange = Exchange(account, constants.MAINNET_API_URL, vault_address=vault_addr)
+    exchange = Exchange(account, constants.MAINNET_API_URL, account_address=account_addr, perp_dexs=["", "xyz"])
 
     return exchange, info, wallet_address
 
@@ -277,6 +278,27 @@ def get_hl_config() -> dict:
                 config["xyz_account_value"] = xyz_margin.get("accountValue", "0")
             except Exception:
                 config["xyz_connection"] = "Error"
+
+            # Spot balance (unified account)
+            try:
+                import requests
+                r = requests.post("https://api.hyperliquid.xyz/info", json={
+                    "type": "spotClearinghouseState",
+                    "user": wallet,
+                }, timeout=10)
+                spot_data = r.json()
+                spot_usdc = 0.0
+                for b in spot_data.get("balances", []):
+                    if b.get("coin") == "USDC":
+                        spot_usdc = float(b.get("total", 0))
+                config["spot_usdc"] = str(round(spot_usdc, 2))
+                # Combined total
+                perps_val = float(config.get("account_value", 0))
+                xyz_val = float(config.get("xyz_account_value", 0))
+                config["total_balance"] = str(round(perps_val + xyz_val + spot_usdc, 2))
+            except Exception:
+                pass
+
         except Exception as e:
             config["connection"] = f"Error: {str(e)}"
 
@@ -595,7 +617,7 @@ def set_hl_leverage(coin: str, leverage: int, is_cross: bool = True) -> dict:
 
         exchange, info, wallet = result
         coin = _resolve_coin(coin)
-        leverage = max(1, min(leverage, 50))  # Clamp 1-50
+        leverage = max(1, min(leverage, 125))  # Clamp 1-125 (HL max)
 
         resp = exchange.update_leverage(
             leverage,
