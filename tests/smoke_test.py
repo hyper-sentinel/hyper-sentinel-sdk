@@ -462,6 +462,62 @@ def test_strategy_uses_resource():
 
 check("Strategy CLI uses StrategyResource (not raw tool proxy)", test_strategy_uses_resource)
 
+# ── 13. Wallet Consistency (v0.9.5) ──────────────────────
+print()
+print("  🔑 Wallet Consistency (v0.9.5)")
+
+def test_derive_wallet_exists():
+    """Verify _derive_wallet() exists — the single source of truth for wallet address."""
+    from sentinel.scrapers.hyperliquid import _derive_wallet
+    if not callable(_derive_wallet):
+        return "_derive_wallet is not callable"
+    return True
+
+check("_derive_wallet() exists", test_derive_wallet_exists)
+
+def test_wallet_consistency():
+    """Verify _get_info() and _get_exchange() return the same wallet when PK is set."""
+    import os
+    pk = os.getenv("HYPERLIQUID_PRIVATE_KEY", "")
+    if not pk:
+        print("     → ⚠️  No PK — skipping wallet consistency test")
+        return True
+    from sentinel.scrapers.hyperliquid import _get_info, _get_exchange
+    _, info_wallet = _get_info()
+    result = _get_exchange()
+    if result[0] is None:
+        return "Exchange init failed"
+    _, _, exchange_wallet = result
+    if info_wallet.lower() != exchange_wallet.lower():
+        return f"MISMATCH: _get_info()={info_wallet[:10]}... vs _get_exchange()={exchange_wallet[:10]}..."
+    print(f"     → Both use {info_wallet[:10]}...")
+    return True
+
+check("Wallet address consistency (info == exchange)", test_wallet_consistency)
+
+# ── 14. Aster Dispatch Completeness (v0.9.5) ─────────────
+print()
+print("  🔧 Aster Dispatch (v0.9.5)")
+
+def test_aster_dispatch():
+    """Verify all public aster_* functions in aster.py have dispatch entries in chat.py."""
+    import ast
+    with open("src/sentinel/scrapers/aster.py") as f:
+        tree = ast.parse(f.read())
+    aster_funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+                   and n.name.startswith("aster_") and not n.name.startswith("_")]
+
+    with open("src/sentinel/chat.py") as f:
+        chat_src = f.read()
+
+    missing = [f for f in aster_funcs if f'"{f}"' not in chat_src]
+    if missing:
+        return f"Aster functions missing from chat.py dispatch: {missing}"
+    print(f"     → {len(aster_funcs)} Aster tools all dispatched")
+    return True
+
+check("All aster_* functions dispatched in chat.py", test_aster_dispatch)
+
 
 # ── RESULTS ───────────────────────────────────────────────
 print()

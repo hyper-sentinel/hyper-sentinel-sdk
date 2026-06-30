@@ -124,6 +124,34 @@ def _ensure_builder_fee_approved():
         pass  # Non-fatal — trade may still work if previously approved
 
 
+def _derive_wallet() -> str:
+    """Derive the canonical wallet address.
+
+    Priority: HYPERLIQUID_PRIVATE_KEY (derived) > HYPERLIQUID_WALLET_ADDRESS (env).
+    This guarantees balance reads and trades always use the same wallet.
+
+    v0.9.5 — fixes the $0 balance bug where _get_info() queried a different
+    wallet than _get_exchange() traded from.
+    """
+    private_key = os.getenv("HYPERLIQUID_PRIVATE_KEY", "").strip()
+    if private_key:
+        try:
+            import eth_account
+            derived = eth_account.Account.from_key(private_key).address
+            # Warn if env wallet differs from PK-derived wallet
+            env_wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
+            if env_wallet and env_wallet.lower() != derived.lower():
+                import logging
+                logging.getLogger("sentinel.hl").warning(
+                    f"WALLET MISMATCH: HYPERLIQUID_WALLET_ADDRESS={env_wallet[:10]}... "
+                    f"but private key derives {derived[:10]}... — using PK-derived address."
+                )
+            return derived
+        except Exception:
+            pass
+    return os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
+
+
 def _get_exchange():
     """Initialize the Hyperliquid exchange client with native + TradFi (xyz) perps."""
     try:
@@ -149,14 +177,19 @@ def _get_exchange():
 
 
 def _get_info():
-    """Initialize just the info client (read-only, no private key needed) with TradFi support."""
+    """Initialize the info client with TradFi support.
+
+    When HYPERLIQUID_PRIVATE_KEY is set, derives the wallet from it so
+    balance/position queries always hit the SAME wallet that trades execute
+    from.  Falls back to HYPERLIQUID_WALLET_ADDRESS for read-only mode.
+    """
     try:
         from hyperliquid.info import Info
         from hyperliquid.utils import constants
     except ImportError:
         raise ImportError("hyperliquid-python-sdk not installed. Run: uv add hyperliquid-python-sdk")
 
-    wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
+    wallet = _derive_wallet()
     # Load both native perps ("") and TradFi builder dex ("xyz")
     info = Info(constants.MAINNET_API_URL, skip_ws=True, perp_dexs=["", "xyz"])
     return info, wallet
@@ -170,7 +203,7 @@ def get_hl_config() -> dict:
     Returns:
         Wallet address, trading capability, and connection status for all dexes.
     """
-    wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
+    wallet = _derive_wallet()
     private_key = os.getenv("HYPERLIQUID_PRIVATE_KEY", "").strip()
 
     config = {
@@ -250,7 +283,7 @@ def get_hl_account_info() -> dict:
             "dex_breakdown": dex_breakdown,
         }
     except Exception as e:
-        wallet = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "").strip()
+        wallet = _derive_wallet()
         return {"error": f"Hyperliquid error: {str(e)}", "wallet_configured": wallet or "not set"}
 
 

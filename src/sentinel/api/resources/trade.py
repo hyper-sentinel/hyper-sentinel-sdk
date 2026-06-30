@@ -25,19 +25,19 @@ class TradeResource:
 
     def hl_positions(self) -> dict:
         """Get all Hyperliquid positions."""
-        return self._http.post("/api/v1/tools/hl_positions", {})
+        return self._http.post("/api/v1/tools/get_hl_positions", {})
 
     def hl_account(self) -> dict:
         """Get Hyperliquid account info — equity, margin, P&L."""
-        return self._http.post("/api/v1/tools/hl_account", {})
+        return self._http.post("/api/v1/tools/get_hl_account_info", {})
 
     def hl_orderbook(self, coin: str) -> dict:
         """Get Hyperliquid orderbook for a coin."""
-        return self._http.post("/api/v1/tools/hl_orderbook", {"coin": coin})
+        return self._http.post("/api/v1/tools/get_hl_orderbook", {"coin": coin})
 
     def hl_open_orders(self) -> dict:
         """Get Hyperliquid open orders."""
-        return self._http.post("/api/v1/tools/hl_open_orders", {})
+        return self._http.post("/api/v1/tools/get_hl_open_orders", {})
 
     def hl_order(
         self,
@@ -70,11 +70,11 @@ class TradeResource:
             payload["price"] = price
         if leverage is not None:
             payload["leverage"] = leverage
-        return self._http.post("/api/v1/tools/hl_place_order", payload)
+        return self._http.post("/api/v1/tools/place_hl_order", payload)
 
     def hl_config(self) -> dict:
         """Get Hyperliquid perpetuals configuration."""
-        return self._http.post("/api/v1/tools/hl_config", {})
+        return self._http.post("/api/v1/tools/get_hl_config", {})
 
     # ── Aster DEX ─────────────────────────────────────────────
 

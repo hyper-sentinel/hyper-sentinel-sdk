@@ -1034,8 +1034,89 @@ TOOL_SCHEMAS = [
         "description": "Check Aster DEX API connectivity and latency.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
+    # v0.9.5: three Aster tools added
+    {
+        "name": "aster_place_order_confirmed",
+        "description": "Place an order on Aster DEX and poll until fill confirmation (FILLED, CANCELED, TIMEOUT). For market orders, confirms execution. For limit orders, waits up to timeout_seconds.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC', 'ETH')"},
+                "side": {"type": "string", "description": "'BUY' or 'SELL'"},
+                "order_type": {"type": "string", "description": "'MARKET' or 'LIMIT'", "default": "MARKET"},
+                "quantity": {"type": "number", "description": "Contract quantity (or USD amount — auto-detected)"},
+                "price": {"type": "number", "description": "Limit price (required for LIMIT orders)"},
+                "usd_amount": {"type": "number", "description": "Explicit USD amount (preferred over quantity)"},
+                "timeout_seconds": {"type": "number", "description": "Max seconds to wait for confirmation", "default": 15},
+            },
+            "required": ["symbol", "side"],
+        },
+    },
+    {
+        "name": "aster_countdown_cancel",
+        "description": "Dead man's switch — auto-cancel all Aster orders for a symbol if not refreshed within countdown_ms. Call periodically (e.g., every 20s for a 30s timer). Set countdown_ms=0 to disable.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
+                "countdown_ms": {"type": "integer", "description": "Milliseconds until auto-cancel. 0 to disable.", "default": 30000},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "aster_place_trailing_stop",
+        "description": "Place a trailing stop market order on Aster futures. The stop follows the price at a fixed percentage distance.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
+                "side": {"type": "string", "description": "'SELL' for long positions, 'BUY' for short positions", "default": "SELL"},
+                "quantity": {"type": "number", "description": "Contract size"},
+                "callback_rate": {"type": "number", "description": "Trail distance as percentage (1.0 = 1% trail)", "default": 1.0},
+                "activation_price": {"type": "number", "description": "Optional price at which trailing starts"},
+                "usd_amount": {"type": "number", "description": "Explicit USD amount for auto-conversion"},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "aster_order_history",
+        "description": "Get recent order history for a symbol on Aster DEX.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
+                "limit": {"type": "integer", "description": "Number of orders to return", "default": 20},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "aster_trade_history",
+        "description": "Get recent trade fills for a symbol on Aster DEX.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
+                "limit": {"type": "integer", "description": "Number of trades to return", "default": 20},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "aster_set_margin_mode",
+        "description": "Set margin mode for a symbol on Aster DEX — ISOLATED or CROSSED.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
+                "margin_type": {"type": "string", "description": "'ISOLATED' or 'CROSSED'", "default": "CROSSED"},
+            },
+            "required": ["symbol"],
+        },
+    },
 
-    # ── Telegram — shelved ────────────────────────────────────
     # {
     #     "name": "tg_read_channel",
     #     "description": "Read messages from a Telegram channel.",
@@ -2384,6 +2465,14 @@ def _execute_direct(tool_name: str, args: dict) -> str | None:
                     "aster_cancel_order": lambda: aster.aster_cancel_order(**args),
                     "aster_cancel_all_orders": lambda: aster.aster_cancel_all_orders(**args),
                     "aster_set_leverage": lambda: aster.aster_set_leverage(**args),
+                    # v0.9.5: three Aster tools existed in aster.py but were missing from
+                    # this dispatch dict — the LLM agent could never call them.
+                    "aster_place_order_confirmed": lambda: aster.aster_place_order_confirmed(**args),
+                    "aster_countdown_cancel": lambda: aster.aster_countdown_cancel(**args),
+                    "aster_place_trailing_stop": lambda: aster.aster_place_trailing_stop(**args),
+                    "aster_order_history": lambda: aster.aster_order_history(**args),
+                    "aster_trade_history": lambda: aster.aster_trade_history(**args),
+                    "aster_set_margin_mode": lambda: aster.aster_set_margin_mode(**args),
                 }
                 if tool_name in dispatch:
                     return json.dumps(dispatch[tool_name]())
