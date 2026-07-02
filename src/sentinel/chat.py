@@ -3127,6 +3127,40 @@ def run_chat(config: dict):
             _print_dashboard(config, gateway_ok)
             continue
 
+        if cmd in ("approve-builder", "approve builder", "approve_builder"):
+            try:
+                from sentinel.scrapers.hyperliquid import _check_builder_fee_status
+                status = _check_builder_fee_status()
+                if status.get("approved"):
+                    console.print("\n  [green]✓ Builder fee already approved![/]\n")
+                    continue
+            except Exception:
+                pass
+
+            APPROVAL_URL = "https://api.hyper-sentinel.com/approve-builder"
+            console.print(Panel(
+                "Opening builder fee approval in your browser…\n\n"
+                "Connect your wallet (MetaMask/Ledger) and click Approve.\n"
+                f"[dim]If it doesn't open, paste this link:[/]\n[bold cyan]{APPROVAL_URL}[/]",
+                title="[bold]⚡ Builder Fee[/]", title_align="left",
+                border_style="#5fd7ff", box=box.ROUNDED, padding=(1, 3),
+            ))
+            console.print()
+            try:
+                import webbrowser
+                webbrowser.open(APPROVAL_URL)
+            except Exception:
+                pass
+
+            from sentinel.cli import _poll_builder_approval
+            if _poll_builder_approval(timeout=120):
+                config["builder_fee_approved"] = True
+                _save_config(config)
+                console.print("  [green]✓ All future trades include builder fee.[/]\n")
+            else:
+                console.print("  [dim]→ Run 'approve-builder' anytime to retry.[/]\n")
+            continue
+
         if cmd in ("upgrade", "subscribe", "billing"):
             _do_upgrade(api_key)
             continue
@@ -3258,6 +3292,7 @@ def run_chat(config: dict):
             console.print("  [s.cyan]add hl[/]       [s.dim]Configure Hyperliquid trading[/]")
             console.print("  [s.cyan]add fred[/]     [s.dim]Configure FRED economic data[/]")
             console.print("  [s.cyan]add x[/]        [s.dim]Configure X/Twitter search[/]")
+            console.print("  [s.cyan]approve-builder[/] [s.dim]Approve HL builder fee (one-time)[/]")
             console.print()
             console.print("  [bold cyan]Session[/]")
             console.print("  [s.cyan]clear[/]        [s.dim]Reset conversation context[/]")

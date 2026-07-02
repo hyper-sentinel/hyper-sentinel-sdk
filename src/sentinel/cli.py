@@ -87,28 +87,119 @@ ADD_HANDLERS = {
 }
 
 
-def _approve_builder_fee_step(priv_key: str) -> None:
-    """Explicit, one-time builder-fee approval during onboarding (revenue capture).
+def _approve_builder_fee_with_master(master_key: str, wallet: str = "") -> bool:
+    """Approve the builder fee using the master wallet's private key.
 
-    Transparent on purpose: tells the user about the 0.01% builder fee up front so it's
-    never a surprise mid-trade. Best-effort — if it can't approve now (offline, SDK not
-    installed), the first trade auto-approves as a fallback. Never blocks setup.
+    The HL protocol requires builder fee approval to be signed by the
+    master wallet — agent keys cannot approve. This function:
+    1. Signs the approval with the master key (in-memory only)
+    2. Sends the one-time EIP-712 signature to HL
+    3. Returns True on success
+
+    The master key is NEVER stored.
     """
+    try:
+        import eth_account
+        from hyperliquid.exchange import Exchange
+        from hyperliquid.utils import constants
+    except ImportError:
+        console.print("  [red]✗ hyperliquid-python-sdk not installed.[/]")
+        return False
+
+    BUILDER_FEE_ADDRESS = "0x4047d682525C21831fCF95b49340FC7A74B4aA27"
+
+    try:
+        master_account = eth_account.Account.from_key(master_key)
+        master_addr = master_account.address
+
+        console.print(f"  [dim]Master wallet: {master_addr[:10]}...{master_addr[-4:]}[/]")
+        console.print(f"  [dim]Builder address: {BUILDER_FEE_ADDRESS[:10]}...[/]")
+        console.print(f"  [dim]Fee rate: 0.01% (1 BPS)[/]")
+
+        exchange = Exchange(master_account, constants.MAINNET_API_URL)
+        result = exchange.approve_builder_fee(BUILDER_FEE_ADDRESS, "0.01%")
+
+        if isinstance(result, dict) and result.get("status") == "ok":
+            console.print("  [green]✓ Builder fee approved![/] [dim](one-time, all future trades include fee)[/]")
+            return True
+        else:
+            error = result.get("response", str(result)) if isinstance(result, dict) else str(result)
+            console.print(f"  [red]✗ Approval failed:[/] [dim]{error}[/]")
+            return False
+    except Exception as e:
+        console.print(f"  [red]✗ Error:[/] [dim]{e}[/]")
+        return False
+
+
+def _approve_builder_fee_step(priv_key: str) -> None:
+    """Builder fee approval step during onboarding — opens browser.
+
+    Opens the Hyper-Sentinel approval page where the user can connect
+    MetaMask/Ledger and sign the EIP-712 approval. The CLI polls the HL API
+    until the approval is detected (same pattern as _do_upgrade in chat.py).
+    """
+    from rich import box
+
+    APPROVAL_URL = "https://api.hyper-sentinel.com/approve-builder"
+
+    # Check if already approved
+    try:
+        from sentinel.scrapers.hyperliquid import _check_builder_fee_status
+        status = _check_builder_fee_status()
+        if status.get("approved"):
+            console.print("  [green]✓ Builder fee already approved![/]\n")
+            return
+    except Exception:
+        pass
+
     console.print(
         "\n  [dim]Sentinel earns 0.01% per trade via Hyperliquid's builder code —\n"
         "  a one-time, gasless signature, capped at 0.01%, revocable anytime.[/]"
     )
+
+    console.print(Panel(
+        "Opening builder fee approval in your browser…\n\n"
+        "Connect your wallet (MetaMask/Ledger) and click Approve.\n"
+        f"[dim]If it doesn't open, paste this link:[/]\n[bold cyan]{APPROVAL_URL}[/]",
+        title="[bold]⚡ Builder Fee[/]", title_align="left",
+        border_style="#5fd7ff", box=box.ROUNDED, padding=(1, 3),
+    ))
+    console.print()
+
     try:
-        import os
-        os.environ["HYPERLIQUID_PRIVATE_KEY"] = priv_key
-        from sentinel.scrapers.hyperliquid import approve_hl_builder_fee
-        result = approve_hl_builder_fee()
-        if isinstance(result, dict) and result.get("status") == "APPROVED":
-            console.print("  [green]✓ Builder fee approved[/] [dim](one-time).[/]\n")
-        else:
-            console.print("  [dim]→ Will be approved automatically on your first trade.[/]\n")
+        import webbrowser
+        webbrowser.open(APPROVAL_URL)
     except Exception:
-        console.print("  [dim]→ Will be approved automatically on your first trade.[/]\n")
+        pass
+
+    if _poll_builder_approval(timeout=120):
+        return
+    console.print("  [dim]→ Run 'approve-builder' anytime to retry.[/]\n")
+
+
+def _poll_builder_approval(timeout: int = 120) -> bool:
+    """Poll HL API every 3s until builder fee is approved or timeout."""
+    import time
+
+    try:
+        from sentinel.scrapers.hyperliquid import _check_builder_fee_status
+    except ImportError:
+        console.print("  [red]✗ hyperliquid scraper not available.[/]")
+        return False
+
+    start = time.time()
+    with console.status("[bold cyan]Waiting for browser approval...[/]"):
+        while time.time() - start < timeout:
+            try:
+                status = _check_builder_fee_status()
+                if status.get("approved"):
+                    console.print("  [green]✓ Builder fee approved![/] [dim](one-time, all future trades include fee)[/]")
+                    return True
+            except Exception:
+                pass
+            time.sleep(3)
+    console.print("  [dim]Timed out waiting (2 min). The approval page may still be open in your browser.[/]")
+    return False
 
 
 def _step_hyperliquid(config: dict) -> dict:
@@ -119,7 +210,7 @@ def _step_hyperliquid(config: dict) -> dict:
     console.print()
     step = Text()
     step.append("Hyperliquid DEX ", style="bold white")
-    step.append("(wallet + optional trading key)", style="dim")
+    step.append("(wallet + trading key + builder fee)", style="dim")
     console.print(Panel(step, border_style="cyan", box=box.HORIZONTALS))
 
     console.print("  [dim]For perp trading on Hyperliquid (ETH, BTC, SOL futures).[/]")
@@ -139,6 +230,7 @@ def _step_hyperliquid(config: dict) -> dict:
             console.print("  [dim]Kept existing config.[/]\n")
             return config
 
+    # Step 1: Wallet address (master)
     try:
         wallet = console.input("  [bold]Wallet address (0x...):[/] ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -146,8 +238,11 @@ def _step_hyperliquid(config: dict) -> dict:
 
     if wallet:
         config["hyperliquid_wallet"] = wallet
+        import os
+        os.environ["HYPERLIQUID_WALLET_ADDRESS"] = wallet
         console.print("  [green]✓ Wallet saved[/] — read-only mode enabled.")
 
+        # Step 2: Private key (agent or direct)
         try:
             priv_key = console.input("\n  [bold]Private key for trading[/] [dim](Enter to skip)[/]: ").strip()
         except (EOFError, KeyboardInterrupt):
@@ -155,8 +250,21 @@ def _step_hyperliquid(config: dict) -> dict:
 
         if priv_key:
             config["hyperliquid_key"] = priv_key
+            import os
+            os.environ["HYPERLIQUID_PRIVATE_KEY"] = priv_key
             console.print("  [green]✓ Trading enabled[/]")
+
+            # Step 3: Builder fee approval
             _approve_builder_fee_step(priv_key)
+
+            # Save builder_fee_approved flag if approved
+            try:
+                from sentinel.scrapers.hyperliquid import _check_builder_fee_status
+                status = _check_builder_fee_status()
+                if status.get("approved"):
+                    config["builder_fee_approved"] = True
+            except Exception:
+                pass
         else:
             console.print("  [dim]Read-only — use 'add hl' later to enable trading.[/]\n")
     else:
@@ -589,6 +697,67 @@ def _run_repl():
     from sentinel.chat import run_chat, _load_config as _load_chat_config
     config = _load_chat_config()
     run_chat(config)
+
+
+@cli.command(name="approve-builder")
+def approve_builder():
+    """Approve the Hyperliquid builder fee (one-time).
+
+    Opens a browser page where you can connect MetaMask/Ledger
+    and sign the approval. Your private key never leaves your wallet.
+
+    Usage:
+        sentinel approve-builder
+    """
+    from rich import box
+
+    APPROVAL_URL = "https://api.hyper-sentinel.com/approve-builder"
+
+    console.print()
+    console.print(Panel(
+        "[bold white]Builder Fee Approval[/]\n"
+        "[dim]One-time EIP-712 signature · 0.01% per trade · gasless · revocable[/]",
+        border_style="cyan",
+        box=box.ROUNDED,
+    ))
+
+    # Check current status first
+    try:
+        from sentinel.scrapers.hyperliquid import _check_builder_fee_status
+        status = _check_builder_fee_status()
+        if status.get("approved"):
+            console.print("  [green]✓ Builder fee already approved![/]")
+            console.print(f"  [dim]Builder: {status.get('builder', 'unknown')}[/]")
+            console.print()
+            return
+    except Exception:
+        pass
+
+    console.print(Panel(
+        "Opening builder fee approval in your browser…\n\n"
+        "Connect your wallet (MetaMask/Ledger) and click Approve.\n"
+        f"[dim]If it doesn't open, paste this link:[/]\n[bold cyan]{APPROVAL_URL}[/]",
+        title="[bold]⚡ Builder Fee[/]", title_align="left",
+        border_style="#5fd7ff", box=box.ROUNDED, padding=(1, 3),
+    ))
+    console.print()
+
+    try:
+        import webbrowser
+        webbrowser.open(APPROVAL_URL)
+    except Exception:
+        pass
+
+    if _poll_builder_approval(timeout=120):
+        config = _load_config()
+        config["builder_fee_approved"] = True
+        _save_config(config)
+        console.print()
+        console.print("  [green]✓ All future trades will include the builder fee.[/]")
+    else:
+        console.print()
+        console.print("  [dim]→ Run 'approve-builder' anytime to retry.[/]")
+    console.print()
 
 
 

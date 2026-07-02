@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyper-Sentinel — Approve Builder Fee</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --card: #12121a;
+    --border: #1e1e2e;
+    --text: #e4e4ef;
+    --dim: #6b6b80;
+    --accent: #5fd7ff;
+    --green: #34d399;
+    --red: #f87171;
+    --orange: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+  .container {
+    max-width: 520px;
+    width: 100%;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 1rem;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .header .shield { font-size: 1.5rem; }
+  .header h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .header .version {
+    font-size: 0.7rem;
+    color: var(--dim);
+    margin-left: auto;
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { color: var(--dim); }
+  .info-value {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--text);
+    text-align: right;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .info-value.green { color: var(--green); }
+  .info-value.orange { color: var(--orange); }
+  .info-value.red { color: var(--red); }
+
+  .btn {
+    width: 100%;
+    padding: 0.9rem 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-top: 1rem;
+  }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #4bc4ea;
+    border-color: #4bc4ea;
+  }
+  .btn-approve {
+    background: var(--green);
+    color: #000;
+    border-color: var(--green);
+  }
+  .btn-approve:hover:not(:disabled) {
+    background: #2bc48d;
+    border-color: #2bc48d;
+  }
+
+  .status-box {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    display: none;
+  }
+  .status-box.success {
+    display: block;
+    background: rgba(52, 211, 153, 0.1);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    color: var(--green);
+  }
+  .status-box.error {
+    display: block;
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: var(--red);
+  }
+  .status-box.pending {
+    display: block;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: var(--orange);
+  }
+
+  .explainer {
+    font-size: 0.75rem;
+    color: var(--dim);
+    line-height: 1.6;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+  .explainer strong { color: var(--text); }
+
+  .step-indicator {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .step {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .step.active { background: var(--accent); }
+  .step.done { background: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="card">
+    <div class="header">
+      <span class="shield">⚡🛡️</span>
+      <h1>Hyper-Sentinel — Builder Fee Approval</h1>
+      <span class="version">v0.9.5</span>
+    </div>
+
+    <div class="step-indicator">
+      <div class="step active" id="step1"></div>
+      <div class="step" id="step2"></div>
+      <div class="step" id="step3"></div>
+    </div>
+
+    <!-- Info panel -->
+    <div class="info-row">
+      <span class="info-label">Builder</span>
+      <span class="info-value">0x4047d682...4aA27</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Fee Rate</span>
+      <span class="info-value">0.01% (1 BPS)</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Max Cap</span>
+      <span class="info-value">0.01% — revocable anytime</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Your Wallet</span>
+      <span class="info-value" id="walletDisplay">Not connected</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Status</span>
+      <span class="info-value orange" id="statusDisplay">⏳ Waiting</span>
+    </div>
+
+    <!-- Buttons -->
+    <button class="btn btn-primary" id="connectBtn" onclick="connectWallet()">
+      Connect Wallet (MetaMask / Ledger)
+    </button>
+
+    <button class="btn btn-approve" id="approveBtn" onclick="approveBuilderFee()" disabled style="display:none;">
+      Approve Builder Fee (0.01%)
+    </button>
+
+    <!-- Status messages -->
+    <div class="status-box" id="statusBox"></div>
+
+    <div class="explainer">
+      <strong>What this does:</strong> Signs a one-time EIP-712 message approving
+      Sentinel Labs (0x4047...) to receive 0.01% on trades routed through Sentinel.
+      Your private key <strong>never leaves your wallet</strong> — MetaMask/Ledger signs
+      the message locally. Revocable anytime on app.hyperliquid.xyz.
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ──
+const BUILDER_ADDRESS = '0x4047d682525C21831fCF95b49340FC7A74B4aA27';
+const MAX_FEE_RATE = '0.01%';
+const HL_API = 'https://api.hyperliquid.xyz';
+const CHAIN_ID = 1337; // HL custom chain ID
+
+let userAddress = null;
+
+// ── Step 1: Connect Wallet ──
+async function connectWallet() {
+  const btn = document.getElementById('connectBtn');
+  const status = document.getElementById('statusBox');
+
+  if (!window.ethereum) {
+    showStatus('error', '✗ MetaMask not detected. Install MetaMask and connect your Ledger.');
+    return;
+  }
+
+  btn.textContent = 'Connecting...';
+  btn.disabled = true;
+
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    userAddress = accounts[0];
+
+    document.getElementById('walletDisplay').textContent =
+      userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
+    document.getElementById('walletDisplay').classList.add('green');
+
+    // Update steps
+    document.getElementById('step1').classList.remove('active');
+    document.getElementById('step1').classList.add('done');
+    document.getElementById('step2').classList.add('active');
+
+    // Show approve button
+    btn.style.display = 'none';
+    document.getElementById('approveBtn').style.display = 'block';
+    document.getElementById('approveBtn').disabled = false;
+
+    document.getElementById('statusDisplay').textContent = '🔑 Connected';
+    document.getElementById('statusDisplay').className = 'info-value green';
+
+    showStatus('pending', `Connected as ${userAddress.slice(0, 10)}...${userAddress.slice(-4)}. Click "Approve" to sign.`);
+
+    // Check if already approved
+    await checkExistingApproval();
+
+  } catch (err) {
+    btn.textContent = 'Connect Wallet (MetaMask / Ledger)';
+    btn.disabled = false;
+    showStatus('error', `✗ Connection failed: ${err.message}`);
+  }
+}
+
+// ── Check if already approved ──
+async function checkExistingApproval() {
+  try {
+    const resp = await fetch(HL_API + '/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'approvedBuilders',
+        user: userAddress
+      })
+    });
+    const data = await resp.json();
+
+    if (Array.isArray(data)) {
+      for (const entry of data) {
+        const builder = (typeof entry === 'string' ? entry : entry.builder || '').toLowerCase();
+        if (builder === BUILDER_ADDRESS.toLowerCase()) {
+          document.getElementById('step2').classList.remove('active');
+          document.getElementById('step2').classList.add('done');
+          document.getElementById('step3').classList.add('done');
+          document.getElementById('statusDisplay').textContent = '✓ Already Approved';
+          document.getElementById('statusDisplay').className = 'info-value green';
+          document.getElementById('approveBtn').style.display = 'none';
+          showStatus('success', '✓ Builder fee already approved for this wallet! You can close this tab and return to Sentinel.');
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    // Non-fatal
+    console.log('Could not check existing approval:', e);
+  }
+}
+
+// ── Step 2: Sign & Submit Approval ──
+async function approveBuilderFee() {
+  const btn = document.getElementById('approveBtn');
+  btn.textContent = 'Waiting for signature...';
+  btn.disabled = true;
+
+  const nonce = Date.now();
+
+  // EIP-712 typed data for HL approveBuilderFee
+  const typedData = {
+    types: {
+      EIP712Domain: [
+        { name: 'name', type: 'string' },
+        { name: 'version', type: 'string' },
+        { name: 'chainId', type: 'uint256' },
+        { name: 'verifyingContract', type: 'address' }
+      ],
+      'HyperliquidTransaction:ApproveBuilderFee': [
+        { name: 'hyperliquidChain', type: 'string' },
+        { name: 'maxFeeRate', type: 'string' },
+        { name: 'builder', type: 'address' },
+        { name: 'nonce', type: 'uint64' }
+      ]
+    },
+    primaryType: 'HyperliquidTransaction:ApproveBuilderFee',
+    domain: {
+      name: 'HyperliquidSignTransaction',
+      version: '1',
+      chainId: CHAIN_ID,
+      verifyingContract: '0x0000000000000000000000000000000000000000'
+    },
+    message: {
+      hyperliquidChain: 'Mainnet',
+      maxFeeRate: MAX_FEE_RATE,
+      builder: BUILDER_ADDRESS,
+      nonce: nonce
+    }
+  };
+
+  // Save current chainId to switch back after signing
+  let originalChainId = null;
+
+  try {
+    showStatus('pending', '⏳ Switching to Hyperliquid network for signing...');
+
+    // Get current chain to restore later
+    originalChainId = await window.ethereum.request({ method: 'eth_chainId' });
+
+    // Switch to HL signing chain (1337 = 0x539)
+    const hlChainHex = '0x' + CHAIN_ID.toString(16); // 0x539
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: hlChainHex }]
+      });
+    } catch (switchErr) {
+      // Chain doesn't exist in MetaMask — add it
+      if (switchErr.code === 4902 || switchErr.code === -32603) {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: hlChainHex,
+            chainName: 'Hyperliquid L1',
+            rpcUrls: ['https://api.hyperliquid.xyz/evm'],
+            nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }
+          }]
+        });
+      } else {
+        throw switchErr;
+      }
+    }
+
+    showStatus('pending', '⏳ Check your MetaMask / Ledger — approve the signature...');
+
+    // Request EIP-712 signature from MetaMask (Ledger signs on device)
+    const signature = await window.ethereum.request({
+      method: 'eth_signTypedData_v4',
+      params: [userAddress, JSON.stringify(typedData)]
+    });
+
+    // Switch back to original network
+    if (originalChainId) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: originalChainId }]
+        });
+      } catch (e) { /* non-fatal */ }
+    }
+
+    // Parse signature into r, s, v
+    const r = '0x' + signature.slice(2, 66);
+    const s = '0x' + signature.slice(66, 130);
+    const v = parseInt(signature.slice(130, 132), 16);
+
+    showStatus('pending', '⏳ Submitting to Hyperliquid...');
+
+    // Update steps
+    document.getElementById('step2').classList.remove('active');
+    document.getElementById('step2').classList.add('done');
+    document.getElementById('step3').classList.add('active');
+
+    // POST to HL exchange endpoint
+    // HL requires nonce, signatureChainId, and hyperliquidChain INSIDE the action
+    // signatureChainId MUST match the EIP-712 domain chainId (1337 = 0x539)
+    const action = {
+      type: 'approveBuilderFee',
+      maxFeeRate: MAX_FEE_RATE,
+      builder: BUILDER_ADDRESS,
+      nonce: nonce,
+      signatureChainId: '0x539',
+      hyperliquidChain: 'Mainnet'
+    };
+
+    // Ensure v is 27 or 28 (MetaMask may return 0 or 1)
+    let vVal = parseInt(signature.slice(130, 132), 16);
+    if (vVal < 27) vVal += 27;
+
+    const postBody = {
+      action: action,
+      nonce: nonce,
+      signature: { r, s, v: vVal }
+    };
+
+    console.log('POST body:', JSON.stringify(postBody, null, 2));
+
+    const resp = await fetch(HL_API + '/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(postBody)
+    });
+
+    // Handle both JSON and text responses from HL
+    const respText = await resp.text();
+    let result;
+    try {
+      result = JSON.parse(respText);
+    } catch (e) {
+      // HL returned non-JSON (error string)
+      btn.textContent = 'Retry Approval';
+      btn.disabled = false;
+      showStatus('error', `✗ HL error: ${respText}`);
+      return;
+    }
+
+    if (result.status === 'ok') {
+      document.getElementById('step3').classList.remove('active');
+      document.getElementById('step3').classList.add('done');
+      document.getElementById('statusDisplay').textContent = '✓ Approved';
+      document.getElementById('statusDisplay').className = 'info-value green';
+      btn.style.display = 'none';
+      showStatus('success',
+        '✓ Builder fee approved!\n\n' +
+        'Sentinel will now earn 0.01% on trades routed through your account.\n' +
+        'You can close this tab and return to the Sentinel terminal.'
+      );
+    } else {
+      const errMsg = result.response || result.error || JSON.stringify(result);
+      btn.textContent = 'Retry Approval';
+      btn.disabled = false;
+      showStatus('error', `✗ HL rejected: ${errMsg}`);
+    }
+
+  } catch (err) {
+    // Switch back on error too
+    if (originalChainId) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: originalChainId }]
+        });
+      } catch (e) { /* non-fatal */ }
+    }
+
+    btn.textContent = 'Retry Approval';
+    btn.disabled = false;
+
+    if (err.code === 4001) {
+      showStatus('error', '✗ Rejected by user. Click "Retry" to try again.');
+    } else {
+      showStatus('error', `✗ Error: ${err.message}`);
+    }
+  }
+}
+
+// ── UI Helpers ──
+function showStatus(type, message) {
+  const box = document.getElementById('statusBox');
+  box.className = 'status-box ' + type;
+  box.textContent = message;
+  box.style.whiteSpace = 'pre-line';
+}
+
+// Listen for account changes
+if (window.ethereum) {
+  window.ethereum.on('accountsChanged', (accounts) => {
+    if (accounts.length > 0) {
+      userAddress = accounts[0];
+      document.getElementById('walletDisplay').textContent =
+        userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
+      checkExistingApproval();
+    }
+  });
+}
+</script>
+
+</body>
+</html>
