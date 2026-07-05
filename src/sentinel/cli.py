@@ -314,17 +314,18 @@ def _step_polymarket(config: dict) -> dict:
 
 
 def _step_aster(config: dict) -> dict:
-    """Aster DEX key setup."""
+    """Aster DEX key setup + builder fee approval."""
     from rich import box
     from rich.text import Text
 
     console.print()
     step = Text()
     step.append("Aster DEX ", style="bold white")
-    step.append("(futures trading)", style="dim")
+    step.append("(futures trading + builder fee)", style="dim")
     console.print(Panel(step, border_style="cyan", box=box.HORIZONTALS))
 
-    console.print("  [dim]For futures trading on Aster DEX.[/]\n")
+    console.print("  [dim]For futures trading on Aster DEX.[/]")
+    console.print("  [dim]Generate API keys at[/] [bold cyan]https://pro.aster.xyz/api[/]\n")
 
     current = config.get("aster_api_key", "")
     if current:
@@ -337,8 +338,12 @@ def _step_aster(config: dict) -> dict:
             return config
         if overwrite != "y":
             console.print("  [dim]Kept existing key.[/]\n")
+            # Still offer builder fee approval if keys exist but not yet approved
+            if not config.get("aster_builder_fee_approved"):
+                _approve_aster_builder_fee_step(config)
             return config
 
+    # Step 1: API key
     try:
         api_key = console.input("  [bold]API key:[/] [dim](Enter to skip)[/] ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -347,6 +352,7 @@ def _step_aster(config: dict) -> dict:
     if api_key:
         config["aster_api_key"] = api_key
 
+        # Step 2: API secret
         try:
             api_secret = console.input("  [bold]API secret:[/] ").strip()
         except (EOFError, KeyboardInterrupt):
@@ -355,10 +361,55 @@ def _step_aster(config: dict) -> dict:
         if api_secret:
             config["aster_api_secret"] = api_secret
         console.print("  [green]✓ Aster DEX trading enabled[/]\n")
+
+        # Step 3: Builder fee approval
+        _approve_aster_builder_fee_step(config)
     else:
         console.print("  [dim]Skipped — use 'add aster' anytime.[/]\n")
 
     return config
+
+
+def _approve_aster_builder_fee_step(config: dict) -> None:
+    """Aster builder fee approval — opens browser, polls until approved."""
+    from rich import box
+
+    APPROVAL_URL = "https://api.hyper-sentinel.com/approve-builder?venue=aster"
+
+    # Check if already approved
+    if config.get("aster_builder_fee_approved"):
+        console.print("  [green]✓ Aster builder fee already approved![/]\n")
+        return
+
+    console.print(Panel(
+        "Opening Aster builder fee approval in your browser…\n\n"
+        "Connect the wallet linked to your Aster API keys.\n"
+        "Two signatures required: Agent Approval + Builder Fee.\n\n"
+        f"[dim]If it doesn't open, paste this link:[/]\n[bold cyan]{APPROVAL_URL}[/]",
+        title="[bold]⚡ Aster Builder Fee[/]", title_align="left",
+        border_style="#5fd7ff", box=box.ROUNDED, padding=(1, 3),
+    ))
+    console.print()
+
+    try:
+        import webbrowser
+        webbrowser.open(APPROVAL_URL)
+    except Exception:
+        pass
+
+    # TODO: Poll Aster API for approval status (needs V3 info endpoint research)
+    # For now, ask user to confirm manually
+    try:
+        confirmed = console.input("  [bold]Did you approve in the browser? (y/N):[/] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        confirmed = ""
+
+    if confirmed == "y":
+        config["aster_builder_fee_approved"] = True
+        _save_config(config)
+        console.print("  [green]✓ Aster builder fee approved! All future trades include the fee.[/]\n")
+    else:
+        console.print("  [dim]→ Run 'approve-builder --aster' anytime to retry.[/]\n")
 
 
 def _step_telegram(config: dict) -> dict:
@@ -700,17 +751,26 @@ def _run_repl():
 
 
 @cli.command(name="approve-builder")
-def approve_builder():
-    """Approve the Hyperliquid builder fee (one-time).
+@click.option("--aster", "venue", flag_value="aster", help="Approve Aster builder fee instead of Hyperliquid.")
+@click.option("--hl", "venue", flag_value="hl", default=True, help="Approve Hyperliquid builder fee (default).")
+def approve_builder(venue):
+    """Approve the builder fee for Hyperliquid or Aster (one-time).
 
     Opens a browser page where you can connect MetaMask/Ledger
     and sign the approval. Your private key never leaves your wallet.
 
     Usage:
-        sentinel approve-builder
+        sentinel approve-builder           # Hyperliquid (default)
+        sentinel approve-builder --aster   # Aster DEX
     """
     from rich import box
 
+    if venue == "aster":
+        config = _load_config()
+        _approve_aster_builder_fee_step(config)
+        return
+
+    # ── Hyperliquid (default) ──
     APPROVAL_URL = "https://api.hyper-sentinel.com/approve-builder"
 
     console.print()

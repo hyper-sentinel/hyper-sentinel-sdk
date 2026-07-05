@@ -118,19 +118,21 @@ def _build_registry():
     except ImportError:
         logger.warning("X/Twitter scraper unavailable")
 
-    # ── Hyperliquid (12) ──────────────────────────────────────
+    # ── Hyperliquid (13) ──────────────────────────────────────
     try:
         from sentinel.scrapers.hyperliquid import (
             get_hl_config, get_hl_account_info, get_hl_positions,
             get_hl_orderbook, get_hl_open_orders, get_hl_tradfi_assets,
             get_hl_tradfi_price, place_hl_order, cancel_hl_order,
             close_hl_position, set_hl_leverage, approve_hl_builder_fee,
+            get_builder_fee_status,
         )
         registry.register(
             get_hl_config, get_hl_account_info, get_hl_positions,
             get_hl_orderbook, get_hl_open_orders, get_hl_tradfi_assets,
             get_hl_tradfi_price, place_hl_order, cancel_hl_order,
             close_hl_position, set_hl_leverage, approve_hl_builder_fee,
+            get_builder_fee_status,
         )
     except ImportError:
         logger.warning("Hyperliquid scrapers unavailable")

@@ -76,6 +76,14 @@ class TradeResource:
         """Get Hyperliquid perpetuals configuration."""
         return self._http.post("/api/v1/tools/get_hl_config", {})
 
+    def approve_builder_fee(self) -> dict:
+        """Approve the builder fee (one-time, requires master wallet key in config)."""
+        return self._http.post("/api/v1/tools/approve_hl_builder_fee", {})
+
+    def builder_fee_status(self) -> dict:
+        """Check if builder fee is approved for the configured wallet."""
+        return self._http.post("/api/v1/tools/get_builder_fee_status", {})
+
     # ── Aster DEX ─────────────────────────────────────────────
 
     def aster_ticker(self, symbol: str = "BTCUSDT") -> dict:

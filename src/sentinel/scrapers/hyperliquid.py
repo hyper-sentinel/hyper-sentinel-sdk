@@ -166,13 +166,69 @@ def approve_hl_builder_fee() -> dict:
         return {"error": f"Builder fee approval failed: {str(e)}"}
 
 
+def _check_builder_fee_status() -> dict:
+    """Check if the builder fee is approved for the configured wallet.
+
+    Queries HL API directly — no signing needed.
+
+    Returns:
+        Dict with approved status and builder info.
+    """
+    global _builder_fee_approved
+    if _builder_fee_approved:
+        return {"approved": True, "builder": BUILDER_FEE_ADDRESS}
+
+    wallet = _derive_wallet()
+    if not wallet:
+        return {"approved": False, "error": "No wallet configured"}
+
+    try:
+        resp = requests.post("https://api.hyperliquid.xyz/info", json={
+            "type": "approvedBuilders",
+            "user": wallet,
+        }, timeout=5)
+        approved_list = resp.json()
+        if isinstance(approved_list, list):
+            for entry in approved_list:
+                if isinstance(entry, dict):
+                    b = entry.get("builder", "").lower()
+                    if b == BUILDER_FEE_ADDRESS.lower():
+                        _builder_fee_approved = True
+                        return {
+                            "approved": True,
+                            "builder": BUILDER_FEE_ADDRESS,
+                            "max_fee_rate": entry.get("maxFeeRate", "unknown"),
+                        }
+                elif isinstance(entry, str) and entry.lower() == BUILDER_FEE_ADDRESS.lower():
+                    _builder_fee_approved = True
+                    return {"approved": True, "builder": BUILDER_FEE_ADDRESS}
+
+        return {
+            "approved": False,
+            "builder": BUILDER_FEE_ADDRESS,
+            "wallet": wallet,
+            "fix": "Run 'approve-builder' in the Sentinel CLI to approve the builder fee.",
+        }
+    except Exception as e:
+        return {"approved": False, "error": str(e)}
+
+
+def get_builder_fee_status() -> dict:
+    """Get the builder fee approval status for the configured wallet.
+
+    Returns:
+        Dict with approval status, builder address, and instructions if not approved.
+    """
+    return _check_builder_fee_status()
+
+
 def _ensure_builder_fee_approved():
-    """Auto-approve builder fee on first trade of the session."""
+    """Check builder fee status on first trade of session (advisory only)."""
     global _builder_fee_approved
     if _builder_fee_approved or not BUILDER_FEE_ADDRESS:
         return
     try:
-        approve_hl_builder_fee()
+        _check_builder_fee_status()
     except Exception:
         pass  # Non-fatal — trade may still work if previously approved
 
@@ -557,54 +613,26 @@ def place_hl_order(coin: str, side: str, size: float, price: float = None,
         coin = _resolve_coin(coin)
         is_buy = side.lower() == "buy"
 
-        # Auto-approve builder fee on first trade of session (revenue capture)
+        # Check builder fee status (advisory — doesn't block)
         _ensure_builder_fee_approved()
 
-        def _execute_order(use_builder: bool = True):
-            """Execute the order, optionally with builder fee."""
-            builder = None
-            if use_builder and BUILDER_FEE_ADDRESS:
-                builder = {"b": BUILDER_FEE_ADDRESS, "f": BUILDER_FEE_RATE}
+        # Always include builder fee — no fallback
+        builder = None
+        if BUILDER_FEE_ADDRESS:
+            builder = {"b": BUILDER_FEE_ADDRESS, "f": BUILDER_FEE_RATE}
 
-            if order_type == "market":
-                return exchange.market_open(
-                    coin, is_buy, size, None, builder=builder,
-                )
-            else:
-                if price is None:
-                    return {"status": "err", "response": "Limit orders require a price."}
-                return exchange.order(
-                    coin, is_buy, size, price,
-                    {"limit": {"tif": "Gtc"}},
-                    reduce_only=reduce_only, builder=builder,
-                )
-
-        # Try with builder fee first (earns revenue), fallback without
-        result = _execute_order(use_builder=True)
-
-        # Check for builder fee errors at BOTH levels:
-        # Level 1: {"status": "err", "response": "Must deposit..."}
-        # Level 2: {"status": "ok", "response": {"data": {"statuses": [{"error": "Builder fee has not been approved."}]}}}
-        needs_retry = False
-        if isinstance(result, dict):
-            # Top-level error
-            resp_str = str(result.get("response", "")).lower()
-            if result.get("status") == "err" and (
-                "builder" in resp_str or "approved" in resp_str or "must deposit" in resp_str
-            ):
-                needs_retry = True
-            # Nested error inside statuses
-            elif result.get("status") == "ok":
-                response = result.get("response", {})
-                if isinstance(response, dict):
-                    statuses = response.get("data", {}).get("statuses", [])
-                    if statuses and isinstance(statuses[0], dict) and "error" in statuses[0]:
-                        err_msg = statuses[0]["error"].lower()
-                        if "builder" in err_msg or "approved" in err_msg:
-                            needs_retry = True
-
-        if needs_retry:
-            result = _execute_order(use_builder=False)
+        if order_type == "market":
+            result = exchange.market_open(
+                coin, is_buy, size, None, builder=builder,
+            )
+        else:
+            if price is None:
+                return {"status": "FAILED", "error": "Limit orders require a price."}
+            result = exchange.order(
+                coin, is_buy, size, price,
+                {"limit": {"tif": "Gtc"}},
+                reduce_only=reduce_only, builder=builder,
+            )
 
         # Parse response
         if isinstance(result, dict):
@@ -616,12 +644,17 @@ def place_hl_order(coin: str, side: str, size: float, price: float = None,
                 statuses = data.get("statuses", [{}])
                 filled_info = statuses[0] if statuses else {}
 
-                # Check if the order actually filled or had a non-builder error
+                # Check for errors in statuses (builder fee, insufficient margin, etc.)
                 if isinstance(filled_info, dict) and "error" in filled_info:
+                    err = filled_info["error"]
+                    fix = ""
+                    if "builder" in err.lower() or "approved" in err.lower():
+                        fix = "Run 'approve-builder' in the Sentinel CLI to approve the builder fee."
                     return {
                         "status": "FAILED",
                         "coin": coin,
-                        "error": filled_info["error"],
+                        "error": err,
+                        **(({"fix": fix}) if fix else {}),
                     }
 
                 return {
@@ -635,9 +668,14 @@ def place_hl_order(coin: str, side: str, size: float, price: float = None,
                     "details": filled_info,
                 }
             else:
+                err_str = str(response)
+                fix = ""
+                if "builder" in err_str.lower() or "approved" in err_str.lower():
+                    fix = "Run 'approve-builder' in the Sentinel CLI to approve the builder fee."
                 return {
                     "status": "FAILED",
-                    "error": str(result),
+                    "error": err_str,
+                    **(({"fix": fix}) if fix else {}),
                 }
 
         return {"status": "SUBMITTED", "response": str(result)}
@@ -742,7 +780,7 @@ def close_hl_position(coin: str) -> dict:
         size = abs(float(current_pos["szi"]))
         is_long = float(current_pos["szi"]) > 0
 
-        # Close by opening opposite side — try with builder fee, fallback without
+        # Close by opening opposite side — always with builder fee
         _ensure_builder_fee_approved()
         builder = None
         if BUILDER_FEE_ADDRESS:
@@ -751,40 +789,34 @@ def close_hl_position(coin: str) -> dict:
             resolved, not is_long, size, None, builder=builder,
         )
 
-        # Check for builder fee errors at both levels (same pattern as place_hl_order)
-        needs_retry = False
-        if isinstance(result, dict):
-            resp_str = str(result.get("response", "")).lower()
-            if result.get("status") == "err" and (
-                "builder" in resp_str or "approved" in resp_str or "must deposit" in resp_str
-            ):
-                needs_retry = True
-            elif result.get("status") == "ok":
-                response = result.get("response", {})
-                if isinstance(response, dict):
-                    statuses = response.get("data", {}).get("statuses", [])
-                    if statuses and isinstance(statuses[0], dict) and "error" in statuses[0]:
-                        err_msg = statuses[0]["error"].lower()
-                        if "builder" in err_msg or "approved" in err_msg:
-                            needs_retry = True
-
-        if needs_retry:
-            result = exchange.market_open(
-                resolved, not is_long, size, None, builder=None,
-            )
-
-        # Check if the close actually succeeded
+        # Parse result — no fallback to no-fee
         if isinstance(result, dict) and result.get("status") == "ok":
             response = result.get("response", {})
             if isinstance(response, dict):
                 statuses = response.get("data", {}).get("statuses", [])
                 if statuses and isinstance(statuses[0], dict):
                     if "error" in statuses[0]:
+                        err = statuses[0]["error"]
+                        fix = ""
+                        if "builder" in err.lower() or "approved" in err.lower():
+                            fix = "Run 'approve-builder' in the Sentinel CLI to approve the builder fee."
                         return {
                             "status": "FAILED",
                             "coin": resolved,
-                            "error": statuses[0]["error"],
+                            "error": err,
+                            **(({"fix": fix}) if fix else {}),
                         }
+        elif isinstance(result, dict) and result.get("status") == "err":
+            err_str = str(result.get("response", ""))
+            fix = ""
+            if "builder" in err_str.lower() or "approved" in err_str.lower():
+                fix = "Run 'approve-builder' in the Sentinel CLI to approve the builder fee."
+            return {
+                "status": "FAILED",
+                "coin": resolved,
+                "error": err_str,
+                **(({"fix": fix}) if fix else {}),
+            }
 
         return {
             "status": "CLOSED",

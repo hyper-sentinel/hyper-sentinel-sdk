@@ -3127,7 +3127,18 @@ def run_chat(config: dict):
             _print_dashboard(config, gateway_ok)
             continue
 
-        if cmd in ("approve-builder", "approve builder", "approve_builder"):
+        if cmd in ("approve-builder", "approve builder", "approve_builder") or cmd.startswith("approve-builder ") or cmd.startswith("approve builder "):
+            # Check if user specified a venue
+            venue = "hl"  # default
+            if "aster" in cmd.lower():
+                venue = "aster"
+
+            if venue == "aster":
+                from sentinel.cli import _approve_aster_builder_fee_step
+                _approve_aster_builder_fee_step(config)
+                continue
+
+            # ── Hyperliquid (default) ──
             try:
                 from sentinel.scrapers.hyperliquid import _check_builder_fee_status
                 status = _check_builder_fee_status()
@@ -3293,6 +3304,7 @@ def run_chat(config: dict):
             console.print("  [s.cyan]add fred[/]     [s.dim]Configure FRED economic data[/]")
             console.print("  [s.cyan]add x[/]        [s.dim]Configure X/Twitter search[/]")
             console.print("  [s.cyan]approve-builder[/] [s.dim]Approve HL builder fee (one-time)[/]")
+            console.print("  [s.cyan]approve-builder aster[/] [s.dim]Approve Aster builder fee[/]")
             console.print()
             console.print("  [bold cyan]Session[/]")
             console.print("  [s.cyan]clear[/]        [s.dim]Reset conversation context[/]")
