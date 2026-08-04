@@ -142,7 +142,7 @@ Bring your own LLM key; market data and quant tools are always free. When you hi
 | CoinGecko | 10,000+ crypto prices, market caps, search |
 | Yahoo Finance | Stocks, ETFs, analyst recs, options chains |
 | FRED | GDP, CPI, unemployment, Fed rate, VIX, yield curve |
-| DexScreener | DEX pairs, trending tokens, on-chain analytics |
+| DexScreener | DEX pairs, trending/boosted tokens, on-chain analytics (free, no key) |
 
 ## Quantitative Analysis (Built-In)
 

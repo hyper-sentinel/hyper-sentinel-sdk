@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.9.7 — 2026-08-04
+
+### 🔴 Bug Fix — Doubled Portfolio Balance on Unified Accounts
+
+**`get_hl_account_info()` was reporting 2× the real account value** for users on Hyperliquid's
+Unified Account or Portfolio Margin mode. The function summed `accountValue` from both the native
+and xyz dex queries, but on unified accounts both return the same consolidated balance.
+
+- **Account mode detection** — new `_get_account_mode()` queries HL's `userAbstraction` endpoint
+  to detect unified/portfolio-margin vs standard accounts.
+- **Unified accounts** — uses a single `user_state` query for total equity; does not double-sum
+  native + xyz `accountValue` and does not add `spot_value` (already included in unified equity).
+- **Standard accounts** — unchanged, sum-both-dexes logic preserved.
+- **`account_mode` field** — returned in `get_hl_account_info()`, `get_hl_config()`, and
+  `get_portfolio_summary()` responses for transparency.
+- **`get_hl_config()` `total_balance`** — same fix applied; no longer sums `perps + xyz + spot`
+  on unified accounts.
+
+### ⚠️ Impact
+
+- Account equity, leverage calculations, and risk assessments are now correct
+- No changes to trade execution, positions, orderbook, or billing
+- Version synced across `pyproject.toml`, `__init__.py`, `TOOLS.md`, `docs.go`, SDK docs
+
+---
+
 ## v0.9.4 — 2026-06-26
 
 ### 🔴 Identity Fix (cont.) — stale config key no longer blocks registration

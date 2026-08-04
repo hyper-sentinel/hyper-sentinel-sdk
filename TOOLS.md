@@ -1,6 +1,6 @@
 # Sentinel Tool Reference
 
-> **69 tools** across 10 categories. Updated for v0.9.1.
+> **69 tools** across 10 categories. Updated for v0.9.7.
 >
 > Tools are called automatically by the AI agent based on your natural language input.
 > Some tools require API keys — type `add` in the terminal to configure.

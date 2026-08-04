@@ -54,6 +54,7 @@ def get_portfolio_summary() -> dict:
             venues["hyperliquid"] = {
                 "status": "connected",
                 "equity": hl_equity,
+                "account_mode": account.get("account_mode", "unknown"),
                 "margin_used": float(account.get("total_margin_used", 0)),
                 "withdrawable": float(account.get("withdrawable", 0)),
                 "positions": len(hl_positions),

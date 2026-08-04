@@ -93,6 +93,31 @@ TRADFI_ALIASES = {
 _PERP_DEXES = ["", "xyz"]
 
 
+def _get_account_mode(wallet: str) -> str:
+    """Detect Hyperliquid account mode (Unified, Portfolio Margin, or Standard).
+
+    Unified and Portfolio Margin accounts share a single margin pool across
+    all dexes, so querying user_state on both native and xyz returns the SAME
+    accountValue.  Standard accounts have separate pools per dex.
+
+    Returns:
+        One of: 'unifiedAccount', 'portfolioMargin', 'disabled', 'default'.
+        Falls back to 'default' (standard) on any error.
+    """
+    try:
+        r = requests.post("https://api.hyperliquid.xyz/info", json={
+            "type": "userAbstraction",
+            "user": wallet,
+        }, timeout=10)
+        mode = r.json()
+        if isinstance(mode, str):
+            return mode
+        return "default"
+    except Exception:
+        return "default"
+
+
+
 def _resolve_coin(coin: str) -> str:
     """
     Resolve a human-friendly coin name to the correct HL API identifier.
@@ -326,9 +351,11 @@ def get_hl_config() -> dict:
     """
     Show the current Hyperliquid configuration status.
     Checks connectivity to both native crypto and TradFi (xyz) dexes.
+    Detects account mode (Unified/Portfolio Margin/Standard) to avoid
+    double-counting equity.
 
     Returns:
-        Wallet address, trading capability, and connection status for all dexes.
+        Wallet address, trading capability, connection status, and account mode.
     """
     wallet = _derive_wallet()
     private_key = os.getenv("HYPERLIQUID_PRIVATE_KEY", "").strip()
@@ -343,6 +370,10 @@ def get_hl_config() -> dict:
     if wallet:
         try:
             info, _ = _get_info()
+            account_mode = _get_account_mode(wallet)
+            config["account_mode"] = account_mode
+            is_unified = account_mode in ("unifiedAccount", "portfolioMargin")
+
             # Check native crypto dex
             user_state = info.user_state(wallet, dex="")
             config["connection"] = "Connected"
@@ -357,9 +388,8 @@ def get_hl_config() -> dict:
             except Exception:
                 config["xyz_connection"] = "Error"
 
-            # Spot balance (unified account)
+            # Spot balance
             try:
-                import requests
                 r = requests.post("https://api.hyperliquid.xyz/info", json={
                     "type": "spotClearinghouseState",
                     "user": wallet,
@@ -370,10 +400,15 @@ def get_hl_config() -> dict:
                     if b.get("coin") == "USDC":
                         spot_usdc = float(b.get("total", 0))
                 config["spot_usdc"] = str(round(spot_usdc, 2))
-                # Combined total
+                # Combined total — avoid double-counting on unified accounts
                 perps_val = float(config.get("account_value", 0))
                 xyz_val = float(config.get("xyz_account_value", 0))
-                config["total_balance"] = str(round(perps_val + xyz_val + spot_usdc, 2))
+                if is_unified:
+                    # Unified: accountValue already includes all equity
+                    config["total_balance"] = str(round(perps_val, 2))
+                else:
+                    # Standard: separate pools, sum them
+                    config["total_balance"] = str(round(perps_val + xyz_val + spot_usdc, 2))
             except Exception:
                 pass
 
@@ -386,15 +421,19 @@ def get_hl_config() -> dict:
 def get_hl_account_info() -> dict:
     """
     Get Hyperliquid account balances and margin info across all dexes.
-    Aggregates equity from both native crypto and TradFi (xyz) perps.
+    Detects account mode (Unified/Portfolio Margin/Standard) to avoid
+    double-counting equity on unified accounts.
 
     Returns:
-        Total account equity, margin, and per-dex breakdown.
+        Total account equity, margin, per-dex breakdown, and account_mode.
     """
     try:
         info, wallet = _get_info()
         if not wallet:
             return {"error": "HYPERLIQUID_WALLET_ADDRESS not set in .env. Use 'add hl' to configure."}
+
+        account_mode = _get_account_mode(wallet)
+        is_unified = account_mode in ("unifiedAccount", "portfolioMargin")
 
         total_value = 0.0
         total_margin = 0.0
@@ -409,11 +448,24 @@ def get_hl_account_info() -> dict:
                 val = float(margin.get("accountValue", 0))
                 mgn = float(margin.get("totalMarginUsed", 0))
                 ntl = float(margin.get("totalNtlPos", 0))
-                total_value += val
-                total_margin += mgn
-                total_ntl += ntl
-                if dex == "":
-                    withdrawable = user_state.get("withdrawable", "0")
+
+                if is_unified:
+                    # Unified/PM: both dexes return the SAME consolidated
+                    # accountValue — only count it once (from native dex).
+                    # Margin used per dex is still useful for breakdown.
+                    if dex == "":
+                        total_value = val
+                        withdrawable = user_state.get("withdrawable", "0")
+                    total_margin += mgn
+                    total_ntl += ntl
+                else:
+                    # Standard: separate pools per dex, sum them
+                    total_value += val
+                    total_margin += mgn
+                    total_ntl += ntl
+                    if dex == "":
+                        withdrawable = user_state.get("withdrawable", "0")
+
                 dex_label = dex or "native"
                 dex_breakdown[dex_label] = {
                     "account_value": str(val),
@@ -422,7 +474,7 @@ def get_hl_account_info() -> dict:
             except Exception:
                 pass  # One dex failing shouldn't block the other
 
-        # ── Spot balances (unified account) ──────────────────────
+        # ── Spot balances ─────────────────────────────────────────
         spot_balances = []
         spot_value = 0.0
         try:
@@ -440,15 +492,23 @@ def get_hl_account_info() -> dict:
                         "total": str(round(total, 6)),
                         "hold": b.get("hold", "0"),
                     })
-                    # USDC counts toward total value
+                    # USDC counts toward total value on standard accounts
                     if coin == "USDC":
                         spot_value += total
         except Exception:
             pass  # Spot query failure shouldn't block perps data
 
+        # On unified accounts, accountValue already includes spot equity,
+        # so don't add spot_value again.
+        if is_unified:
+            account_value = total_value
+        else:
+            account_value = total_value + spot_value
+
         return {
             "wallet": wallet,
-            "account_value": str(round(total_value + spot_value, 2)),
+            "account_mode": account_mode,
+            "account_value": str(round(account_value, 2)),
             "perps_value": str(round(total_value, 2)),
             "spot_value": str(round(spot_value, 2)),
             "spot_balances": spot_balances,
