@@ -12,6 +12,7 @@ Auth: HYPERLIQUID_PRIVATE_KEY + HYPERLIQUID_WALLET_ADDRESS in .env
 
 import os
 import json
+import time
 import requests
 
 # ── Builder Fee Configuration ──
@@ -22,9 +23,13 @@ BUILDER_FEE_ADDRESS = os.getenv("HYPERLIQUID_BUILDER_FEE_ADDRESS", _SENTINEL_LAB
 BUILDER_FEE_RATE = 10  # tenths of a BPS → 10 = 1 BPS = 0.01%
 _builder_fee_approved = False  # Module-level flag — only approve once per session
 
-# ── TradFi / Commodity Aliases ──
-# Maps user-friendly names → xyz dex coin names so the LLM can just say "GOLD" or "SPCX"
-# v0.9.5: ALL 97 xyz dex assets — synced from live HL API 2026-06-30
+# ── TradFi nicknames ──
+# Friendly names that are not the live coin id. The live native + xyz books
+# are fetched at resolve time, so a new xyz listing works without a release.
+# This map is only the names that differ from the listed symbol.
+# SPX stays the index perp (xyz:SP500). Native SPX is the SPX6900 memecoin.
+# v0.9.5 base list synced 2026-06-30; identity rows kept so a cold cache
+# still routes the names we already shipped.
 TRADFI_ALIASES = {
     # ── Commodities ────────────────────────────────────────────
     "GOLD": "xyz:GOLD", "XAU": "xyz:GOLD",
@@ -92,6 +97,117 @@ TRADFI_ALIASES = {
 # Add future HIP-3 dexes here — all read functions auto-expand.
 _PERP_DEXES = ["", "xyz"]
 
+# Live perp names. Bare symbols only (BTC, TSLA), not dex prefixes.
+_UNIVERSE_TTL_S = 600
+_HL_INFO = "https://api.hyperliquid.xyz/info"
+_universe_cache = {
+    "fetched_at": 0.0,
+    "native": frozenset(),
+    "xyz": frozenset(),
+    "ok": False,
+}
+
+
+def _fetch_universe_names(dex: str) -> set:
+    """Bare perp symbols for one Hyperliquid dex. dex='' is the native book."""
+    payload = {"type": "meta"}
+    if dex:
+        payload["dex"] = dex
+    r = requests.post(_HL_INFO, json=payload, timeout=10)
+    r.raise_for_status()
+    names = set()
+    for entry in r.json().get("universe", []):
+        name = str(entry.get("name", "")).strip()
+        if not name:
+            continue
+        if ":" in name:
+            book, sym = name.split(":", 1)
+            if dex and book != dex:
+                continue
+            names.add(sym)
+        else:
+            names.add(name)
+    return names
+
+
+def refresh_hl_universe(force: bool = False) -> bool:
+    """Cache native and xyz listings for 10 minutes. Fail closed if this is empty."""
+    now = time.time()
+    if (
+        not force
+        and _universe_cache["ok"]
+        and now - _universe_cache["fetched_at"] < _UNIVERSE_TTL_S
+    ):
+        return True
+    try:
+        native = _fetch_universe_names("")
+        xyz = _fetch_universe_names("xyz")
+    except Exception:
+        return bool(_universe_cache["ok"])
+    if not native or not xyz:
+        return bool(_universe_cache["ok"])
+    _universe_cache["fetched_at"] = now
+    _universe_cache["native"] = frozenset(native)
+    _universe_cache["xyz"] = frozenset(xyz)
+    _universe_cache["ok"] = True
+    return True
+
+
+def _listed_target(target: str, native: frozenset, xyz: frozenset) -> bool:
+    if target.startswith("xyz:"):
+        return target.split(":", 1)[1] in xyz
+    return target in native
+
+
+def _resolve_coin(coin: str) -> str:
+    """
+    Resolve a prompt coin to a live Hyperliquid id Sentinel can route.
+
+    Native perps stay bare (BTC). xyz tradfi perps use the xyz: prefix.
+    Nicknames (OIL, SPX, GOLD) win over a same-named native coin.
+    A bare ticker that is only on xyz resolves to xyz:TICKER, including
+    listings added after the last release. Anything else raises.
+    """
+    raw = (coin or "").strip()
+    if not raw:
+        raise ValueError("Coin is empty.")
+    upper = raw.upper()
+    refresh_hl_universe()
+    native = _universe_cache["native"]
+    xyz = _universe_cache["xyz"]
+    live = bool(_universe_cache["ok"])
+
+    if ":" in upper:
+        dex, sym = upper.split(":", 1)
+        if dex != "XYZ" or not sym:
+            raise ValueError(
+                f"{upper} is not on a book Sentinel routes. "
+                "Executable markets are native crypto perps and xyz tradfi perps."
+            )
+        resolved = f"xyz:{sym}"
+        if live and sym not in xyz:
+            raise ValueError(f"{resolved} is not listed on the xyz book.")
+        return resolved
+
+    if upper in TRADFI_ALIASES:
+        target = TRADFI_ALIASES[upper]
+        if live and not _listed_target(target, native, xyz):
+            raise ValueError(f"{upper} maps to {target}, which is not listed right now.")
+        return target
+
+    if live and upper in xyz:
+        return f"xyz:{upper}"
+    if live and upper in native:
+        return upper
+    if not live:
+        raise ValueError(
+            f"Could not verify {upper} against the live Hyperliquid book. "
+            "Refusing to guess a coin."
+        )
+    raise ValueError(
+        f"{upper} is not listed on native crypto perps or the xyz tradfi book."
+    )
+
 
 def _get_account_mode(wallet: str) -> str:
     """Detect Hyperliquid account mode (Unified, Portfolio Margin, or Standard).
@@ -115,25 +231,6 @@ def _get_account_mode(wallet: str) -> str:
         return "default"
     except Exception:
         return "default"
-
-
-
-def _resolve_coin(coin: str) -> str:
-    """
-    Resolve a human-friendly coin name to the correct HL API identifier.
-    Native perps: 'BTC', 'ETH', 'SOL' → returned as-is (uppercased).
-    TradFi perps: 'GOLD', 'OIL', 'TSLA' → resolved to 'xyz:GOLD', 'xyz:CL', 'xyz:TSLA'.
-    Already-prefixed: 'xyz:GOLD' → returned as-is.
-    """
-    coin = coin.strip()
-    # Already has a dex prefix
-    if ":" in coin:
-        return coin
-    upper = coin.upper()
-    # Check alias map first
-    if upper in TRADFI_ALIASES:
-        return TRADFI_ALIASES[upper]
-    return upper
 
 
 def approve_hl_builder_fee() -> dict:

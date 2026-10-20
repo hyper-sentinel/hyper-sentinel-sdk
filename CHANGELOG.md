@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.9.8 — 2026-10-20
+
+### Models — highest tier is the default
+
+`add ai` and `model` now share one catalog. The first row of each provider is `DEFAULT_MODELS`.
+
+Standard short-context provider rates, checked 2026-10-20:
+
+| Provider | Default id | Input / Output per 1M |
+| --- | --- | --- |
+| Anthropic | `claude-fable-5-1` | $10 / $50 |
+| OpenAI | `gpt-6-astra` | $10 / $50 (≤272k; $20 / $75 above) |
+| xAI | `grok-4.7` | $2 / $6 (<200k; $4 / $12 at and above) |
+| Google | `gemini-4-argon` | $2 / $10 through 2026-11-30, then $4 / $20 |
+| DeepSeek | `deepseek-v4-pro` | peak $1.32 / $3.96 (off-peak is half) |
+| Zhipu | `glm-5.3` | $1.40 / $4.40 |
+| MiniMax | `minimax-m3` | $0.30 / $1.20 (≤512k) |
+| Moonshot | `kimi-k3` | $3 / $15 |
+
+The Go gateway rate card is the live meter (20% markup). This package's `usage.py` estimate now uses the same 20% and the same short-context rates.
+
+### Markets — live native + xyz book
+
+`_resolve_coin` loads native crypto perps and xyz tradfi perps from Hyperliquid (10 minute cache). A new xyz listing resolves without a release. Nicknames still win: `OIL` → `xyz:CL`, `SPX` → `xyz:SP500` (native `SPX` stays the memecoin and is not what a bare `SPX` prompt buys). Other builder dexes are rejected. An unknown coin is rejected instead of being forwarded as a native symbol.
+
+---
+
 ## v0.9.7 — 2026-08-04
 
 ### 🔴 Bug Fix — Doubled Portfolio Balance on Unified Accounts

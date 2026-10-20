@@ -257,16 +257,18 @@ For options queries: call get_options_expirations to discover valid dates, then 
 # Default Models per Provider
 # ══════════════════════════════════════════════════════════════
 
+# Highest-tier model for each provider. Must stay equal to MODEL_CATALOG[provider][0]["id"]
+# so `add ai` and the `model` picker agree. Prices are standard short-context $/MTok,
+# checked 2026-10-20 against provider docs. The gateway rate card is what bills.
 DEFAULT_MODELS = {
-    "anthropic": "claude-sonnet-4-6",   # current; Opus 4.8 / Fable 5 available via fallbacks
-    "openai": "gpt-5.5",
-    "xai": "grok-4.3",
-    "google": "gemini-3.5-flash",
-    # ── Chinese / open-source providers ──
+    "anthropic": "claude-fable-5-1",
+    "openai": "gpt-6-astra",
+    "xai": "grok-4.7",
+    "google": "gemini-4-argon",
     "deepseek": "deepseek-v4-pro",
-    "zhipu":    "glm-5.2",
-    "minimax":  "minimax-m3",
-    "moonshot": "kimi-k2.7-code",
+    "zhipu": "glm-5.3",
+    "minimax": "minimax-m3",
+    "moonshot": "kimi-k3",
 }
 
 PROVIDER_ENDPOINTS = {
@@ -284,40 +286,45 @@ PROVIDER_ENDPOINTS = {
 # ── Model Catalog ─────────────────────────────────────────────
 # Single source of truth: drives the `model` picker (per provider, in display
 # order) and the fallback chains (derived below). label + desc show in the picker.
+# Display order is capability order. Index 0 is the default. desc is standard
+# short-context input/output USD per 1M tokens (see CHANGELOG for step-ups).
 MODEL_CATALOG = {
     "anthropic": [
-        {"id": "claude-sonnet-4-6", "label": "Sonnet 4.6", "desc": "balanced · $3/$15"},
-        {"id": "claude-opus-4-8",   "label": "Opus 4.8",   "desc": "most capable · $5/$25"},
-        {"id": "claude-fable-5",    "label": "Fable 5",    "desc": "most powerful · $10/$50"},
-        {"id": "claude-haiku-4-5",  "label": "Haiku 4.5",  "desc": "fastest · $1/$5"},
+        {"id": "claude-fable-5-1", "label": "Fable 5.1", "desc": "highest tier · $10/$50"},
+        {"id": "claude-opus-5-5", "label": "Opus 5.5", "desc": "daily driver · $4/$20"},
+        {"id": "claude-sonnet-5-5", "label": "Sonnet 5.5", "desc": "fast · $2/$10"},
+        {"id": "claude-haiku-5-5", "label": "Haiku 5.5", "desc": "fastest · from $0.10/$0.50"},
     ],
     "openai": [
-        {"id": "gpt-5.5",      "label": "GPT-5.5",      "desc": "flagship"},
-        {"id": "gpt-5.4",      "label": "GPT-5.4",      "desc": "previous flagship"},
-        {"id": "gpt-5.4-mini", "label": "GPT-5.4 mini", "desc": "fast / cheap"},
+        {"id": "gpt-6-astra", "label": "GPT-6 Astra", "desc": "flagship · $10/$50"},
+        {"id": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "desc": "balanced · $2/$10"},
+        {"id": "gpt-6-luna", "label": "GPT-6 Luna", "desc": "fast / cheap · $0.10/$0.50"},
     ],
     "google": [
-        {"id": "gemini-3.5-flash",      "label": "Gemini 3.5 Flash",      "desc": "most intelligent, efficient"},
-        {"id": "gemini-3.1-pro",        "label": "Gemini 3.1 Pro",        "desc": "flagship reasoning"},
-        {"id": "gemini-3.1-flash-lite", "label": "Gemini 3.1 Flash-Lite", "desc": "budget, high-volume"},
+        {"id": "gemini-4-argon", "label": "Gemini 4 Argon", "desc": "flagship · $2/$10"},
+        {"id": "gemini-3.8-flash", "label": "Gemini 3.8 Flash", "desc": "fast · $0.75/$3.75"},
+        {"id": "gemini-3.1-flash-lite", "label": "Gemini 3.1 Flash-Lite", "desc": "budget · $0.25/$1.50"},
     ],
     "xai": [
-        {"id": "grok-4.3",      "label": "Grok 4.3",      "desc": "flagship · $1.25/$2.50"},
-        {"id": "grok-4.1-fast", "label": "Grok 4.1 Fast", "desc": "fast / cheap"},
+        {"id": "grok-4.7", "label": "Grok 4.7", "desc": "flagship · $2/$6"},
+        {"id": "grok-4.3", "label": "Grok 4.3", "desc": "previous · $1.25/$2.50"},
     ],
-    # ── Chinese / open-source providers ──
     "deepseek": [
-        {"id": "deepseek-v4-pro",   "label": "DeepSeek V4 Pro",   "desc": "1.6T · strongest open-source"},
-        {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "desc": "284B · fast / cheap"},
+        {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "desc": "strongest · peak $1.32/$3.96"},
+        {"id": "deepseek-flash", "label": "DeepSeek Flash", "desc": "fast · peak $0.30/$1.20"},
     ],
     "zhipu": [
-        {"id": "glm-5.2", "label": "GLM 5.2", "desc": "1M context · Zhipu AI"},
+        {"id": "glm-5.3", "label": "GLM 5.3", "desc": "flagship · $1.40/$4.40"},
+        {"id": "glm-5.2", "label": "GLM 5.2", "desc": "previous · $1.40/$4.40"},
+        {"id": "glm-5.3-flash", "label": "GLM 5.3 Flash", "desc": "fast · $0.15/$0.50"},
     ],
     "minimax": [
-        {"id": "minimax-m3", "label": "Minimax M3", "desc": "agentic · reasoning"},
+        {"id": "minimax-m3", "label": "MiniMax M3", "desc": "flagship · $0.30/$1.20"},
     ],
     "moonshot": [
-        {"id": "kimi-k2.7-code", "label": "Kimi K2.7", "desc": "code + agentic · Moonshot AI"},
+        {"id": "kimi-k3", "label": "Kimi K3", "desc": "flagship · $3/$15"},
+        {"id": "kimi-k2.7-code", "label": "Kimi K2.7 Code", "desc": "coding · $0.95/$4"},
+        {"id": "kimi-k2.6", "label": "Kimi K2.6", "desc": "general · $0.95/$4"},
     ],
 }
 
@@ -332,7 +339,7 @@ def _resolve_model(config: dict, provider: str) -> str:
     saved = config.get("model")
     if saved and any(m["id"] == saved for m in MODEL_CATALOG.get(provider, [])):
         return saved
-    return DEFAULT_MODELS.get(provider, "claude-sonnet-4-6")
+    return DEFAULT_MODELS.get(provider, "claude-fable-5-1")
 
 
 # Maximum wall-clock seconds the agent tool-use loop may run per prompt.
@@ -3251,7 +3258,7 @@ def run_chat(config: dict):
                             provider = new_provider
                             # New provider → drop any saved model override, use its default
                             config.pop("model", None)
-                            model_name = DEFAULT_MODELS.get(new_provider, "claude-sonnet-4-6")
+                            model_name = DEFAULT_MODELS.get(new_provider, "claude-fable-5-1")
                             config["ai_key"] = ai_key
                             config["ai_provider"] = provider
                             # Reset gateway key so it re-registers with new AI key

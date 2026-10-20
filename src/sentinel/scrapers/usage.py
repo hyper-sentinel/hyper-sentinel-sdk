@@ -12,7 +12,8 @@ Revenue model:
   billed_cost = actual_cost * (1 + MARKUP_PCT)
   profit      = billed_cost - actual_cost
 
-Default markup: 30% (configurable via SENTINEL_MARKUP_PCT env var)
+Default markup: 20% (configurable via SENTINEL_MARKUP_PCT env var).
+The live meter is the Go gateway (LLM_MARKUP). This module is a local estimate only.
 """
 
 import os
@@ -24,13 +25,41 @@ from typing import Optional
 
 logger = logging.getLogger("sentinel.usage")
 
-# ── Cost per million tokens (updated June 2026) ─────────────────
+# ── Cost per million tokens (standard short-context, checked 2026-10-20) ─
 # Format: {model_prefix: (input_cost_per_mtok, output_cost_per_mtok)}
+# Longer prefixes must come first: matching is "prefix in model string".
+# Live billing is the gateway rate card, not this dict.
 MODEL_COSTS = {
-    # ── Anthropic ──────────────────────────────────────────────
+    # ── Current catalog (keep in sync with chat.MODEL_CATALOG) ─
+    "claude-fable-5-1":    (10.00, 50.00),
+    "claude-fable-5":      (10.00, 50.00),
+    "claude-opus-5-5":     (4.00, 20.00),
+    "claude-sonnet-5-5":   (2.00, 10.00),
+    "claude-haiku-5-5":    (0.10, 0.50),
+    "gpt-6-astra":         (10.00, 50.00),
+    "gpt-6.1-sol":         (2.00, 10.00),
+    "gpt-6-luna":          (0.10, 0.50),
+    "gpt-5.5":             (5.00, 30.00),
+    "gemini-4-argon":      (2.00, 10.00),
+    "gemini-3.8-flash":    (0.75, 3.75),
+    "gemini-3.1-flash-lite": (0.25, 1.50),
+    "grok-4.7":            (2.00, 6.00),
+    "grok-4.3":            (1.25, 2.50),
+    "deepseek-v4-pro":     (1.32, 3.96),
+    "deepseek-flash":      (0.30, 1.20),
+    "deepseek-v4-flash":   (0.30, 1.20),
+    "glm-5.3-flash":       (0.15, 0.50),
+    "glm-5.3":             (1.40, 4.40),
+    "glm-5.2":             (1.40, 4.40),
+    "minimax-m3":          (0.30, 1.20),
+    "kimi-k3":             (3.00, 15.00),
+    "kimi-k2.7-code":      (0.95, 4.00),
+    "kimi-k2.6":           (0.95, 4.00),
+    # ── Older ids still seen in logs ───────────────────────────
+    "claude-opus-4-8":     (5.00, 25.00),
     "claude-opus-4":       (15.00, 75.00),   # claude-opus-4-20250514
     "claude-sonnet-4-5":   (3.00, 15.00),    # claude-sonnet-4-5-20250514 (thinking)
-    "claude-sonnet-4":     (3.00, 15.00),    # claude-sonnet-4-6 (current)
+    "claude-sonnet-4":     (3.00, 15.00),    # claude-sonnet-4-6 (legacy)
     "claude-3-5-sonnet":   (3.00, 15.00),    # claude-3-5-sonnet-20241022 (legacy)
     "claude-3-5-haiku":    (0.80, 4.00),     # claude-3-5-haiku-20241022
     "claude-3-opus":       (15.00, 75.00),   # claude-3-opus-20240229 (legacy)
@@ -39,13 +68,13 @@ MODEL_COSTS = {
     "gpt-4.1":             (2.00, 8.00),     # flagship production model
     "gpt-4.1-mini":        (0.40, 1.60),     # cost-efficient
     "gpt-4.1-nano":        (0.10, 0.40),     # cheapest capable
-    "gpt-4o":              (2.50, 10.00),    # gpt-4o (updated pricing)
     "gpt-4o-mini":         (0.15, 0.60),
+    "gpt-4o":              (2.50, 10.00),    # gpt-4o (updated pricing)
     "gpt-4-turbo":         (10.00, 30.00),   # legacy
     "o3":                  (2.00, 8.00),     # flagship reasoning
     "o4-mini":             (1.10, 4.40),     # fast reasoning (math/code)
-    "o1":                  (15.00, 60.00),   # legacy reasoning
     "o1-mini":             (1.10, 4.40),     # legacy reasoning mini
+    "o1":                  (15.00, 60.00),   # legacy reasoning
     # ── Google Gemini ─────────────────────────────────────────
     "gemini-2.5-pro":      (1.25, 10.00),   # latest pro (≤200K context)
     "gemini-2.5-flash":    (0.30, 2.50),    # latest flash
@@ -60,7 +89,7 @@ MODEL_COSTS = {
 }
 
 # Default markup percentage — configurable via environment
-MARKUP_PCT = float(os.getenv("SENTINEL_MARKUP_PCT", "30")) / 100  # 30% default
+MARKUP_PCT = float(os.getenv("SENTINEL_MARKUP_PCT", "20")) / 100  # matches gateway LLM_MARKUP
 
 # DB path — stored in ~/.sentinel/data/ for persistence across installs
 _DATA_DIR = Path.home() / ".sentinel" / "data"
@@ -103,8 +132,8 @@ def _match_model_cost(model_string: str) -> tuple[float, float]:
         if prefix in model_lower:
             return costs
     # Default fallback: assume mid-range pricing
-    logger.warning(f"Unknown model '{model_string}', using default pricing ($3/$15 per MTok)")
-    return (3.00, 15.00)
+    logger.warning(f"Unknown model '{model_string}', using flagship fallback ($10/$50 per MTok)")
+    return (10.00, 50.00)
 
 
 def log_usage(
