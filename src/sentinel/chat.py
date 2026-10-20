@@ -1740,12 +1740,12 @@ def _fetch_and_format_top(n: int) -> str | None:
 # ══════════════════════════════════════════════════════════════
 
 def _run_tool_smoke_test(api_key: str) -> None:
-    """Run a smoke test across all 69 tool categories and report pass/fail.
+    """Run a smoke test across all 75 tool categories and report pass/fail.
 
     v0.9.2: expanded from 4 probes to full category coverage.
     - Keyless tools: always tested (CoinGecko, YFinance, DexScreener, Aster public, TA/quant/options)
     - Key-gated tools: tested when key present, explicitly skipped+labeled when absent
-    Categories map to all 69 TOOL_SCHEMAS entries.
+    Categories map to all 75 TOOL_SCHEMAS entries.
     """
     import os
 

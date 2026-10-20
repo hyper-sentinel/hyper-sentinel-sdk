@@ -12,7 +12,7 @@
 
 # Hyper-Sentinel
 
-**AI trading terminal with 69 tools.** [See all tools →](TOOLS.md)
+**AI trading terminal with 75 tools.** [See all tools →](TOOLS.md)
 
 One terminal. Multi-LLM. Trade Hyperliquid & Aster — quant + market intel built in.
 
@@ -179,7 +179,7 @@ Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
 | Command | What |
 |---------|------|
 | `status` | Connection health + account info |
-| `tools` | List all 69 available tools |
+| `tools` | List all 75 available tools |
 | `model` | Pick your AI model (Fable, Opus, Sonnet, GPT, Gemini, Grok…) |
 | `add` | Configure exchanges & data sources |
 | `add ai` | Switch LLM provider / change your AI key |
