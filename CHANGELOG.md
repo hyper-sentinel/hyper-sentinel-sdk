@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.9 — 2026-10-21
+
+### 75 tools (+22 new)
+
+Added 18 Aster DEX tools (full order management, trailing stops, countdown cancels,
+order/trade history, margin mode) and 4 new data tools (`get_top_mentions`, `get_token_news`,
+`get_options_expirations`, `get_options_chain`). All documentation updated to reflect 75 tools.
+
+---
+
 ## v0.9.8 — 2026-10-20
 
 ### Models — highest tier is the default
