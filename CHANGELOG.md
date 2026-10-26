@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.9.11 — 2026-10-25
+
+### Fix: version string sync across all files
+
+`sentinel -v` reported `0.9.8` after installing `0.9.9` because `__init__.py`
+was not bumped when `pyproject.toml` was. All version strings now read `0.9.11`:
+`__init__.py.__version__`, `pyproject.toml`, `server.py` (was stuck at 0.9.1),
+`chat.py` system prompt (was stuck at 0.9.4), `api/client.py` and
+`api/resources/tools.py` docstrings (54 → 75 tools), `TOOLS.md` footer.
+
+---
+
 ## v0.9.9 — 2026-10-21
 
 ### 75 tools (+22 new)

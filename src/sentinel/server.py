@@ -281,7 +281,7 @@ def create_app():
             "**Public tools** (no auth): crypto prices, social sentiment, news, macro data.\n\n"
             "**Auth-required tools** (X-API-Key header): DEX trading, account balances, order management."
         ),
-        version="0.9.1",
+        version="0.9.11",
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -311,7 +311,7 @@ def create_app():
     async def root():
         return {
             "name": "Sentinel API",
-            "version": "0.9.1",
+            "version": "0.9.11",
             "engine": "fastapi",
             "tools": registry.tool_count,
             "public_tools": len([t for t in registry.tool_names if t in PUBLIC_TOOLS]),
