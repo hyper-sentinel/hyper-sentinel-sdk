@@ -12,9 +12,9 @@
 
 # Hyper-Sentinel
 
-**AI trading terminal with 75 tools.** [See all tools →](TOOLS.md)
+**AI trading terminal with 42 tools.** [See all tools →](TOOLS.md)
 
-One terminal. Multi-LLM. Trade Hyperliquid & Aster — quant + market intel built in.
+One terminal. Multi-LLM. Trade Hyperliquid — quant + market intel built in.
 
 <br/>
 
@@ -131,7 +131,7 @@ LULU Options — Jan 2028 LEAPS (585 DTE) | $116.74
 
 - **10 prompts per rolling 7-day window** — always free, sign in with any LLM key.
 - **Unlimited prompts** — add a payment method via Stripe. AI calls are billed at a flat **20% markup** over raw provider cost, monthly in arrears. No subscriptions, no tiers.
-- **Trades** carry a 0.01% on-chain builder fee, settled automatically with each order — on both Hyperliquid and Aster.
+- **Trades** carry a 0.01% on-chain builder fee, settled automatically with each order on Hyperliquid.
 
 Bring your own LLM key; market data and quant tools are always free. When you hit the 10-prompt cap the CLI shows an amber panel with your Stripe Checkout link.
 
@@ -158,19 +158,16 @@ Bring your own LLM key; market data and quant tools are always free. When you hi
 | Venue | What |
 |-------|------|
 | Hyperliquid | Perp futures — crypto + TradFi (GOLD, TSLA, SP500) |
-| Aster DEX | Perp futures with leverage |
 
-Type `add hl` or `add aster` inside the terminal to connect.
+Type `add hl` inside the terminal to connect.
 
 ## Intelligence Feeds (Connect Your Keys)
 
 | Source | What |
 |--------|------|
 | X / Twitter | Tweet search, sentiment |
-| Y2 Intelligence | News sentiment (GloriaAI), AI recaps, intelligence reports, audio narrations, monitoring profiles, OSINT feeds |
-| Elfa AI | Trending tokens, social mentions |
 
-Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
+Type `add x` inside the terminal to connect.
 
 ---
 
@@ -179,7 +176,7 @@ Type `add x`, `add y2`, or `add elfa` inside the terminal to connect.
 | Command | What |
 |---------|------|
 | `status` | Connection health + account info |
-| `tools` | List all 75 available tools |
+| `tools` | List all 42 available tools |
 | `model` | Pick your AI model (Fable, Opus, Sonnet, GPT, Gemini, Grok…) |
 | `add` | Configure exchanges & data sources |
 | `add ai` | Switch LLM provider / change your AI key |

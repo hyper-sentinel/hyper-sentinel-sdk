@@ -202,7 +202,7 @@ def _register_with_gateway(ai_key: str) -> dict:
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are Sentinel, a production-grade AI trading agent built by the Hyper-Sentinel project.
-Version: 0.9.11 | Build: October 2026 | Platform: hyper-sentinel SDK (PyPI)
+Version: 0.9.12 | Build: November 2026 | Platform: hyper-sentinel SDK (PyPI)
 
 CAPABILITIES:
 - Real-time crypto prices (CoinGecko — 10,000+ coins)
@@ -210,10 +210,8 @@ CAPABILITIES:
 - Quantitative engine (TA indicators, risk metrics, ML signals, time series forecasts, options analysis)
 - Economic data (FRED — GDP, CPI, unemployment, interest rates)
 - DEX data (DexScreener — pairs, trending tokens, on-chain analytics)
-- Social intelligence (X/Twitter search, Elfa AI trending, Y2 news)
-- DEX trading (Hyperliquid perps, Aster futures)
-- On-chain swaps (Jupiter SOL, Uniswap ETH)
-- Wallet management (generate, import, balance, send)
+- Social intelligence (X/Twitter search)
+- DEX trading (Hyperliquid perps — crypto + TradFi)
 
 RULES:
 - Always use tools to get REAL data. Never fabricate prices, dates, statistics, or metadata.
@@ -475,22 +473,6 @@ TOOL_SCHEMAS = [
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
 
-    # ── News & Sentiment ──────────────────────────────────────
-    {
-        "name": "get_news_sentiment",
-        "description": "Get news sentiment analysis for a topic or asset using Y2 Intelligence. Requires Y2_API_KEY.",
-        "parameters": {
-            "type": "object",
-            "properties": {"query": {"type": "string", "description": "Topic or comma-separated topics to analyze (e.g. 'bitcoin', 'bitcoin,ethereum', 'AI stocks', 'macro')"}},
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "get_news_recap",
-        "description": "Get an AI-generated recap of today's top market news.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-
     # ── DexScreener (free, no key) ─────────────────────────────
     {
         "name": "dexscreener_search",
@@ -531,50 +513,6 @@ TOOL_SCHEMAS = [
         },
     },
 
-    {
-        "name": "get_intelligence_reports",
-        "description": "List AI-generated intelligence reports from Y2. Reports are deep-dive briefs on monitored topics. Returns report IDs for use with get_report_detail.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "limit": {"type": "integer", "description": "Number of reports to return (1-20, default 10)", "default": 10},
-            },
-            "required": [],
-        },
-    },
-    {
-        "name": "get_report_detail",
-        "description": "Get the full content of a specific Y2 intelligence report — AI-written brief, source citations, metadata.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "report_id": {"type": "string", "description": "Report ID from get_intelligence_reports"},
-            },
-            "required": ["report_id"],
-        },
-    },
-    {
-        "name": "get_y2_feeds",
-        "description": "List all available Y2 news feed topics with descriptions. Shows the 19 topics Y2 can monitor.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "get_report_audio",
-        "description": "Get audio narration URL for a Y2 intelligence report.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "report_id": {"type": "string", "description": "Report ID"},
-            },
-            "required": ["report_id"],
-        },
-    },
-    {
-        "name": "list_y2_profiles",
-        "description": "List your Y2 monitoring profiles — what topics you are tracking and delivery schedule. Read-only.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-
     # ── Social (X/Twitter) ────────────────────────────────────
     {
         "name": "search_x",
@@ -586,53 +524,6 @@ TOOL_SCHEMAS = [
                 "max_results": {"type": "integer", "description": "Max tweets to return (default 10)", "default": 10},
             },
             "required": ["query"],
-        },
-    },
-
-    # ── Elfa AI (Social Intelligence) ─────────────────────────
-    {
-        "name": "get_trending_tokens",
-        "description": "Get trending tokens from Elfa AI social intelligence — tokens with rising social mentions.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "search_mentions",
-        "description": "Search social media mentions for a token or topic across platforms.",
-        "parameters": {
-            "type": "object",
-            "properties": {"query": {"type": "string", "description": "Token or topic to search mentions for"}},
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "get_trending_narratives",
-        "description": "Get trending narratives and topics in crypto from social intelligence.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-
-    {
-        "name": "get_top_mentions",
-        "description": "Get top social media mentions for a token/ticker from Elfa AI.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "ticker": {"type": "string", "description": "Token ticker (e.g. BTC, ETH, SOL)"},
-                "time_window": {"type": "string", "description": "Time window: 1h, 6h, 24h, 7d", "default": "24h"},
-                "limit": {"type": "integer", "description": "Max results (default 10)", "default": 10},
-            },
-            "required": ["ticker"],
-        },
-    },
-    {
-        "name": "get_token_news",
-        "description": "Get news mentions for a specific token from social media via Elfa AI.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "ticker": {"type": "string", "description": "Token ticker (e.g. BTC, ETH)"},
-                "limit": {"type": "integer", "description": "Max results (default 10)", "default": 10},
-            },
-            "required": ["ticker"],
         },
     },
 
@@ -893,236 +784,10 @@ TOOL_SCHEMAS = [
     #      get_polymarket_positions, buy_polymarket, sell_polymarket,
     #      get_polymarket_price, get_polymarket_orderbook)
 
-    # ── Aster DEX ─────────────────────────────────────────────
-    {
-        "name": "aster_ticker",
-        "description": "Get current price/ticker info from Aster DEX for a futures pair.",
-        "parameters": {
-            "type": "object",
-            "properties": {"symbol": {"type": "string", "description": "Trading pair (e.g. BTCUSDT, ETHUSDT)"}},
-            "required": ["symbol"],
-        },
-    },
-    {
-        "name": "aster_positions",
-        "description": "Get current open positions on Aster DEX.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "aster_klines",
-        "description": "Get candlestick/kline data from Aster DEX.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (e.g. ETHUSDT)"},
-                "interval": {"type": "string", "description": "Candle interval: 1m, 5m, 15m, 1h, 4h, 1d", "default": "1h"},
-                "limit": {"type": "integer", "description": "Number of candles", "default": 100},
-            },
-            "required": ["symbol"],
-        },
-    },
-
-    {
-        "name": "aster_orderbook",
-        "description": "Get live orderbook (bids/asks) from Aster DEX.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (e.g. BTCUSDT)"},
-                "limit": {"type": "integer", "description": "Depth levels (default 10)", "default": 10},
-            },
-            "required": ["symbol"],
-        },
-    },
-    {
-        "name": "aster_funding_rate",
-        "description": "Get current funding rate and mark price from Aster DEX.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (optional — all pairs if omitted)"},
-            },
-            "required": [],
-        },
-    },
-    {
-        "name": "aster_exchange_info",
-        "description": "Get exchange info from Aster DEX — trading pairs, contract specs, tick sizes.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Specific pair (optional — all pairs if omitted)"},
-            },
-            "required": [],
-        },
-    },
-    {
-        "name": "aster_balance",
-        "description": "Get account balance on Aster DEX futures.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "aster_account_info",
-        "description": "Get full account info from Aster DEX — assets, positions, margins.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "aster_open_orders",
-        "description": "Get all open/pending orders on Aster DEX.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (optional — all pairs if omitted)"},
-            },
-            "required": [],
-        },
-    },
-    {
-        "name": "aster_place_order",
-        "description": "Place an order on Aster DEX futures. Supports market, limit, stop-market, and stop-limit.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (e.g. ETHUSDT)"},
-                "side": {"type": "string", "description": "BUY or SELL"},
-                "order_type": {"type": "string", "description": "MARKET, LIMIT, STOP_MARKET, STOP", "default": "MARKET"},
-                "quantity": {"type": "number", "description": "Order quantity in base asset", "default": 0},
-                "price": {"type": "number", "description": "Limit price (required for LIMIT/STOP orders)"},
-                "stop_price": {"type": "number", "description": "Trigger price for stop orders"},
-                "time_in_force": {"type": "string", "description": "GTC, IOC, FOK", "default": "GTC"},
-                "reduce_only": {"type": "boolean", "description": "Close-only order", "default": False},
-                "usd_amount": {"type": "number", "description": "Order size in USD (alternative to quantity)"},
-            },
-            "required": ["symbol", "side"],
-        },
-    },
-    {
-        "name": "aster_cancel_order",
-        "description": "Cancel an open order on Aster DEX.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair"},
-                "order_id": {"type": "integer", "description": "Order ID to cancel (latest if omitted)"},
-            },
-            "required": ["symbol"],
-        },
-    },
-    {
-        "name": "aster_cancel_all_orders",
-        "description": "Cancel all open orders for a symbol on Aster DEX.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair"},
-            },
-            "required": ["symbol"],
-        },
-    },
-    {
-        "name": "aster_set_leverage",
-        "description": "Set leverage for a symbol on Aster DEX (1-125x).",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair"},
-                "leverage": {"type": "integer", "description": "Leverage multiplier (1-125)"},
-            },
-            "required": ["symbol", "leverage"],
-        },
-    },
-    {
-        "name": "aster_diagnose",
-        "description": "Run comprehensive diagnostics on Aster DEX connection — API key status, connectivity, account access.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "aster_ping",
-        "description": "Check Aster DEX API connectivity and latency.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    # v0.9.5: three Aster tools added
-    {
-        "name": "aster_place_order_confirmed",
-        "description": "Place an order on Aster DEX and poll until fill confirmation (FILLED, CANCELED, TIMEOUT). For market orders, confirms execution. For limit orders, waits up to timeout_seconds.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC', 'ETH')"},
-                "side": {"type": "string", "description": "'BUY' or 'SELL'"},
-                "order_type": {"type": "string", "description": "'MARKET' or 'LIMIT'", "default": "MARKET"},
-                "quantity": {"type": "number", "description": "Contract quantity (or USD amount — auto-detected)"},
-                "price": {"type": "number", "description": "Limit price (required for LIMIT orders)"},
-                "usd_amount": {"type": "number", "description": "Explicit USD amount (preferred over quantity)"},
-                "timeout_seconds": {"type": "number", "description": "Max seconds to wait for confirmation", "default": 15},
-            },
-            "required": ["symbol", "side"],
-        },
-    },
-    {
-        "name": "aster_countdown_cancel",
-        "description": "Dead man's switch — auto-cancel all Aster orders for a symbol if not refreshed within countdown_ms. Call periodically (e.g., every 20s for a 30s timer). Set countdown_ms=0 to disable.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
-                "countdown_ms": {"type": "integer", "description": "Milliseconds until auto-cancel. 0 to disable.", "default": 30000},
-            },
-            "required": ["symbol"],
-        },
-    },
-    {
-        "name": "aster_place_trailing_stop",
-        "description": "Place a trailing stop market order on Aster futures. The stop follows the price at a fixed percentage distance.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
-                "side": {"type": "string", "description": "'SELL' for long positions, 'BUY' for short positions", "default": "SELL"},
-                "quantity": {"type": "number", "description": "Contract size"},
-                "callback_rate": {"type": "number", "description": "Trail distance as percentage (1.0 = 1% trail)", "default": 1.0},
-                "activation_price": {"type": "number", "description": "Optional price at which trailing starts"},
-                "usd_amount": {"type": "number", "description": "Explicit USD amount for auto-conversion"},
-            },
-            "required": ["symbol"],
-        },
-    },
-    {
-        "name": "aster_order_history",
-        "description": "Get recent order history for a symbol on Aster DEX.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
-                "limit": {"type": "integer", "description": "Number of orders to return", "default": 20},
-            },
-            "required": ["symbol"],
-        },
-    },
-    {
-        "name": "aster_trade_history",
-        "description": "Get recent trade fills for a symbol on Aster DEX.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
-                "limit": {"type": "integer", "description": "Number of trades to return", "default": 20},
-            },
-            "required": ["symbol"],
-        },
-    },
-    {
-        "name": "aster_set_margin_mode",
-        "description": "Set margin mode for a symbol on Aster DEX — ISOLATED or CROSSED.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "symbol": {"type": "string", "description": "Trading pair (e.g., 'BTC')"},
-                "margin_type": {"type": "string", "description": "'ISOLATED' or 'CROSSED'", "default": "CROSSED"},
-            },
-            "required": ["symbol"],
-        },
-    },
+    # ── Aster DEX — shelved (v0.9.12) ─────────────────────────
+    # Scraper code intact in scrapers/aster.py. Re-enable by restoring schemas.
+    # {
+    #     "name": "aster_ticke
 
     # {
     #     "name": "tg_read_channel",

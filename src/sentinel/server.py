@@ -1,5 +1,5 @@
 """
-Sentinel REST API Server — Local FastAPI with 75 tools.
+Sentinel REST API Server — Local FastAPI with 42 tools.
 
 Ported from the hyper-sentinel Python engine. Provides the same
 POST /api/v1/tools/{tool_name} interface with auto-generated Swagger docs.
@@ -53,7 +53,7 @@ class RateLimiter:
 # ============================================================================
 
 def _build_registry():
-    """Build the tool registry with all 75 tools."""
+    """Build the tool registry with all 42 tools."""
     from sentinel.tool_registry import ToolRegistry
 
     registry = ToolRegistry()
@@ -281,7 +281,7 @@ def create_app():
             "**Public tools** (no auth): crypto prices, social sentiment, news, macro data.\n\n"
             "**Auth-required tools** (X-API-Key header): DEX trading, account balances, order management."
         ),
-        version="0.9.11",
+        version="0.9.12",
         docs_url="/docs",
         redoc_url="/redoc",
     )

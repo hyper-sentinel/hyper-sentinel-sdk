@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.9.12 — 2026-11-01
+
+### TUI, scope clean, builder fee max
+
+- **Textual TUI**: `sentinel` now launches a full-panel terminal UI (positions, account, sources, streaming copilot) instead of the line-by-line REPL. Fallback to REPL if textual is not installed.
+- **42-tool scope**: Removed Y2 Intelligence (7 tools), Elfa AI (5 tools), and Aster DEX (21 tools) from active TOOL_SCHEMAS. Scraper code retained for future re-enablement.
+- **Builder fee max**: HL approval ceiling raised to 0.05% (was 0.01%). Active per-trade fee stays at 0.01%. Higher ceiling allows future rate adjustments without users re-signing.
+- **6 active sources**: CoinGecko, Yahoo Finance, DexScreener, FRED, Hyperliquid, X.
+
+---
+
 ## v0.9.11 — 2026-10-25
 
 ### Fix: version string sync across all files

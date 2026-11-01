@@ -1,6 +1,6 @@
 # Sentinel Tool Reference
 
-> **75 tools** across 10 categories. Updated for v0.9.11.
+> **42 tools** across 8 categories. Updated for v0.9.12.
 >
 > Tools are called automatically by the AI agent based on your natural language input.
 > Some tools require API keys — type `add` in the terminal to configure.
@@ -47,24 +47,6 @@
 
 ---
 
-## 📰 Y2 Intelligence
-
-*Requires API key (`add y2`) — [Get one at y2.dev](https://y2.dev/app/developers/api-keys)*
-
-| Tool | Description | Example Prompt |
-|------|-------------|---------------|
-| `get_news_sentiment` | News with GloriaAI sentiment (bullish/bearish/neutral + score). 100+ editorial sources. | `"what's the institutional news sentiment on bitcoin?"` |
-| `get_news_recap` | AI-generated summary of news over 12h/24h/3d/7d | `"give me a 7 day recap on crypto and macro"` |
-| `get_intelligence_reports` | List AI-generated deep-dive intelligence briefs | `"show me my latest intelligence reports"` |
-| `get_report_detail` | Full content of a specific intelligence report | `"read report [id]"` |
-| `get_y2_feeds` | List all OSINT feed topics Y2 monitors | `"what topics can Y2 monitor?"` |
-| `get_report_audio` | Audio narration URL for a report (MP3) | `"get me the audio for that report"` |
-| `list_y2_profiles` | Your monitoring profiles — topics, schedule, status (read-only) | `"what Y2 profiles am I subscribed to?"` |
-
-**Valid topics:** `ai`, `ai_agents`, `aptos`, `base`, `bitcoin`, `crypto`, `dats`, `defi`, `ethereum`, `hyperliquid`, `machine_learning`, `macro`, `ondo`, `perps`, `ripple`, `rwa`, `solana`, `tech`, `virtuals`
-
----
-
 ## 🔗 DEX Analytics (DexScreener)
 
 *Free — no API key needed*
@@ -80,16 +62,11 @@
 
 ## 🐦 Social Intelligence
 
-*Requires API keys (`add x`, `add elfa`)*
+*Requires API key (`add x`)*
 
 | Tool | Description | Example Prompt |
 |------|-------------|---------------|
 | `search_x` | Search X (Twitter) for tweets by query | `"search X for Mario Nawfal on bitcoin"` |
-| `get_trending_tokens` | Trending tokens from Elfa AI social intelligence | `"what tokens are trending on social?"` |
-| `search_mentions` | Social media mentions for a token/topic | `"search social mentions for SOL"` |
-| `get_trending_narratives` | Trending narratives in crypto from social data | `"what narratives are trending?"` |
-| `get_top_mentions` | Top mentioned tokens from Elfa AI with volume and sentiment | `"what tokens are most mentioned right now?"` |
-| `get_token_news` | News mentions for a specific token via Elfa AI | `"show me HYPE token news"` |
 
 ---
 
@@ -132,36 +109,6 @@
 
 ---
 
-## 🚀 Trading — Aster DEX
-
-*Requires wallet connection (`add aster`)*
-
-| Tool | Description | Example Prompt |
-|------|-------------|---------------|
-| `aster_ping` | Check Aster DEX API connectivity and latency | `"is Aster online?"` |
-| `aster_ticker` | Current price/ticker for a futures pair | `"what's BTC on Aster?"` |
-| `aster_orderbook` | Live order book (bids/asks) | `"show Aster BTC orderbook"` |
-| `aster_klines` | Candlestick data from Aster | `"get Aster BTC candles"` |
-| `aster_funding_rate` | Current funding rate and mark price | `"what's the BTC funding rate on Aster?"` |
-| `aster_exchange_info` | Exchange info — trading pairs, contract specs, tick sizes | `"show Aster exchange info"` |
-| `aster_diagnose` | Comprehensive diagnostics — API key, connectivity, account access | `"diagnose my Aster connection"` |
-| `aster_balance` | Account balance on Aster DEX futures | `"what's my Aster balance?"` |
-| `aster_account_info` | Full account info — assets, positions, margins | `"show my Aster account"` |
-| `aster_positions` | Current open positions | `"show my Aster positions"` |
-| `aster_open_orders` | All open/pending orders | `"show my Aster open orders"` |
-| `aster_place_order` | Place an order on Aster DEX futures | `"buy 0.01 BTC on Aster"` |
-| `aster_place_order_confirmed` | Place an order and poll until fill confirmation | `"buy 0.01 BTC on Aster and confirm fill"` |
-| `aster_place_trailing_stop` | Place a trailing stop market order | `"place a 2% trailing stop on my Aster BTC"` |
-| `aster_countdown_cancel` | Dead man's switch — auto-cancel all orders if not refreshed | `"set 60s countdown cancel on BTC"` |
-| `aster_cancel_order` | Cancel an open order by ID | `"cancel my Aster BTC order"` |
-| `aster_cancel_all_orders` | Cancel all open orders for a symbol | `"cancel all my Aster BTC orders"` |
-| `aster_set_leverage` | Set leverage for a symbol (1-125x) | `"set Aster BTC to 10x"` |
-| `aster_set_margin_mode` | Set margin mode — ISOLATED or CROSSED | `"set Aster BTC to isolated margin"` |
-| `aster_order_history` | Recent order history for a symbol | `"show my Aster BTC order history"` |
-| `aster_trade_history` | Recent trade fills for a symbol | `"show my Aster BTC fills"` |
-
----
-
 ## 📦 Portfolio & Usage
 
 | Tool | Description | Example Prompt |
@@ -172,4 +119,4 @@
 
 ---
 
-*Sentinel v0.9.11 — [Sentinel Labs LLC](https://hyper-sentinel.com) — AGPL-3.0*
+*Sentinel v0.9.12 — [Sentinel Labs LLC](https://hyper-sentinel.com) — AGPL-3.0*
